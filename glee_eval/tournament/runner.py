@@ -31,6 +31,7 @@ def _state(
     private: dict[str, Any] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> GameState:
+    visible_transcript = _visible_transcript(scenario.game_family, role, round_number, transcript)
     return GameState(
         scenario_id=scenario.scenario_id,
         game_id=game_id,
@@ -40,10 +41,26 @@ def _state(
         horizon=horizon,
         public_parameters=dict(scenario.public_parameters),
         private_parameters=private or {},
-        visible_transcript=list(transcript),
+        visible_transcript=visible_transcript,
         valid_action_schema=_schema(kind, seller_message_type=scenario.public_parameters.get("seller_message_type")),
         metadata=metadata or {},
     )
+
+
+def _visible_transcript(
+    game_family: str,
+    role: str,
+    round_number: int,
+    transcript: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if game_family != "persuasion":
+        return list(transcript)
+    visible: list[dict[str, Any]] = []
+    for item in transcript:
+        if role == "buyer" and item.get("action_type") == "nature_quality" and item.get("round") == round_number:
+            continue
+        visible.append(dict(item))
+    return visible
 
 
 def _decision_record(
@@ -291,4 +308,3 @@ def main(argv: list[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

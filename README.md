@@ -20,11 +20,17 @@ Edit the starter agent:
 my_agents/baseline.py
 ```
 
+The Jordan-inspired strategic-control agent from the redesign PDF is implemented at:
+
+```text
+my_agents/jordan_strategic.py
+```
+
 Run a small experiment:
 
 ```bash
 python -m glee_eval experiment \
-  --agent my_agents.baseline:MyAgent \
+  --agent my_agents.jordan_strategic:MyAgent \
   --name smoke \
   --games 100 \
   --search-population 50 \
@@ -95,7 +101,7 @@ The upstream GLEE repository and generated GLEE-derived data are intentionally i
 
 Do not commit:
 
-- `work/GLEE/`
+- `work/`
 - `data/processed/`
 - `data/empirical/`
 - `reports/`

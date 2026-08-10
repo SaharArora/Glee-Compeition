@@ -16,6 +16,21 @@ def _valid_schema(event: dict[str, Any]) -> dict[str, Any]:
     return {"kind": "decision"}
 
 
+def _filter_visible_transcript(event: dict[str, Any]) -> list[dict[str, Any]]:
+    transcript = event.get("transcript_so_far") or []
+    if event.get("game_family") != "persuasion" or event.get("role") != "buyer":
+        return transcript
+    current_round = int(event.get("round") or 0)
+    visible = []
+    for item in transcript:
+        action_type = item.get("action_type")
+        item_round = int(item.get("round") or 0)
+        if action_type == "nature_quality" and item_round == current_round:
+            continue
+        visible.append(item)
+    return visible
+
+
 def state_from_event(event: dict[str, Any]) -> GameState:
     config = event.get("configuration") or {}
     horizon = int(config.get("max_rounds") or config.get("total_rounds") or 0)
@@ -36,7 +51,7 @@ def state_from_event(event: dict[str, Any]) -> GameState:
         horizon=horizon,
         public_parameters=event.get("public_parameters") or {},
         private_parameters=event.get("private_information") or {},
-        visible_transcript=event.get("transcript_so_far") or [],
+        visible_transcript=_filter_visible_transcript(event),
         valid_action_schema=_valid_schema(event),
         metadata={
             "historical_action": historical,
@@ -73,4 +88,3 @@ def extract_from_processed(data_dir: str | Path = DEFAULT_DATA_DIR, family: str 
     out = Path(data_dir) / "processed" / "probes.jsonl"
     write_jsonl(out, probes)
     return probes
-

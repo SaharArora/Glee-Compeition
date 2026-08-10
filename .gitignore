@@ -7,8 +7,8 @@ __pycache__/
 .venv/
 venv/
 
-# Local upstream checkout and generated artifacts
-work/GLEE/
+# Local upstream checkout, extracted specs, and generated artifacts
+work/
 data/processed/
 data/empirical/
 reports/

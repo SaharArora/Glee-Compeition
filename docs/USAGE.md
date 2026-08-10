@@ -27,6 +27,12 @@ For the included baseline:
 my_agents.baseline:MyAgent
 ```
 
+For the Jordan-inspired evidence-gated strategic-control agent:
+
+```text
+my_agents.jordan_strategic:MyAgent
+```
+
 ## 2. Run Historical Decision Probes
 
 Historical probes ask your agent what it would do at states extracted from real GLEE logs.
@@ -47,7 +53,7 @@ This is the easiest workflow for iterating before a real competition submission.
 
 ```bash
 python -m glee_eval experiment \
-  --agent my_agents.baseline:MyAgent \
+  --agent my_agents.jordan_strategic:MyAgent \
   --name my_agent_v1 \
   --families bargaining,negotiation,persuasion \
   --games 10000 \
@@ -156,7 +162,7 @@ python -m glee_eval calibrate-population --games 10000 --data-dir data --output-
 
 Do not commit:
 
-- `work/GLEE/`
+- `work/`
 - `data/processed/`
 - `data/empirical/`
 - `reports/`
