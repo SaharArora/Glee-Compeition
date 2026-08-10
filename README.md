@@ -1,5 +1,7 @@
 # GLEE Competitor Harness
 
+Towards charisma.
+
 Local evaluation, data generation, and failure mining for GLEE-style bargaining, negotiation, and persuasion agents.
 
 This repository is designed to help you iterate before making a real leaderboard submission:
