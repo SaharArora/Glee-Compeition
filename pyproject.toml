@@ -1,0 +1,11 @@
+[project]
+name = "glee-eval-harness"
+version = "0.1.0"
+description = "Local evaluation and data-generation harness for GLEE-style economic games."
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+

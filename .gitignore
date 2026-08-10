@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local upstream checkout and generated artifacts
+work/GLEE/
+data/processed/
+data/empirical/
+reports/
+runs/
+outputs/
+
+# Local/private files
+.env
+*.key
+*.pem
+litellm/
