@@ -68,10 +68,15 @@ runs/my_agent_v1/search/<family>/elite_episodes.jsonl
 runs/my_agent_v1/datasets/state_action_outcome.jsonl
 runs/my_agent_v1/datasets/episode_summary.jsonl
 runs/my_agent_v1/datasets/failure_cases.jsonl
+runs/my_agent_v1/matches/match_ledger.md
+runs/my_agent_v1/matches/match_ledger.csv
+runs/my_agent_v1/matches/match_ledger.jsonl
 runs/my_agent_v1/hypotheses/hypotheses.md
 ```
 
 Use `state_action_outcome.jsonl` for later analysis/training-data conversion. Use `hypotheses.md` as the first-pass research memo on where the agent seems weak.
+
+Use `matches/match_ledger.md` as the running document for compiled match results. It summarizes all matches and lists the highest-regret rows up to `--match-report-limit` so very large runs do not create an unreadable document. The full match ledger is always available in `matches/match_ledger.csv` and `matches/match_ledger.jsonl`.
 
 ## 4. Run Synthetic Tournaments Only
 

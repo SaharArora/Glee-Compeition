@@ -9,6 +9,7 @@ from glee_eval.adapters.candidate_agent import load_agent
 from glee_eval.config import DEFAULT_DATA_DIR
 from glee_eval.data.schemas import EpisodeResult, to_jsonable
 from glee_eval.experiments.hypotheses import generate_hypotheses, hypotheses_markdown
+from glee_eval.experiments.matches import write_match_ledger
 from glee_eval.probes.runner import run_probes
 from glee_eval.search.adversarial import search_failures
 from glee_eval.storage.trajectories import ensure_dir, write_json, write_jsonl
@@ -107,6 +108,7 @@ def run_experiment(
     search_generations: int = 2,
     search_elite_frac: float = 0.05,
     search_families: list[str] | None = None,
+    match_report_limit: int = 200,
     output_root: str | Path = "runs",
     skip_probes: bool = False,
     skip_search: bool = False,
@@ -127,6 +129,7 @@ def run_experiment(
         "search_generations": search_generations,
         "search_elite_frac": search_elite_frac,
         "search_families": search_families,
+        "match_report_limit": match_report_limit,
         "skip_probes": skip_probes,
         "skip_search": skip_search,
     }
@@ -173,6 +176,12 @@ def run_experiment(
             }
 
     dataset_paths = write_learning_datasets(run_dir, tournament_episodes, elite_episodes)
+    match_paths = write_match_ledger(
+        run_dir,
+        tournament_episodes,
+        elite_episodes,
+        max_report_rows=match_report_limit,
+    )
     hypothesis_report = generate_hypotheses(tournament_episodes, elite_episodes)
     ensure_dir(run_dir / "hypotheses")
     write_json(run_dir / "hypotheses" / "hypotheses.json", hypothesis_report)
@@ -185,6 +194,7 @@ def run_experiment(
         "tournament_metrics": tournament_result["metrics"],
         "search_summaries": search_summaries,
         "dataset_paths": dataset_paths,
+        "match_paths": match_paths,
         "hypothesis_paths": {
             "json": str(run_dir / "hypotheses" / "hypotheses.json"),
             "markdown": str(run_dir / "hypotheses" / "hypotheses.md"),
@@ -209,6 +219,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--search-generations", type=int, default=2)
     parser.add_argument("--search-elite-frac", type=float, default=0.05)
     parser.add_argument("--search-families", default=None)
+    parser.add_argument("--match-report-limit", type=int, default=200)
     parser.add_argument("--output-root", default="runs")
     parser.add_argument("--skip-probes", action="store_true")
     parser.add_argument("--skip-search", action="store_true")
@@ -226,6 +237,7 @@ def main(argv: list[str] | None = None) -> None:
         search_generations=args.search_generations,
         search_elite_frac=args.search_elite_frac,
         search_families=[part for part in args.search_families.split(",") if part] if args.search_families else None,
+        match_report_limit=args.match_report_limit,
         output_root=args.output_root,
         skip_probes=args.skip_probes,
         skip_search=args.skip_search,
@@ -235,4 +247,3 @@ def main(argv: list[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

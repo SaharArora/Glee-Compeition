@@ -41,6 +41,8 @@ Important outputs:
 runs/smoke/datasets/state_action_outcome.jsonl
 runs/smoke/datasets/episode_summary.jsonl
 runs/smoke/datasets/failure_cases.jsonl
+runs/smoke/matches/match_ledger.md
+runs/smoke/matches/match_ledger.csv
 runs/smoke/hypotheses/hypotheses.md
 runs/smoke/manifest.json
 ```
@@ -65,6 +67,19 @@ state_action_outcome.jsonl
 ```
 
 Each row is a candidate decision record that can later be analyzed, filtered, clustered, or converted into training data.
+
+For a human-readable running match digest, use:
+
+```text
+matches/match_ledger.md
+```
+
+For the full one-row-per-match ledger, use:
+
+```text
+matches/match_ledger.csv
+matches/match_ledger.jsonl
+```
 
 ## GLEE Upstream
 
