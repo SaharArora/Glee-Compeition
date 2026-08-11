@@ -33,7 +33,53 @@ For the Jordan-inspired evidence-gated strategic-control agent:
 my_agents.jordan_strategic:MyAgent
 ```
 
-## 2. Run Historical Decision Probes
+## 2. Empirical-First Workflow
+
+Bluntly: if you have access to a large real GLEE dataset, do not use synthetic simulation as the main behavioral dataset. The better workflow is:
+
+```text
+real GLEE games -> dataset audit -> empirical priors/response models -> targeted simulation -> agent iteration
+```
+
+First ingest the real records:
+
+```bash
+python -m glee_eval ingest \
+  --glee-root work/GLEE \
+  --families bargaining,negotiation,persuasion \
+  --sources llm_vs_llm,human_vs_llm \
+  --output-dir data
+```
+
+Then run the audit:
+
+```bash
+python -m glee_eval dataset-audit \
+  --data-dir data \
+  --output-dir reports/dataset_audit
+```
+
+Read:
+
+```text
+reports/dataset_audit/audit.md
+reports/dataset_audit/audit.json
+```
+
+The audit checks:
+
+- games/events by family, source, role, and configuration
+- action distributions and coarse empirical support bins
+- message coverage
+- private/public state key coverage
+- player/model identity availability
+- whether the data is only useful for smoke testing or rich enough to be an empirical foundation
+
+If the verdict is `no_processed_dataset` or `toy_or_smoke_dataset`, do not run huge continuous simulations expecting a serious training set. Get more real data first, and use synthetic games only to verify the harness and find obvious agent failures.
+
+If the verdict is `empirical_foundation_candidate`, make real data the main foundation and use simulation only for counterfactual evaluation, rare cases, adversarial testing, and policy stress tests.
+
+## 3. Run Historical Decision Probes
 
 Historical probes ask your agent what it would do at states extracted from real GLEE logs.
 
@@ -47,9 +93,25 @@ python -m glee_eval probes \
 
 This does not pretend the historical continuation is a counterfactual. It is a cheap decision-quality benchmark.
 
-## 3. Recommended: Run A Full Data-Generation Experiment
+## 4. Run A Simulation Stress-Test Experiment
 
-This is the easiest workflow for iterating before a real competition submission. It runs probes, a synthetic tournament, adversarial scenario search, dataset export, and hypothesis generation into one self-contained run folder.
+This runs probes when processed real data exists, plus a synthetic tournament, adversarial scenario search, dataset export, and hypothesis generation into one self-contained run folder. Treat it as stress testing unless the dataset audit shows that your real GLEE data is too small or unavailable.
+
+Small smoke run:
+
+```bash
+python -m glee_eval experiment \
+  --agent my_agents.jordan_strategic:MyAgent \
+  --name jordan_smoke \
+  --families bargaining,negotiation,persuasion \
+  --games 100 \
+  --probe-limit 100 \
+  --search-population 50 \
+  --search-generations 2 \
+  --seed 42
+```
+
+Larger targeted run after the audit:
 
 ```bash
 python -m glee_eval experiment \
@@ -84,7 +146,7 @@ Use `state_action_outcome.jsonl` for later analysis/training-data conversion. Us
 
 Use `matches/match_ledger.md` as the running document for compiled match results. It summarizes all matches and lists the highest-regret rows up to `--match-report-limit` so very large runs do not create an unreadable document. The full match ledger is always available in `matches/match_ledger.csv` and `matches/match_ledger.jsonl`.
 
-## 4. Run Synthetic Tournaments Only
+## 5. Run Synthetic Tournaments Only
 
 Synthetic tournaments play full games against deterministic opponent archetypes.
 
@@ -104,7 +166,7 @@ reports/my_agent_tournament/episodes.jsonl
 reports/my_agent_tournament/metrics.json
 ```
 
-## 5. Search For Failures Only
+## 6. Search For Failures Only
 
 Use this to generate hard scenarios before working on leaderboard submissions.
 
@@ -126,7 +188,7 @@ reports/my_agent_search/elite_episodes.jsonl
 reports/my_agent_search/summary.json
 ```
 
-## 6. Refresh Historical Data
+## 7. Refresh Historical Data
 
 Small all-family sample:
 
@@ -155,10 +217,11 @@ Then:
 ```bash
 python -m glee_eval validate --data-dir data
 python -m glee_eval stats --data-dir data
+python -m glee_eval dataset-audit --data-dir data --output-dir reports/dataset_audit
 python -m glee_eval calibrate-population --games 10000 --data-dir data --output-dir reports
 ```
 
-## 7. Publishing Guidance
+## 8. Publishing Guidance
 
 Do not commit:
 

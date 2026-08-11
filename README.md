@@ -2,17 +2,20 @@
 
 Towards charisma.
 
-Local evaluation, data generation, and failure mining for GLEE-style bargaining, negotiation, and persuasion agents.
+Local evaluation, empirical-data auditing, and failure mining for GLEE-style bargaining, negotiation, and persuasion agents.
 
 This repository is designed to help you iterate before making a real leaderboard submission:
 
 - Create a candidate agent.
+- Audit real GLEE data before treating simulations as training data.
 - Run historical decision probes.
-- Run synthetic tournaments.
+- Run synthetic tournaments as smoke tests and stress tests.
 - Search for hard failure scenarios.
 - Save structured traces for later analysis, hypothesis generation, and training data construction.
 
 ## Quick Start
+
+Blunt strategy note: if you have access to a large real GLEE dataset, do not make synthetic simulation your primary behavioral dataset. Use real games as the empirical foundation, then use simulation for counterfactuals, adversarial testing, rare cases, and policy stress tests.
 
 Edit the starter agent:
 
@@ -54,6 +57,24 @@ runs/smoke/matches/match_ledger.csv
 runs/smoke/hypotheses/hypotheses.md
 runs/smoke/manifest.json
 ```
+
+## Empirical-First Workflow
+
+If you have the official GLEE data available locally, ingest and audit it before running large simulations:
+
+```bash
+python -m glee_eval ingest --glee-root work/GLEE --output-dir data
+python -m glee_eval dataset-audit --data-dir data --output-dir reports/dataset_audit
+```
+
+Read:
+
+```text
+reports/dataset_audit/audit.md
+reports/dataset_audit/audit.json
+```
+
+If the audit says `toy_or_smoke_dataset` or `no_processed_dataset`, keep simulations small. If it says `empirical_foundation_candidate`, shift effort toward empirical response models and use simulation only for targeted stress tests.
 
 ## What Gets Collected
 

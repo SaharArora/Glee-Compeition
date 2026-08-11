@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 
 from glee_eval.audit import main as audit_main
+from glee_eval.data.dataset_audit import main as dataset_audit_main
 from glee_eval.data.ingest import main as ingest_main
 from glee_eval.data.stats import main as stats_main
 from glee_eval.data.validation import main as validate_main
@@ -18,6 +19,7 @@ def main(argv: list[str] | None = None) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     for name in [
         "audit",
+        "dataset-audit",
         "ingest",
         "validate",
         "stats",
@@ -31,6 +33,8 @@ def main(argv: list[str] | None = None) -> None:
     args, rest = parser.parse_known_args(argv)
     if args.command == "audit":
         audit_main(rest)
+    elif args.command == "dataset-audit":
+        dataset_audit_main(rest)
     elif args.command == "ingest":
         ingest_main(rest)
     elif args.command == "validate":
