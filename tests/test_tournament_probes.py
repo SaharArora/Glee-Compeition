@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from glee_eval.adapters.candidate_agent import HeuristicAgent
 from glee_eval.data.schemas import GameState
 from glee_eval.opponents.policies import PolicyFactory
 from glee_eval.population.sampler import sample_scenario
-from glee_eval.probes.extract import extract_probes
+from glee_eval.probes.extract import extract_from_processed, extract_probes
 from glee_eval.tournament.runner import run_episode, run_tournament
 
 
@@ -64,7 +67,30 @@ class TournamentProbeTests(unittest.TestCase):
         self.assertEqual(len(probes), 1)
         self.assertEqual(probes[0].game_family, "bargaining")
 
+    def test_extract_from_processed_stops_at_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            processed = data_dir / "processed"
+            processed.mkdir(parents=True)
+            event = {
+                "game_id": "g1",
+                "game_family": "bargaining",
+                "role": "player_1",
+                "round": 1,
+                "configuration": {"max_rounds": 2},
+                "public_parameters": {"money_to_divide": 100},
+                "private_information": {},
+                "transcript_so_far": [],
+                "action_type": "offer",
+                "numeric_action": 60,
+                "source": "fixture",
+                "config_id": "c",
+                "terminal_outcome": {"result": "accept"},
+            }
+            (processed / "events.jsonl").write_text(json.dumps(event) + "\n{bad json\n", encoding="utf-8")
+            probes = extract_from_processed(data_dir, limit=1)
+            self.assertEqual(len(probes), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
-

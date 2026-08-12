@@ -41,6 +41,16 @@ def read_jsonl(path: str | Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+def iter_jsonl(path: str | Path) -> Iterable[dict[str, Any]]:
+    p = Path(path)
+    if not p.exists():
+        return
+    with p.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                yield json.loads(line)
+
+
 def write_csv(path: str | Path, records: list[dict[str, Any]]) -> Path:
     p = Path(path)
     ensure_dir(p.parent)

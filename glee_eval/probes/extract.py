@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from glee_eval.config import DEFAULT_DATA_DIR
 from glee_eval.data.schemas import GameState
-from glee_eval.storage.trajectories import read_records, write_jsonl
+from glee_eval.storage.trajectories import iter_jsonl, write_jsonl
 
 
 def _valid_schema(event: dict[str, Any]) -> dict[str, Any]:
@@ -63,7 +63,7 @@ def state_from_event(event: dict[str, Any]) -> GameState:
 
 
 def extract_probes(
-    events: list[dict[str, Any]],
+    events: Iterable[dict[str, Any]],
     family: str | None = None,
     limit: int | None = None,
     include_nature: bool = False,
@@ -83,7 +83,7 @@ def extract_probes(
 
 
 def extract_from_processed(data_dir: str | Path = DEFAULT_DATA_DIR, family: str | None = None, limit: int | None = None) -> list[GameState]:
-    events = read_records(Path(data_dir) / "processed" / "events.jsonl")
+    events = iter_jsonl(Path(data_dir) / "processed" / "events.jsonl")
     probes = extract_probes(events, family=family, limit=limit)
     out = Path(data_dir) / "processed" / "probes.jsonl"
     write_jsonl(out, probes)
