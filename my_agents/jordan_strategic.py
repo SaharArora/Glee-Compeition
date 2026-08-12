@@ -163,7 +163,13 @@ class JordanStrategicAgent(CandidateAgent):
             return None
         remaining = self._remaining(state)
         responder = "player_2" if state.role == "player_1" else "player_1"
-        max_share = 0.76 if remaining > 2 else 0.58
+        mode_cap = {
+            StrategicMode.SAFE: 0.58,
+            StrategicMode.EXPLORE: 0.62,
+            StrategicMode.COMMIT: 0.60,
+            StrategicMode.EXPLOIT: 0.68,
+        }.get(control.mode, 0.58)
+        max_share = min(0.76 if remaining > 2 else 0.56, mode_cap)
         candidates = [round(0.50 + i * 0.02, 2) for i in range(int((max_share - 0.50) / 0.02) + 1)]
         best: tuple[float, float, ResponseEstimate] | None = None
         for self_share in candidates:
@@ -182,7 +188,7 @@ class JordanStrategicAgent(CandidateAgent):
         if best is None:
             return None
         _, share, estimate = best
-        if estimate.support_quality < 0.08 and control.mode != StrategicMode.EXPLORE:
+        if estimate.support_quality < 0.20 and control.mode != StrategicMode.EXPLORE:
             return None
         return self._clip(share, 0.50, max_share), {
             "family": "bargaining",
@@ -364,10 +370,20 @@ class JordanStrategicAgent(CandidateAgent):
         seller_value = control.beliefs["seller_value"]
         buyer_value = control.beliefs["buyer_value"]
         remaining = self._remaining(state)
+        surplus = max(0.0, buyer_value - seller_value)
         margin = 0.025 if remaining > 2 else 0.0
+        if control.mode == StrategicMode.EXPLOIT:
+            capture_floor = 0.16
+        elif control.mode == StrategicMode.COMMIT:
+            capture_floor = 0.18
+        else:
+            capture_floor = 0.22
+        if remaining <= 2:
+            capture_floor = min(capture_floor, 0.10)
+        required_margin = max(margin, surplus * capture_floor)
         if state.role == "seller":
-            return "AcceptOffer" if normalized_price >= seller_value + margin else "RejectOffer"
-        return "AcceptOffer" if normalized_price <= buyer_value - margin else "RejectOffer"
+            return "AcceptOffer" if normalized_price >= seller_value + required_margin else "RejectOffer"
+        return "AcceptOffer" if normalized_price <= buyer_value - required_margin else "RejectOffer"
 
     def _negotiation_message(self, state: GameState, control: StrategicControl, normalized_price: float) -> str:
         if control.mode == StrategicMode.COMMIT:
@@ -420,12 +436,22 @@ class JordanStrategicAgent(CandidateAgent):
         qualities = {int(item.get("round", 0)): item for item in state.visible_transcript if item.get("action_type") == "nature_quality"}
         truthful = 0
         truth_total = 0
+        yes_on_high = 0
+        high_total = 0
+        yes_on_low = 0
+        low_total = 0
         for item in seller_actions:
             rec = item.get("buy_no_buy") or (item.get("structured") or {}).get("decision")
             quality = qualities.get(int(item.get("round", 0)), {}).get("quality")
             if rec in {"yes", "no"} and quality:
                 truth_total += 1
                 truthful += int((rec == "yes") == (quality == "high-quality"))
+                if quality == "high-quality":
+                    high_total += 1
+                    yes_on_high += int(rec == "yes")
+                elif quality == "low-quality":
+                    low_total += 1
+                    yes_on_low += int(rec == "yes")
         buys_after_yes = 0
         yes_seen = 0
         seller_by_round = {int(item.get("round", 0)): item for item in seller_actions}
@@ -436,6 +462,10 @@ class JordanStrategicAgent(CandidateAgent):
                 yes_seen += 1
                 buys_after_yes += int(item.get("buy_no_buy") == "yes")
         honesty = (truthful + 1) / (truth_total + 2)
+        yes_given_high = (yes_on_high + 2) / (high_total + 3)
+        yes_given_low = (yes_on_low + 1) / (low_total + 3)
+        yes_denominator = p * yes_given_high + (1.0 - p) * yes_given_low
+        posterior_quality_given_yes = (p * yes_given_high / yes_denominator) if yes_denominator > 0 else p
         obedience = (buys_after_yes + 1) / (yes_seen + 2)
         base_ev = p * (v - 1.0) + (1.0 - p) * (c - 1.0)
         return {
@@ -444,6 +474,9 @@ class JordanStrategicAgent(CandidateAgent):
             "low_value": c,
             "base_expected_value": base_ev,
             "seller_honesty": honesty,
+            "yes_given_high": self._clip(yes_given_high, 0.0, 1.0),
+            "yes_given_low": self._clip(yes_given_low, 0.0, 1.0),
+            "posterior_quality_given_yes": self._clip(posterior_quality_given_yes, 0.0, 1.0),
             "receiver_obedience": obedience,
             "receiver_skepticism": 1.0 - obedience,
         }
@@ -494,9 +527,18 @@ class JordanStrategicAgent(CandidateAgent):
         recommendation = last.get("buy_no_buy") or (last.get("structured") or {}).get("decision") or "no"
         if recommendation == "no":
             return "no"
-        posterior_quality = 0.68 if control.beliefs.get("seller_honesty", 0.5) >= 0.55 else 0.52
-        ev = posterior_quality * (control.beliefs["high_value"] - 1.0) + (1.0 - posterior_quality) * (control.beliefs["low_value"] - 1.0)
-        return "yes" if ev >= -0.02 else "no"
+        high_value = control.beliefs["high_value"]
+        low_value = control.beliefs["low_value"]
+        posterior_quality = control.beliefs.get("posterior_quality_given_yes")
+        if posterior_quality is None:
+            posterior_quality = 0.66 if control.beliefs.get("seller_honesty", 0.5) >= 0.60 else control.beliefs.get("base_quality_prob", 0.5)
+        if high_value <= low_value:
+            return "no"
+        break_even_quality = self._clip((1.0 - low_value) / (high_value - low_value), 0.0, 1.0)
+        sample = control.evidence.get("E_sample", 1.0)
+        safety_margin = 0.04 if sample < 1.5 else 0.02
+        ev = posterior_quality * (high_value - 1.0) + (1.0 - posterior_quality) * (low_value - 1.0)
+        return "yes" if posterior_quality >= break_even_quality + safety_margin and ev >= 0.02 else "no"
 
     def _persuasion_message(self, control: StrategicControl, decision: str, quality: str) -> str:
         if decision == "yes":

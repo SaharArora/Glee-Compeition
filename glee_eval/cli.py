@@ -11,6 +11,7 @@ from glee_eval.experiments.run import main as experiment_main
 from glee_eval.population.calibration import main as calibrate_main
 from glee_eval.probes.runner import main as probes_main
 from glee_eval.response_models.train import main as train_response_models_main
+from glee_eval.scoring.shadow import main as shadow_score_main
 from glee_eval.search.adversarial import main as search_main
 from glee_eval.tournament.runner import main as tournament_main
 
@@ -30,6 +31,7 @@ def main(argv: list[str] | None = None) -> None:
         "experiment",
         "calibrate-population",
         "search-failures",
+        "shadow-score",
     ]:
         sub.add_parser(name)
     args, rest = parser.parse_known_args(argv)
@@ -55,6 +57,8 @@ def main(argv: list[str] | None = None) -> None:
         calibrate_main(rest)
     elif args.command == "search-failures":
         search_main(rest)
+    elif args.command == "shadow-score":
+        shadow_score_main(rest)
     else:  # pragma: no cover
         parser.error(f"Unknown command: {args.command}")
 

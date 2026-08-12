@@ -11,6 +11,7 @@ This repository is designed to help you iterate before making a real leaderboard
 - Run historical decision probes.
 - Run synthetic tournaments as smoke tests and stress tests.
 - Search for hard failure scenarios.
+- Estimate an official-style shadow leaderboard score from local reference percentiles.
 - Save structured traces for later analysis, hypothesis generation, and training data construction.
 
 ## Quick Start
@@ -55,6 +56,7 @@ runs/smoke/datasets/failure_cases.jsonl
 runs/smoke/matches/match_ledger.md
 runs/smoke/matches/match_ledger.csv
 runs/smoke/hypotheses/hypotheses.md
+runs/smoke/shadow_score/shadow_score.md
 runs/smoke/manifest.json
 ```
 
@@ -84,6 +86,23 @@ export GLEE_RESPONSE_MODEL=models/response_v0
 ```
 
 With `GLEE_RESPONSE_MODEL` set, `my_agents.jordan_strategic:MyAgent` uses the learned response estimates where support is available and falls back to its original conservative rules elsewhere.
+
+Run a same-seed A/B comparison:
+
+```bash
+unset GLEE_RESPONSE_MODEL
+python -m glee_eval experiment --agent my_agents.jordan_strategic:MyAgent --name ab_rule_jordan_300 --games 300 --seed 20260812
+
+export GLEE_RESPONSE_MODEL=models/response_v0
+python -m glee_eval experiment --agent my_agents.jordan_strategic:MyAgent --name ab_empirical_jordan_300 --games 300 --seed 20260812
+```
+
+Compare:
+
+```text
+runs/ab_rule_jordan_300/shadow_score/shadow_score.md
+runs/ab_empirical_jordan_300/shadow_score/shadow_score.md
+```
 
 ## What Gets Collected
 

@@ -11,6 +11,7 @@ from glee_eval.data.schemas import EpisodeResult, to_jsonable
 from glee_eval.experiments.hypotheses import generate_hypotheses, hypotheses_markdown
 from glee_eval.experiments.matches import write_match_ledger
 from glee_eval.probes.runner import run_probes
+from glee_eval.scoring.shadow import score_run
 from glee_eval.search.adversarial import search_failures
 from glee_eval.storage.trajectories import ensure_dir, write_json, write_jsonl
 from glee_eval.tournament.runner import run_tournament
@@ -112,6 +113,7 @@ def run_experiment(
     output_root: str | Path = "runs",
     skip_probes: bool = False,
     skip_search: bool = False,
+    skip_shadow_score: bool = False,
 ) -> dict[str, Any]:
     families = families or ["bargaining", "negotiation", "persuasion"]
     search_families = search_families or families
@@ -132,6 +134,7 @@ def run_experiment(
         "match_report_limit": match_report_limit,
         "skip_probes": skip_probes,
         "skip_search": skip_search,
+        "skip_shadow_score": skip_shadow_score,
     }
     write_json(run_dir / "config.json", config)
 
@@ -187,6 +190,10 @@ def run_experiment(
     write_json(run_dir / "hypotheses" / "hypotheses.json", hypothesis_report)
     (run_dir / "hypotheses" / "hypotheses.md").write_text(hypotheses_markdown(hypothesis_report), encoding="utf-8")
 
+    shadow_score_result = None
+    if not skip_shadow_score and (Path(data_dir) / "processed" / "games.jsonl").exists():
+        shadow_score_result = score_run(run_dir, data_dir=data_dir)
+
     manifest = {
         "run_dir": str(run_dir),
         "config": config,
@@ -199,6 +206,7 @@ def run_experiment(
             "json": str(run_dir / "hypotheses" / "hypotheses.json"),
             "markdown": str(run_dir / "hypotheses" / "hypotheses.md"),
         },
+        "shadow_score": shadow_score_result,
     }
     write_json(run_dir / "manifest.json", manifest)
     return manifest
@@ -223,6 +231,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--output-root", default="runs")
     parser.add_argument("--skip-probes", action="store_true")
     parser.add_argument("--skip-search", action="store_true")
+    parser.add_argument("--skip-shadow-score", action="store_true")
     args = parser.parse_args(argv)
 
     manifest = run_experiment(
@@ -241,6 +250,7 @@ def main(argv: list[str] | None = None) -> None:
         output_root=args.output_root,
         skip_probes=args.skip_probes,
         skip_search=args.skip_search,
+        skip_shadow_score=args.skip_shadow_score,
     )
     print(json.dumps(manifest, indent=2, sort_keys=True))
 

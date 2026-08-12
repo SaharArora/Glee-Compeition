@@ -126,7 +126,86 @@ Unset the variable to run the original rule-only agent:
 unset GLEE_RESPONSE_MODEL
 ```
 
-## 4. Run Historical Decision Probes
+## 4. Estimate A Shadow Leaderboard Score
+
+GLEE's live leaderboard scores payoff by percentile against the same configuration and role, then maps that percentile to a game rating:
+
+```text
+game rating = 2000 + 8000 * (percentile - 0.5)
+```
+
+The local shadow scorer uses ingested GLEE games as the reference pool. It cannot reproduce the private live opponent-strength adjustment, so treat it as a directional official-style estimate rather than an exact leaderboard replica.
+
+For any experiment run:
+
+```bash
+python -m glee_eval shadow-score \
+  --run-dir runs/empirical_jordan_smoke \
+  --data-dir data
+```
+
+Outputs:
+
+```text
+runs/empirical_jordan_smoke/shadow_score/shadow_score.md
+runs/empirical_jordan_smoke/shadow_score/shadow_score.json
+runs/empirical_jordan_smoke/shadow_score/scored_episodes.csv
+```
+
+New experiment runs create this folder automatically when `data/processed/games.jsonl` exists. Add `--skip-shadow-score` if you want to skip it.
+
+Read the family table first. A strong agent should improve mean percentile in all three families; one weak family will cap the overall score because missing or weak family ratings are averaged into the leaderboard result.
+
+## 5. Run A/B Tests
+
+Use the same seed and run size so differences are mostly from the agent variant, not scenario sampling.
+
+Rule-only Jordan:
+
+```bash
+unset GLEE_RESPONSE_MODEL
+python -m glee_eval experiment \
+  --agent my_agents.jordan_strategic:MyAgent \
+  --name ab_rule_jordan_300 \
+  --families bargaining,negotiation,persuasion \
+  --games 300 \
+  --probe-limit 1000 \
+  --search-population 150 \
+  --search-generations 2 \
+  --seed 20260812
+```
+
+Empirical-model Jordan:
+
+```bash
+export GLEE_RESPONSE_MODEL=models/response_v0
+python -m glee_eval experiment \
+  --agent my_agents.jordan_strategic:MyAgent \
+  --name ab_empirical_jordan_300 \
+  --families bargaining,negotiation,persuasion \
+  --games 300 \
+  --probe-limit 1000 \
+  --search-population 150 \
+  --search-generations 2 \
+  --seed 20260812
+```
+
+Compare:
+
+```text
+runs/ab_rule_jordan_300/shadow_score/shadow_score.md
+runs/ab_empirical_jordan_300/shadow_score/shadow_score.md
+runs/ab_rule_jordan_300/matches/match_ledger.md
+runs/ab_empirical_jordan_300/matches/match_ledger.md
+```
+
+The first decision rule is simple:
+
+- If shadow mean percentile improves without increasing `IR_VIOLATION`, keep the change.
+- If payoff improves but low-support bucket count is high, treat it as a hypothesis, not a proven improvement.
+- If negotiation mean percentile or displayed rating is worse, patch negotiation before running longer tests.
+
+## 6. Run Historical Decision Probes
 
 Historical probes ask your agent what it would do at states extracted from real GLEE logs.
 
@@ -140,7 +219,7 @@ python -m glee_eval probes \
 
 This does not pretend the historical continuation is a counterfactual. It is a cheap decision-quality benchmark.
 
-## 5. Run A Simulation Stress-Test Experiment
+## 7. Run A Simulation Stress-Test Experiment
 
 This runs probes when processed real data exists, plus a synthetic tournament, adversarial scenario search, dataset export, and hypothesis generation into one self-contained run folder. Treat it as stress testing unless the dataset audit shows that your real GLEE data is too small or unavailable.
 
@@ -187,13 +266,14 @@ runs/my_agent_v1/matches/match_ledger.md
 runs/my_agent_v1/matches/match_ledger.csv
 runs/my_agent_v1/matches/match_ledger.jsonl
 runs/my_agent_v1/hypotheses/hypotheses.md
+runs/my_agent_v1/shadow_score/shadow_score.md
 ```
 
 Use `state_action_outcome.jsonl` for later analysis/training-data conversion. Use `hypotheses.md` as the first-pass research memo on where the agent seems weak.
 
 Use `matches/match_ledger.md` as the running document for compiled match results. It summarizes all matches and lists the highest-regret rows up to `--match-report-limit` so very large runs do not create an unreadable document. The full match ledger is always available in `matches/match_ledger.csv` and `matches/match_ledger.jsonl`.
 
-## 6. Run Synthetic Tournaments Only
+## 8. Run Synthetic Tournaments Only
 
 Synthetic tournaments play full games against deterministic opponent archetypes.
 
@@ -213,7 +293,7 @@ reports/my_agent_tournament/episodes.jsonl
 reports/my_agent_tournament/metrics.json
 ```
 
-## 7. Search For Failures Only
+## 9. Search For Failures Only
 
 Use this to generate hard scenarios before working on leaderboard submissions.
 
@@ -235,7 +315,7 @@ reports/my_agent_search/elite_episodes.jsonl
 reports/my_agent_search/summary.json
 ```
 
-## 8. Refresh Historical Data
+## 10. Refresh Historical Data
 
 Small all-family sample:
 
