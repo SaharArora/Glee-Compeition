@@ -79,7 +79,54 @@ If the verdict is `no_processed_dataset` or `toy_or_smoke_dataset`, do not run h
 
 If the verdict is `empirical_foundation_candidate`, make real data the main foundation and use simulation only for counterfactual evaluation, rare cases, adversarial testing, and policy stress tests.
 
-## 3. Run Historical Decision Probes
+## 3. Train Empirical Response Models
+
+This trains lightweight, interpretable response surfaces from processed GLEE events:
+
+```bash
+python -m glee_eval train-response-models \
+  --data-dir data \
+  --output-dir models/response_v0 \
+  --min-support 50 \
+  --alpha 5.0
+```
+
+Outputs:
+
+```text
+models/response_v0/model.json
+models/response_v0/training_summary.json
+models/response_v0/training_report.md
+```
+
+The v0 model estimates:
+
+- bargaining: `P(accept | offered_share, role, round, config, source)`
+- negotiation: `P(AcceptOffer | normalized_price, role, round, surplus, source)`
+- persuasion: `P(buy | recommendation, quality, round, p-bin, message-style, source)`
+
+It also stores support counts and uncertainty. Sparse or out-of-support buckets are penalized at runtime.
+
+Enable the model-backed Jordan agent:
+
+```bash
+export GLEE_RESPONSE_MODEL=models/response_v0
+python -m glee_eval experiment \
+  --agent my_agents.jordan_strategic:MyAgent \
+  --name empirical_jordan_smoke \
+  --games 100 \
+  --probe-limit 1000 \
+  --search-population 100 \
+  --search-generations 2
+```
+
+Unset the variable to run the original rule-only agent:
+
+```bash
+unset GLEE_RESPONSE_MODEL
+```
+
+## 4. Run Historical Decision Probes
 
 Historical probes ask your agent what it would do at states extracted from real GLEE logs.
 
@@ -93,7 +140,7 @@ python -m glee_eval probes \
 
 This does not pretend the historical continuation is a counterfactual. It is a cheap decision-quality benchmark.
 
-## 4. Run A Simulation Stress-Test Experiment
+## 5. Run A Simulation Stress-Test Experiment
 
 This runs probes when processed real data exists, plus a synthetic tournament, adversarial scenario search, dataset export, and hypothesis generation into one self-contained run folder. Treat it as stress testing unless the dataset audit shows that your real GLEE data is too small or unavailable.
 
@@ -146,7 +193,7 @@ Use `state_action_outcome.jsonl` for later analysis/training-data conversion. Us
 
 Use `matches/match_ledger.md` as the running document for compiled match results. It summarizes all matches and lists the highest-regret rows up to `--match-report-limit` so very large runs do not create an unreadable document. The full match ledger is always available in `matches/match_ledger.csv` and `matches/match_ledger.jsonl`.
 
-## 5. Run Synthetic Tournaments Only
+## 6. Run Synthetic Tournaments Only
 
 Synthetic tournaments play full games against deterministic opponent archetypes.
 
@@ -166,7 +213,7 @@ reports/my_agent_tournament/episodes.jsonl
 reports/my_agent_tournament/metrics.json
 ```
 
-## 6. Search For Failures Only
+## 7. Search For Failures Only
 
 Use this to generate hard scenarios before working on leaderboard submissions.
 
@@ -188,7 +235,7 @@ reports/my_agent_search/elite_episodes.jsonl
 reports/my_agent_search/summary.json
 ```
 
-## 7. Refresh Historical Data
+## 8. Refresh Historical Data
 
 Small all-family sample:
 
@@ -218,10 +265,11 @@ Then:
 python -m glee_eval validate --data-dir data
 python -m glee_eval stats --data-dir data
 python -m glee_eval dataset-audit --data-dir data --output-dir reports/dataset_audit
+python -m glee_eval train-response-models --data-dir data --output-dir models/response_v0
 python -m glee_eval calibrate-population --games 10000 --data-dir data --output-dir reports
 ```
 
-## 8. Publishing Guidance
+## 9. Publishing Guidance
 
 Do not commit:
 
@@ -229,6 +277,7 @@ Do not commit:
 - `data/processed/`
 - `data/empirical/`
 - `reports/`
+- `models/`
 - API keys or model-provider configs
 
 The harness should be published as code that expects users to clone GLEE separately.

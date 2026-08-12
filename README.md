@@ -76,6 +76,15 @@ reports/dataset_audit/audit.json
 
 If the audit says `toy_or_smoke_dataset` or `no_processed_dataset`, keep simulations small. If it says `empirical_foundation_candidate`, shift effort toward empirical response models and use simulation only for targeted stress tests.
 
+Train the first empirical response surfaces:
+
+```bash
+python -m glee_eval train-response-models --data-dir data --output-dir models/response_v0
+export GLEE_RESPONSE_MODEL=models/response_v0
+```
+
+With `GLEE_RESPONSE_MODEL` set, `my_agents.jordan_strategic:MyAgent` uses the learned response estimates where support is available and falls back to its original conservative rules elsewhere.
+
 ## What Gets Collected
 
 Every experiment preserves:
@@ -127,6 +136,7 @@ Do not commit:
 - `data/empirical/`
 - `reports/`
 - `runs/`
+- `models/`
 - API keys or model-provider configs
 
 See [docs/USAGE.md](docs/USAGE.md) for the full workflow.

@@ -10,6 +10,7 @@ from glee_eval.data.validation import main as validate_main
 from glee_eval.experiments.run import main as experiment_main
 from glee_eval.population.calibration import main as calibrate_main
 from glee_eval.probes.runner import main as probes_main
+from glee_eval.response_models.train import main as train_response_models_main
 from glee_eval.search.adversarial import main as search_main
 from glee_eval.tournament.runner import main as tournament_main
 
@@ -24,6 +25,7 @@ def main(argv: list[str] | None = None) -> None:
         "validate",
         "stats",
         "probes",
+        "train-response-models",
         "tournament",
         "experiment",
         "calibrate-population",
@@ -43,6 +45,8 @@ def main(argv: list[str] | None = None) -> None:
         stats_main(rest)
     elif args.command == "probes":
         probes_main(rest)
+    elif args.command == "train-response-models":
+        train_response_models_main(rest)
     elif args.command == "tournament":
         tournament_main(rest)
     elif args.command == "experiment":

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import random
 from dataclasses import dataclass
 from enum import Enum
@@ -9,6 +10,7 @@ from typing import Any
 
 from glee_eval.adapters.candidate_agent import CandidateAgent
 from glee_eval.data.schemas import AgentAction, GameState, compact_id
+from glee_eval.response_models.runtime import EmpiricalResponseModel, ResponseEstimate
 
 
 class StrategicMode(str, Enum):
@@ -48,12 +50,14 @@ class JordanStrategicAgent(CandidateAgent):
         explore_evidence_threshold: float = 1.25,
         max_posterior_regret: float = 0.18,
         max_counterfactual_uncertainty: float = 0.30,
+        response_model_path: str | None = None,
     ):
         self.rng = random.Random(seed)
         self.exploit_evidence_threshold = exploit_evidence_threshold
         self.explore_evidence_threshold = explore_evidence_threshold
         self.max_posterior_regret = max_posterior_regret
         self.max_counterfactual_uncertainty = max_counterfactual_uncertainty
+        self.response_model = EmpiricalResponseModel.load(response_model_path or os.getenv("GLEE_RESPONSE_MODEL"))
 
     def decide(self, state: GameState) -> AgentAction:
         if state.game_family == "bargaining":
@@ -75,6 +79,11 @@ class JordanStrategicAgent(CandidateAgent):
 
         if state.valid_action_schema.get("kind") == "offer":
             share = self._bargaining_offer_share(state, control)
+            empirical = self._bargaining_empirical_offer_share(state, control)
+            if empirical:
+                share, empirical_payload = empirical
+            else:
+                empirical_payload = None
             self_gain = round(money * share, 2)
             other_gain = round(money - self_gain, 2)
             structured = {
@@ -86,6 +95,8 @@ class JordanStrategicAgent(CandidateAgent):
                 "evidence": evidence,
                 "beliefs": beliefs,
             }
+            if empirical_payload:
+                structured["empirical_response_model"] = empirical_payload
             return self._action(state, "offer", structured, numeric=self_gain, control=control)
 
         last_offer = self._last_offer(state)
@@ -147,6 +158,39 @@ class JordanStrategicAgent(CandidateAgent):
             share = min(share, 0.58)
         return self._clip(share, 0.50, 0.72)
 
+    def _bargaining_empirical_offer_share(self, state: GameState, control: StrategicControl) -> tuple[float, dict[str, Any]] | None:
+        if not self.response_model:
+            return None
+        remaining = self._remaining(state)
+        responder = "player_2" if state.role == "player_1" else "player_1"
+        max_share = 0.76 if remaining > 2 else 0.58
+        candidates = [round(0.50 + i * 0.02, 2) for i in range(int((max_share - 0.50) / 0.02) + 1)]
+        best: tuple[float, float, ResponseEstimate] | None = None
+        for self_share in candidates:
+            offered_share = 1.0 - self_share
+            estimate = self.response_model.bargaining_acceptance(state, responder, offered_share)
+            if not estimate or estimate.key == "__global__":
+                continue
+            robust_score = (
+                self_share * estimate.probability
+                - 0.12 * estimate.uncertainty
+                - 0.05 * estimate.ood_penalty
+                - 0.01 * estimate.fallback_level
+            )
+            if best is None or robust_score > best[0]:
+                best = (robust_score, self_share, estimate)
+        if best is None:
+            return None
+        _, share, estimate = best
+        if estimate.support_quality < 0.08 and control.mode != StrategicMode.EXPLORE:
+            return None
+        return self._clip(share, 0.50, max_share), {
+            "family": "bargaining",
+            "selected_self_share": share,
+            "selected_offered_share": 1.0 - share,
+            "acceptance_estimate": estimate.to_dict(),
+        }
+
     def _bargaining_accept_threshold(self, state: GameState, control: StrategicControl) -> float:
         remaining = self._remaining(state)
         base = 0.45
@@ -176,6 +220,11 @@ class JordanStrategicAgent(CandidateAgent):
 
         if state.valid_action_schema.get("kind") == "offer":
             normalized_price = self._negotiation_offer_price(state, control)
+            empirical = self._negotiation_empirical_offer_price(state, control)
+            if empirical:
+                normalized_price, empirical_payload = empirical
+            else:
+                empirical_payload = None
             price = round(normalized_price * order, 2)
             structured = {
                 "product_price": price,
@@ -185,6 +234,8 @@ class JordanStrategicAgent(CandidateAgent):
                 "evidence": evidence,
                 "beliefs": beliefs,
             }
+            if empirical_payload:
+                structured["empirical_response_model"] = empirical_payload
             return self._action(state, "offer", structured, numeric=price, control=control)
 
         last_price = self._last_numeric(state)
@@ -267,6 +318,45 @@ class JordanStrategicAgent(CandidateAgent):
         if remaining <= 2:
             price = max(price, buyer_value - max(0.08, control.beliefs["surplus_room"] * 0.40))
         return self._clip(price, min(seller_value, buyer_value), buyer_value)
+
+    def _negotiation_empirical_offer_price(self, state: GameState, control: StrategicControl) -> tuple[float, dict[str, Any]] | None:
+        if not self.response_model:
+            return None
+        seller_value = control.beliefs["seller_value"]
+        buyer_value = control.beliefs["buyer_value"]
+        if buyer_value <= seller_value:
+            return None
+        responder = "buyer" if state.role == "seller" else "seller"
+        low = seller_value
+        high = buyer_value
+        step = 0.02
+        candidates = [round(low + i * step, 4) for i in range(int((high - low) / step) + 1)]
+        candidates.append(high)
+        best: tuple[float, float, ResponseEstimate] | None = None
+        for price in sorted(set(candidates)):
+            estimate = self.response_model.negotiation_acceptance(state, responder, price)
+            if not estimate or estimate.key == "__global__":
+                continue
+            payoff_if_accepted = max(0.0, price - seller_value) if state.role == "seller" else max(0.0, buyer_value - price)
+            robust_score = (
+                payoff_if_accepted * estimate.probability
+                - 0.10 * estimate.uncertainty
+                - 0.04 * estimate.ood_penalty
+                - 0.01 * estimate.fallback_level
+            )
+            if best is None or robust_score > best[0]:
+                best = (robust_score, price, estimate)
+        if best is None:
+            return None
+        _, price, estimate = best
+        if estimate.support_quality < 0.08 and control.mode != StrategicMode.EXPLORE:
+            return None
+        return self._clip(price, low, high), {
+            "family": "negotiation",
+            "selected_normalized_price": price,
+            "responder_role": responder,
+            "acceptance_estimate": estimate.to_dict(),
+        }
 
     def _negotiation_decision(self, state: GameState, control: StrategicControl, normalized_price: float | None) -> str:
         if normalized_price is None:
@@ -371,6 +461,8 @@ class JordanStrategicAgent(CandidateAgent):
         remaining_fraction = self._remaining(state) / max(1, state.horizon)
         if is_high:
             return "yes"
+        if self._persuasion_empirical_low_quality_yes(state, control, quality, remaining_fraction):
+            return "yes"
         if (
             control.mode == StrategicMode.EXPLOIT
             and control.evidence.get("E_receiver_obedient", 1.0) >= self.exploit_evidence_threshold
@@ -378,6 +470,24 @@ class JordanStrategicAgent(CandidateAgent):
         ):
             return "yes"
         return "no"
+
+    def _persuasion_empirical_low_quality_yes(
+        self,
+        state: GameState,
+        control: StrategicControl,
+        quality: str,
+        remaining_fraction: float,
+    ) -> bool:
+        if not self.response_model or quality != "low-quality":
+            return False
+        if remaining_fraction > 0.35 or control.mode != StrategicMode.EXPLOIT:
+            return False
+        yes = self.response_model.persuasion_buy(state, "yes", quality, "I recommend buying this product.")
+        no = self.response_model.persuasion_buy(state, "no", quality, "I recommend passing on this product.")
+        if not yes or yes.key == "__global__" or yes.support_quality < 0.35:
+            return False
+        no_probability = no.probability if no else 0.0
+        return yes.probability - no_probability >= 0.25
 
     def _persuasion_buy_decision(self, state: GameState, control: StrategicControl) -> str:
         last = state.visible_transcript[-1] if state.visible_transcript else {}
