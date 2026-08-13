@@ -8,6 +8,15 @@ from typing import Any
 
 from glee_eval.config import DEFAULT_DATA_DIR
 from glee_eval.data.ingest import as_float
+from glee_eval.data.transcripts import (
+    as_dict as _as_dict,
+    bargaining_offer_self_share as _bargaining_offer_self_share,
+    bargaining_share_to_responder as _bargaining_share_to_responder,
+    last_transcript_action as _last_transcript_action,
+    negotiation_normalized_price as _negotiation_normalized_price,
+    same_round_transcript_item as _same_round_transcript_item,
+    slug_player as _slug_player,
+)
 from glee_eval.response_models.runtime import bargaining_keys, message_style, negotiation_keys, persuasion_keys
 from glee_eval.storage.trajectories import ensure_dir, write_json
 
@@ -17,22 +26,6 @@ def _read_jsonl(path: Path):
         for line in handle:
             if line.strip():
                 yield json.loads(line)
-
-
-def _slug_player(player: str | None) -> str:
-    return str(player or "").strip().lower().replace(" ", "_")
-
-
-def _as_dict(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return value
-    if isinstance(value, str) and value.strip():
-        try:
-            parsed = json.loads(value)
-            return parsed if isinstance(parsed, dict) else {}
-        except json.JSONDecodeError:
-            return {}
-    return {}
 
 
 def _num(value: Any, default: float | None = None) -> float | None:
@@ -49,87 +42,6 @@ def _canonical_segment(event: dict[str, Any]) -> str:
     config_id = str(event.get("config_id") or "unknown")
     role = str(event.get("role") or "unknown")
     return f"{family}|{config_id}|{role}"
-
-
-def _last_transcript_action(event: dict[str, Any], action_type: str) -> dict[str, Any] | None:
-    transcript = event.get("transcript_so_far") or []
-    if isinstance(transcript, str):
-        try:
-            transcript = json.loads(transcript)
-        except json.JSONDecodeError:
-            transcript = []
-    for item in reversed(transcript):
-        if item.get("action_type") == action_type:
-            return item
-    return None
-
-
-def _same_round_transcript_item(event: dict[str, Any], *, role: str | None = None, action_type: str | None = None) -> dict[str, Any] | None:
-    transcript = event.get("transcript_so_far") or []
-    if isinstance(transcript, str):
-        try:
-            transcript = json.loads(transcript)
-        except json.JSONDecodeError:
-            transcript = []
-    round_number = int(_num(event.get("round"), 0) or 0)
-    for item in reversed(transcript):
-        if int(_num(item.get("round"), 0) or 0) != round_number:
-            continue
-        if role is not None and item.get("role") != role:
-            continue
-        if action_type is not None and item.get("action_type") != action_type:
-            continue
-        return item
-    return None
-
-
-def _bargaining_share_to_responder(offer: dict[str, Any], responder_role: str, money: float) -> float | None:
-    if not offer or money <= 0:
-        return None
-    raw = _as_dict(offer.get("raw") or offer.get("raw_record"))
-
-    if offer.get("role") == responder_role and offer.get("self_gain") is not None:
-        value = as_float(offer.get("self_gain"))
-        return None if value is None else value / money
-    if offer.get("role") != responder_role and offer.get("other_gain") is not None:
-        value = as_float(offer.get("other_gain"))
-        return None if value is None else value / money
-
-    gain_keys = [key for key in raw if key.endswith("_gain") and as_float(raw.get(key)) is not None]
-    if not gain_keys:
-        return None
-    proposer_key = f"{_slug_player(raw.get('player') or offer.get('player'))}_gain"
-    if offer.get("role") == responder_role and proposer_key in gain_keys:
-        key = proposer_key
-    else:
-        key = next((candidate for candidate in gain_keys if candidate != proposer_key), None)
-    if key is None:
-        role_key = "alice_gain" if responder_role in {"player_1", "seller"} else "bob_gain"
-        key = role_key if role_key in gain_keys else gain_keys[0]
-    value = as_float(raw.get(key))
-    return None if value is None else value / money
-
-
-def _bargaining_offer_self_share(event: dict[str, Any]) -> float | None:
-    if event.get("game_family") != "bargaining" or event.get("action_type") != "offer":
-        return None
-    config = _as_dict(event.get("configuration") or event.get("public_parameters"))
-    money = _num(config.get("money_to_divide"), 100.0) or 100.0
-    numeric = _num(event.get("numeric_action"), None)
-    if numeric is None or money <= 0:
-        return None
-    return numeric / money
-
-
-def _negotiation_normalized_price(event: dict[str, Any]) -> float | None:
-    if event.get("game_family") != "negotiation" or event.get("action_type") != "offer":
-        return None
-    config = _as_dict(event.get("configuration") or event.get("public_parameters"))
-    order = _num(config.get("product_price_order"), 1_000_000.0) or 1_000_000.0
-    price = _num(event.get("numeric_action"), None)
-    if price is None or order <= 0:
-        return None
-    return price / order
 
 
 def _negotiation_midpoint(config: dict[str, Any]) -> float | None:

@@ -10,6 +10,7 @@ from glee_eval.data.validation import main as validate_main
 from glee_eval.diagnostics.negotiation import main as negotiation_diagnostic_main
 from glee_eval.experiments.run import main as experiment_main
 from glee_eval.population.calibration import main as calibrate_main
+from glee_eval.population.opponent_fit import main as fit_opponents_main
 from glee_eval.probes.runner import main as probes_main
 from glee_eval.response_models.train import main as train_response_models_main
 from glee_eval.scoring.shadow import main as shadow_score_main
@@ -31,6 +32,7 @@ def main(argv: list[str] | None = None) -> None:
         "tournament",
         "experiment",
         "calibrate-population",
+        "fit-opponents",
         "search-failures",
         "shadow-score",
         "negotiation-diagnostic",
@@ -57,6 +59,8 @@ def main(argv: list[str] | None = None) -> None:
         experiment_main(rest)
     elif args.command == "calibrate-population":
         calibrate_main(rest)
+    elif args.command == "fit-opponents":
+        fit_opponents_main(rest)
     elif args.command == "search-failures":
         search_main(rest)
     elif args.command == "shadow-score":

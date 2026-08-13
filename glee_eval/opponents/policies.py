@@ -93,13 +93,33 @@ class NegotiationPolicy(OpponentPolicy):
 
 
 class PersuasionPolicy(OpponentPolicy):
+    """Persuasion opponent driven by the two rates measured off real play.
+
+    `yes_on_low_rate` is P(recommend yes | low quality) and `trust_prior` is
+    P(buy | recommended yes), both fitted per configuration segment. Both are used
+    as probabilities, which is how they were estimated.
+
+    The previous version applied them as deterministic thresholds -- a seller lied
+    on every low-quality round iff `honesty < 0.5`, and a buyer bought on every
+    recommendation iff `trust >= 0.35`. That turned a population with a real
+    78% obedience rate into a mix of always-buy and never-buy opponents, and made
+    the fitted magnitudes meaningless.
+    """
+
     def decide(self, state: GameState) -> AgentAction:
         params = self.spec.parameters
+        rng = random.Random(self.spec.seed + state.round)
         if state.role == "seller":
             quality = state.metadata.get("quality", "high-quality")
-            honesty = float(params.get("honesty", _honesty(self.spec.archetype)))
-            recommend = quality == "high-quality" or honesty < 0.5
-            decision = "yes" if recommend else "no"
+            if quality == "high-quality":
+                # Truthfulness on high quality is the residual of measured honesty.
+                honesty = float(params.get("honesty", _honesty(self.spec.archetype)))
+                decision = "yes" if rng.random() < max(0.0, min(1.0, honesty)) else "no"
+            else:
+                lie_rate = params.get("yes_on_low_rate")
+                if lie_rate is None:
+                    lie_rate = 1.0 - float(params.get("honesty", _honesty(self.spec.archetype)))
+                decision = "yes" if rng.random() < max(0.0, min(1.0, float(lie_rate))) else "no"
             if state.valid_action_schema.get("seller_message_type") == "text":
                 msg = "I recommend buying this product." if decision == "yes" else "I would pass on this product."
                 return _action(state, "message", {"message": msg}, message=msg, buy_no_buy=decision)
@@ -107,7 +127,11 @@ class PersuasionPolicy(OpponentPolicy):
         trust = float(params.get("trust_prior", _trust(self.spec.archetype)))
         last = state.visible_transcript[-1] if state.visible_transcript else {}
         seller_decision = (last.get("buy_no_buy") or (last.get("structured") or {}).get("decision") or "yes")
-        buy = seller_decision == "yes" and trust >= 0.35
+        if seller_decision == "yes":
+            buy = rng.random() < max(0.0, min(1.0, trust))
+        else:
+            # Real buyers almost never buy against a "no": 962 of 42,970.
+            buy = rng.random() < 0.022
         decision = "yes" if buy else "no"
         return _action(state, "buy_decision", {"decision": decision}, buy_no_buy=decision)
 

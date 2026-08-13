@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import random
 from typing import Any
 
@@ -62,33 +63,70 @@ def stable_id(payload: str) -> str:
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
 
 
-def sample_opponent_spec(game_family: str, rng: random.Random) -> OpponentSpec:
+# Hand-picked ranges, kept only as the fallback when no fitted population is
+# available. Every one of them is now known to be wrong about the real
+# population -- real bargaining opponents accept in 0.41-0.50 rather than
+# 0.30-0.55, real negotiators concede roughly four times faster, real senders are
+# far more honest (median 0.875) and real buyers far more trusting (median 0.795).
+# A run using these is measuring the agent against invented opponents.
+UNCALIBRATED_RANGES: dict[str, dict[str, tuple[float, float]]] = {
+    "bargaining": {
+        "target_share": (0.48, 0.78),
+        "concession_rate": (0.0, 0.08),
+        "accept_threshold": (0.30, 0.55),
+    },
+    "negotiation": {
+        "concession_rate": (0.0, 0.08),
+        "accept_margin": (0.0, 0.08),
+    },
+    "persuasion": {
+        "honesty": (0.2, 0.95),
+        "trust_prior": (0.1, 0.9),
+    },
+}
+
+
+def load_opponent_population(path: str | None = None):
+    """Fitted opponent population, from an explicit path or GLEE_OPPONENT_POPULATION."""
+
+    from glee_eval.population.opponent_fit import OpponentPopulation
+
+    return OpponentPopulation.load(path or os.getenv("GLEE_OPPONENT_POPULATION"))
+
+
+def sample_opponent_spec(
+    game_family: str,
+    rng: random.Random,
+    population: Any = None,
+) -> OpponentSpec:
+    """Draw an opponent, from fitted real behavior when a population is available.
+
+    The archetype selects a quantile window of observed behavior, so the label
+    actually determines the parameters. Previously every parameter was drawn from a
+    hand-picked range regardless of archetype, which both invented the opponents
+    and left `policies.py`'s archetype defaults as dead code.
+    """
+
     archetype = rng.choice(ARCHETYPES)
+    population = population if population is not None else load_opponent_population()
     params: dict[str, Any] = {}
-    if game_family == "bargaining":
-        params = {
-            "target_share": rng.uniform(0.48, 0.78),
-            "concession_rate": rng.uniform(0.0, 0.08),
-            "accept_threshold": rng.uniform(0.30, 0.55),
-            "action_noise": rng.uniform(0.0, 0.03),
-        }
-    elif game_family == "negotiation":
-        params = {
-            "concession_rate": rng.uniform(0.0, 0.08),
-            "accept_margin": rng.uniform(0.0, 0.08),
-            "action_noise": rng.uniform(0.0, 0.03),
-        }
-    elif game_family == "persuasion":
-        params = {
-            "honesty": rng.uniform(0.2, 0.95),
-            "trust_prior": rng.uniform(0.1, 0.9),
-            "memory_length": rng.choice([1, 3, 5, 20]),
-        }
+    calibrated = False
+    if population is not None:
+        params = population.parameters(game_family, archetype, rng)
+        calibrated = bool(params)
+    if not calibrated:
+        params = {name: rng.uniform(*bounds) for name, bounds in UNCALIBRATED_RANGES.get(game_family, {}).items()}
+    if game_family == "persuasion":
+        params.setdefault("memory_length", rng.choice([1, 3, 5, 20]))
+    else:
+        params.setdefault("action_noise", rng.uniform(0.0, 0.03))
+    params["parameter_source"] = "fitted_real_population" if calibrated else "uncalibrated_hand_picked"
     return OpponentSpec(archetype=archetype, game_family=game_family, parameters=params, seed=rng.randrange(10**9))
 
 
-def sample_scenario(game_family: str, seed: int, candidate_role: str | None = None) -> Scenario:
+def sample_scenario(game_family: str, seed: int, candidate_role: str | None = None, population: Any = None) -> Scenario:
     rng = random.Random(seed)
+    population = population if population is not None else load_opponent_population()
     config = dict(DEFAULT_CONFIGS[game_family])
     if game_family == "bargaining":
         config["delta_1"] = round(rng.uniform(0.75, 1.0), 2)
@@ -106,7 +144,7 @@ def sample_scenario(game_family: str, seed: int, candidate_role: str | None = No
     }[game_family]
     cand_role = candidate_role or rng.choice(roles)
     opp_role = roles[1] if cand_role == roles[0] else roles[0]
-    opponent = sample_opponent_spec(game_family, rng)
+    opponent = sample_opponent_spec(game_family, rng, population=population)
     payload = f"{game_family}:{seed}:{cand_role}:{opponent.archetype}:{opponent.parameters}:{config}"
     return Scenario(
         scenario_id=stable_id(payload),
