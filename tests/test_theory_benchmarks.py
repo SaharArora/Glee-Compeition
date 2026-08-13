@@ -6,6 +6,8 @@ from dataclasses import replace
 from glee_eval.data.ingest import terminal_negotiation
 from glee_eval.population.sampler import sample_scenario
 from glee_eval.theory.benchmarks import (
+    EMPIRICAL_DELTA_MEAN,
+    bargaining_accept_floor,
     bargaining_spe_shares,
     negotiation_max_surplus,
     persuasion_max_payoff,
@@ -181,3 +183,83 @@ class IRViolationVisibilityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BargainingContinuationTests(unittest.TestCase):
+    def test_accept_floor_is_zero_in_the_final_round(self) -> None:
+        config = {"max_rounds": 12, "delta_1": 0.9, "delta_2": 0.8}
+
+        self.assertEqual(bargaining_accept_floor(config, "player_1", 12), 0.0)
+        self.assertEqual(bargaining_accept_floor(config, "player_2", 99), 0.0)
+
+    def test_a_more_patient_responder_holds_out_for_more(self) -> None:
+        patient = bargaining_accept_floor({"max_rounds": 12, "delta_1": 0.9, "delta_2": 1.0}, "player_2", 3)
+        impatient = bargaining_accept_floor({"max_rounds": 12, "delta_1": 0.9, "delta_2": 0.8}, "player_2", 3)
+
+        self.assertGreater(patient, impatient)
+
+    def test_accept_floor_stays_a_valid_share(self) -> None:
+        for d1 in (0.8, 0.9, 0.95, 1.0):
+            for d2 in (0.8, 0.9, 0.95, 1.0):
+                for horizon in (1, 2, 12, 99):
+                    for round_number in (1, 2, horizon):
+                        for role in ("player_1", "player_2"):
+                            value = bargaining_accept_floor(
+                                {"max_rounds": horizon, "delta_1": d1, "delta_2": d2}, role, round_number
+                            )
+                            self.assertGreaterEqual(value, 0.0)
+                            self.assertLessEqual(value, 1.0)
+
+
+class AgentTimePreferenceTests(unittest.TestCase):
+    """Time preference must be reported even while the anchor is inactive."""
+
+    def _beliefs(self, delta_1: float, delta_2: float, role: str, complete: bool = True) -> dict:
+        scenario = sample_scenario("bargaining", seed=31, candidate_role=role)
+        config = dict(scenario.public_parameters)
+        config.update({"delta_1": delta_1, "delta_2": delta_2, "max_rounds": 12, "complete_information": complete})
+        episode = run_episode(replace(scenario, public_parameters=config), MyAgent(seed=2))
+        for record in episode.decision_records:
+            if record.role == role:
+                return record.action["structured"]["beliefs"]
+        raise AssertionError("no candidate decision recorded")
+
+    def test_spe_share_and_accept_floor_are_reported(self) -> None:
+        beliefs = self._beliefs(0.95, 0.8, "player_1")
+
+        self.assertIn("spe_share", beliefs)
+        self.assertIn("spe_accept_floor", beliefs)
+        self.assertEqual(beliefs["delta_other_known"], 1.0)
+        self.assertAlmostEqual(beliefs["own_delta"], 0.95)
+        self.assertAlmostEqual(beliefs["other_delta"], 0.8)
+
+    def test_reported_spe_share_tracks_the_opponent_discount(self) -> None:
+        strong = self._beliefs(1.0, 0.8, "player_1")["spe_share"]
+        weak = self._beliefs(0.8, 1.0, "player_1")["spe_share"]
+
+        self.assertGreater(strong, weak)
+
+    def test_hidden_opponent_delta_is_flagged_and_filled_from_the_prior(self) -> None:
+        beliefs = self._beliefs(0.95, 0.8, "player_1", complete=False)
+
+        self.assertEqual(beliefs["delta_other_known"], 0.0)
+        self.assertAlmostEqual(beliefs["other_delta"], EMPIRICAL_DELTA_MEAN)
+        self.assertAlmostEqual(beliefs["own_delta"], 0.95)
+
+    def test_anchor_is_off_by_default_and_changes_play_when_on(self) -> None:
+        self.assertFalse(MyAgent(seed=1).use_theory_anchor)
+        self.assertTrue(MyAgent(seed=1, use_theory_anchor=True).use_theory_anchor)
+
+        scenario = sample_scenario("bargaining", seed=41, candidate_role="player_1")
+        config = dict(scenario.public_parameters)
+        config.update({"delta_1": 1.0, "delta_2": 0.8, "max_rounds": 12, "complete_information": True})
+        scenario = replace(scenario, public_parameters=config)
+
+        def first_offer(agent):
+            for record in run_episode(scenario, agent).decision_records:
+                if record.role == "player_1" and record.action["action_type"] == "offer":
+                    return record.action["structured"]["self_gain"]
+            raise AssertionError("no offer recorded")
+
+        # SPE share here is 0.738, well above the 0.52-0.58 flat constants.
+        self.assertGreater(first_offer(MyAgent(seed=2, use_theory_anchor=True)), first_offer(MyAgent(seed=2)))

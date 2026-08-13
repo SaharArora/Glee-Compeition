@@ -27,6 +27,50 @@ def _delta(config: dict[str, Any], key: str) -> float:
     return min(1.0, max(0.0, value))
 
 
+# Deltas in the released bargaining configs are near-uniform over this grid
+# (delta_1 and delta_2 each ~8.3k games per level across 33,739 games), pooled
+# mean 0.9133. Used as the prior for an unobserved opponent delta under
+# complete_information=False.
+EMPIRICAL_DELTA_GRID = (0.8, 0.9, 0.95, 1.0)
+EMPIRICAL_DELTA_MEAN = 0.9133
+
+
+def bargaining_secured_shares(config: dict[str, Any]) -> list[float]:
+    """`A(r)` for every round: the share the round-`r` proposer secures in SPE.
+
+    Index `r - 1` holds `A(r)`. Player 1 proposes in odd rounds.
+    """
+
+    horizon = max(1, int(as_float(config.get("max_rounds")) or 1))
+    delta_1 = _delta(config, "delta_1")
+    delta_2 = _delta(config, "delta_2")
+    secured = [0.0] * horizon
+    secured[horizon - 1] = 1.0
+    for round_number in range(horizon - 1, 0, -1):
+        responder_delta = delta_2 if round_number % 2 else delta_1
+        value = 1.0 - responder_delta * secured[round_number]
+        secured[round_number - 1] = min(1.0, max(0.0, value))
+    return secured
+
+
+def bargaining_accept_floor(config: dict[str, Any], role: str, round_number: int) -> float:
+    """Smallest share a responder should accept at `round_number`.
+
+    Rejecting makes you the proposer next round, securing `A(r+1)` one period
+    later, so accepting `y` now beats rejecting exactly when
+    `y >= delta_you * A(r+1)`. In the final round the continuation is nothing, so
+    any non-negative share is worth taking.
+    """
+
+    horizon = max(1, int(as_float(config.get("max_rounds")) or 1))
+    round_number = max(1, int(round_number or 1))
+    if round_number >= horizon:
+        return 0.0
+    secured = bargaining_secured_shares(config)
+    own_delta = _delta(config, "delta_1" if role == "player_1" else "delta_2")
+    return min(1.0, max(0.0, own_delta * secured[round_number]))
+
+
 def bargaining_spe_shares(config: dict[str, Any]) -> tuple[float, float]:
     """Subgame-perfect equilibrium shares for finite-horizon alternating offers.
 
@@ -49,14 +93,9 @@ def bargaining_spe_shares(config: dict[str, Any]) -> tuple[float, float]:
     delta_1 = _delta(config, "delta_1")
     delta_2 = _delta(config, "delta_2")
 
-    secured = 1.0  # A(T)
-    for round_number in range(horizon - 1, 0, -1):
-        # Player 1 proposes in odd rounds, so the responder at `round_number` is
-        # player 2 when `round_number` is odd.
-        responder_delta = delta_2 if round_number % 2 else delta_1
-        secured = 1.0 - responder_delta * secured
-        secured = min(1.0, max(0.0, secured))
-    return secured, 1.0 - secured
+    del delta_1, delta_2, horizon  # handled by bargaining_secured_shares
+    first = bargaining_secured_shares(config)[0]
+    return first, 1.0 - first
 
 
 def negotiation_max_surplus(config: dict[str, Any]) -> float:

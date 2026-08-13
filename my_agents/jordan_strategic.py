@@ -12,6 +12,19 @@ from glee_eval.adapters.candidate_agent import CandidateAgent
 from glee_eval.data.schemas import AgentAction, GameState, compact_id
 from glee_eval.response_models.runtime import EmpiricalResponseModel, ResponseEstimate
 from glee_eval.simulate.coverage_gate import CoverageGate
+from glee_eval.theory.benchmarks import (
+    EMPIRICAL_DELTA_MEAN,
+    bargaining_accept_floor,
+    bargaining_spe_shares,
+)
+
+# Real bargaining offers cluster hard at a self-share of 0.5-0.7 (45,633 of
+# ~93k offers land in 0.5-0.6 and 26,095 in 0.6-0.7), i.e. the observed
+# population is fairness-anchored rather than playing SPE. So SPE is used to
+# decide how hard to push, never as a target to concede down to: conceding to a
+# 0.0 equilibrium share against a fairness-anchored opponent would give away a
+# pot they would have split.
+BARGAINING_FAIRNESS_FLOOR = 0.50
 
 
 class StrategicMode(str, Enum):
@@ -69,6 +82,7 @@ class JordanStrategicAgent(CandidateAgent):
         response_model_path: str | None = None,
         support_index_path: str | None = None,
         coverage_uncertainty_weight: float = 0.15,
+        use_theory_anchor: bool = False,
     ):
         self.rng = random.Random(seed)
         self.exploit_evidence_threshold = exploit_evidence_threshold
@@ -76,6 +90,20 @@ class JordanStrategicAgent(CandidateAgent):
         self.max_posterior_regret = max_posterior_regret
         self.max_counterfactual_uncertainty = max_counterfactual_uncertainty
         self.coverage_uncertainty_weight = coverage_uncertainty_weight
+        # The SPE share and continuation-value accept floor are always computed and
+        # always reported in the action's beliefs, so time preference is visible in
+        # the ledger. They only *drive* the offer and accept rules when this is on.
+        #
+        # Off by default because it currently measures worse: paired over 800
+        # bargaining episodes on the real delta grid it costs -0.040 payoff
+        # (t=-5.83) and drops the agreement rate from 0.986 to 0.871. That number
+        # is not yet trustworthy in either direction -- the synthetic opponents
+        # draw accept_threshold from a hand-picked U(0.30, 0.55), which is also
+        # what the delta-blind constants of 0.52-0.58 sit right on top of, so the
+        # comparison currently measures fit to invented opponents. Re-evaluate and
+        # flip this default once the opponent population is calibrated from
+        # population_structure.segments.
+        self.use_theory_anchor = use_theory_anchor
         self.response_model = EmpiricalResponseModel.load(response_model_path or os.getenv("GLEE_RESPONSE_MODEL"))
         self.coverage_gate = CoverageGate.from_path(support_index_path or os.getenv("GLEE_SUPPORT_INDEX"))
 
@@ -158,12 +186,47 @@ class JordanStrategicAgent(CandidateAgent):
         acceptance_count = sum(1 for item in opponent_decisions if item.get("accept_reject") == "accept")
         last_self_offer_share = self._float(self_offers[-1].get("other_gain"), money * 0.45) / money if self_offers else 0.45
         fairness_pressure = max(0.0, 1.0 - abs((last_share_to_us or 0.5) - 0.5) * 4)
+        theory = self._bargaining_theory(state)
         return {
             "concession_rate": self._clip(mean_concession, -0.20, 0.20),
             "opponent_fairness": self._clip(fairness_pressure, 0.0, 1.0),
             "opponent_rejection_rate": rejection_count / max(1, rejection_count + acceptance_count),
             "estimated_accept_threshold": self._clip(last_self_offer_share + 0.03 * rejection_count, 0.35, 0.65),
             "last_offer_share_to_us": self._clip(last_share_to_us, 0.0, 1.0),
+            **theory,
+        }
+
+    def _bargaining_theory(self, state: GameState) -> dict[str, float]:
+        """Time preference: our SPE share and the share we should stop accepting below.
+
+        In alternating-offers bargaining the equilibrium split is determined
+        entirely by the two discount factors, and 75% of real games have
+        asymmetric ones -- so ignoring them, as this agent previously did, throws
+        away the central strategic parameter of the family.
+
+        Under `complete_information=False` only our own delta is visible. The
+        opponent's is filled in with the empirical mean of the released delta grid
+        rather than assumed equal to ours, and `delta_other_known` records which
+        happened so the caller can stay more cautious when it was a guess.
+        """
+
+        own_key = "delta_1" if state.role == "player_1" else "delta_2"
+        other_key = "delta_2" if state.role == "player_1" else "delta_1"
+        own = self._float(state.private_parameters.get(own_key), self._float(state.public_parameters.get(own_key), None))
+        other = self._float(state.private_parameters.get(other_key), self._float(state.public_parameters.get(other_key), None))
+        known = other is not None
+        config = {
+            "max_rounds": state.horizon or 1,
+            own_key: own if own is not None else EMPIRICAL_DELTA_MEAN,
+            other_key: other if other is not None else EMPIRICAL_DELTA_MEAN,
+        }
+        p1_share, p2_share = bargaining_spe_shares(config)
+        return {
+            "own_delta": config[own_key],
+            "other_delta": config[other_key],
+            "delta_other_known": 1.0 if known else 0.0,
+            "spe_share": p1_share if state.role == "player_1" else p2_share,
+            "spe_accept_floor": bargaining_accept_floor(config, state.role, state.round),
         }
 
     def _bargaining_evidence(self, state: GameState, beliefs: dict[str, float]) -> dict[str, float]:
@@ -176,6 +239,40 @@ class JordanStrategicAgent(CandidateAgent):
         }
 
     def _bargaining_offer_share(self, state: GameState, control: StrategicControl) -> float:
+        """Ask for the fairness anchor, or the SPE share when theory says we are stronger.
+
+        Previously this returned a constant 0.52-0.61 clipped to [0.50, 0.72] with
+        no reference to time preference, so a config where our equilibrium share is
+        0.74 was played identically to one where it is 0.17.
+        """
+
+        remaining = self._remaining(state)
+        threshold = control.beliefs.get("estimated_accept_threshold", 0.47)
+        if not self.use_theory_anchor:
+            return self._bargaining_offer_share_flat(state, control)
+        spe_share = control.beliefs.get("spe_share", BARGAINING_FAIRNESS_FLOOR)
+        # SPE only raises the ask. Conceding down to a low equilibrium share
+        # against the observed fairness-anchored population would give away value
+        # those opponents were willing to leave us.
+        anchor = max(BARGAINING_FAIRNESS_FLOOR, spe_share)
+        # A guessed opponent delta is weaker evidence, so bank less of the edge.
+        if not control.beliefs.get("delta_other_known", 0.0):
+            anchor = BARGAINING_FAIRNESS_FLOOR + 0.5 * (anchor - BARGAINING_FAIRNESS_FLOOR)
+
+        if control.mode == StrategicMode.EXPLOIT:
+            share = max(anchor, 1.0 - max(0.34, threshold - 0.02))
+        elif control.mode == StrategicMode.EXPLORE:
+            share = anchor + (0.08 if state.round <= 2 else 0.05)
+        else:
+            share = anchor + (0.05 if control.beliefs.get("opponent_fairness", 0.5) < 0.70 else 0.02)
+        if remaining <= 2:
+            # Closing window: do not push past what still clears the fairness anchor.
+            share = min(share, max(anchor, 0.58))
+        return self._clip(share, BARGAINING_FAIRNESS_FLOOR, 0.80)
+
+    def _bargaining_offer_share_flat(self, state: GameState, control: StrategicControl) -> float:
+        """Fairness-anchored constants: the default until opponents are calibrated."""
+
         remaining = self._remaining(state)
         threshold = control.beliefs.get("estimated_accept_threshold", 0.47)
         if control.mode == StrategicMode.EXPLOIT:
@@ -187,6 +284,19 @@ class JordanStrategicAgent(CandidateAgent):
         if remaining <= 2:
             share = min(share, 0.58)
         return self._clip(share, 0.50, 0.72)
+
+    def _bargaining_accept_threshold_flat(self, state: GameState, control: StrategicControl) -> float:
+        """Flat accept threshold: the default until opponents are calibrated."""
+
+        remaining = self._remaining(state)
+        base = 0.45
+        if control.mode == StrategicMode.EXPLOIT:
+            base = 0.43
+        elif control.mode == StrategicMode.EXPLORE:
+            base = 0.47
+        if remaining <= 2:
+            base -= 0.05
+        return self._clip(base, 0.35, 0.50)
 
     def _bargaining_empirical_offer_share(self, state: GameState, control: StrategicControl) -> tuple[float, dict[str, Any]] | None:
         if not self.response_model:
@@ -228,15 +338,33 @@ class JordanStrategicAgent(CandidateAgent):
         }
 
     def _bargaining_accept_threshold(self, state: GameState, control: StrategicControl) -> float:
+        """Accept above our continuation value, not above a flat 0.45.
+
+        Rejecting makes us the proposer next round, so the share we should insist
+        on is `delta_us * A(round+1)` -- high when we are patient enough to wait,
+        low when waiting costs us. A constant threshold got this backwards in both
+        directions: it held out for 0.45 while impatient (walking into a
+        no-agreement worth 0) and settled for 0.45 while patient enough to demand
+        far more.
+        """
+
         remaining = self._remaining(state)
-        base = 0.45
+        if not self.use_theory_anchor:
+            return self._bargaining_accept_threshold_flat(state, control)
+        floor = control.beliefs.get("spe_accept_floor")
+        base = 0.45 if floor is None else float(floor)
+        if not control.beliefs.get("delta_other_known", 0.0):
+            # Opponent delta was a prior, so pull the floor toward the neutral 0.45.
+            base = 0.45 + 0.5 * (base - 0.45)
         if control.mode == StrategicMode.EXPLOIT:
-            base = 0.43
+            base += 0.02
         elif control.mode == StrategicMode.EXPLORE:
-            base = 0.47
-        if remaining <= 2:
-            base -= 0.05
-        return self._clip(base, 0.35, 0.50)
+            base += 0.01
+        if remaining <= 1:
+            # Final round: the continuation is nothing, so anything positive beats
+            # walking away with zero.
+            return 0.01
+        return self._clip(base, 0.20, 0.70)
 
     def _bargaining_message(self, control: StrategicControl, self_gain: float, other_gain: float) -> str:
         if control.mode == StrategicMode.EXPLOIT:
