@@ -9,7 +9,7 @@ from typing import Any
 
 from glee_eval.config import DEFAULT_DATA_DIR
 from glee_eval.data.ingest import as_float
-from glee_eval.storage.trajectories import ensure_dir, read_records, write_json
+from glee_eval.storage.trajectories import ensure_dir, iter_jsonl, read_records, write_json
 
 
 @dataclass(frozen=True)
@@ -831,14 +831,80 @@ def audit_markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+AUDIT_EVENT_FIELDS = frozenset(
+    {
+        "event_id",
+        "game_id",
+        "game_family",
+        "source",
+        "config_id",
+        "role",
+        "player",
+        "round",
+        "action_type",
+        "numeric_action",
+        "free_text_message",
+        "private_information",
+        "public_parameters",
+        "configuration",
+        "terminal_outcome",
+        "player_payoff",
+        "opponent_payoff",
+        "raw_record",
+        "accepted",
+        "rejected",
+        "bought",
+        "player_1_model",
+        "player_2_model",
+    }
+)
+
+# The audit reads `transcript_so_far` only through its presence/non-emptiness
+# rate, never its contents, but it is by far the largest field on an event. A
+# one-element placeholder preserves every quantity the audit derives from it.
+_TRANSCRIPT_PLACEHOLDER = "<omitted_by_audit_projection>"
+
+
+def _project_event(event: dict[str, Any]) -> dict[str, Any]:
+    projected = {key: value for key, value in event.items() if key in AUDIT_EVENT_FIELDS}
+    transcript = event.get("transcript_so_far")
+    length = len(transcript) if isinstance(transcript, (list, str, dict)) else 0
+    projected["transcript_so_far"] = [_TRANSCRIPT_PLACEHOLDER] if length else transcript
+    return projected
+
+
+def read_audit_events(path: str | Path, *, project: bool = True) -> list[dict[str, Any]]:
+    """Read turn-level events for the audit, projected down by default.
+
+    On the full released GLEE dataset the raw events do not fit in memory
+    (~21 GB of Python objects for ~1.2M events, dominated by the running
+    transcript each event carries). Projecting to the fields the audit actually
+    reads brings that to roughly a third with no change to any reported figure.
+    Pass `project=False` to audit the unreduced records.
+    """
+
+    p = Path(path)
+    if not project or p.suffix != ".jsonl":
+        return read_records(p)
+    return [_project_event(event) for event in iter_jsonl(p)]
+
+
 def audit_processed(
     data_dir: str | Path = DEFAULT_DATA_DIR,
     output_dir: str | Path = "reports/dataset_audit",
+    *,
+    project_events: bool = True,
 ) -> dict[str, Any]:
     data_dir = Path(data_dir)
     games = read_records(data_dir / "processed" / "games.jsonl")
-    events = read_records(data_dir / "processed" / "events.jsonl")
+    events = read_audit_events(data_dir / "processed" / "events.jsonl", project=project_events)
     report = audit_records(games, events)
+    report["event_projection"] = {
+        "applied": bool(project_events),
+        "kept_fields": sorted(AUDIT_EVENT_FIELDS),
+        "reduced_fields": ["transcript_so_far"],
+        "note": "transcript_so_far is replaced by a length-preserving placeholder; the audit only reads its presence rate.",
+    }
     support_index = build_support_index(events)
     report["empirical_action_support_by_state"] = support_index["summary"]
     out = ensure_dir(output_dir)
@@ -854,8 +920,13 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Audit processed GLEE data for empirical-first strategy readiness.")
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
     parser.add_argument("--output-dir", default="reports/dataset_audit")
+    parser.add_argument(
+        "--no-project-events",
+        action="store_true",
+        help="Audit unreduced event records (needs far more memory on the full dataset).",
+    )
     args = parser.parse_args(argv)
-    report = audit_processed(args.data_dir, args.output_dir)
+    report = audit_processed(args.data_dir, args.output_dir, project_events=not args.no_project_events)
     print(json.dumps(report["strategy_recommendation"], indent=2, sort_keys=True))
 
 
