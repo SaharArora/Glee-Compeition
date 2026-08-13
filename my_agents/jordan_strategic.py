@@ -180,9 +180,9 @@ class JordanStrategicAgent(CandidateAgent):
         return self._action(state, "decision", structured, accept_reject=decision, control=control)
 
     def _bargaining_beliefs(self, state: GameState, money: float) -> dict[str, float]:
-        opponent_offers = [item for item in state.visible_transcript if item.get("action_type") == "offer" and item.get("role") != state.role]
-        opponent_decisions = [item for item in state.visible_transcript if item.get("action_type") == "decision" and item.get("role") != state.role]
-        self_offers = [item for item in state.visible_transcript if item.get("action_type") == "offer" and item.get("role") == state.role]
+        opponent_offers = [item for item in self._transcript(state) if item.get("action_type") == "offer" and item.get("role") != state.role]
+        opponent_decisions = [item for item in self._transcript(state) if item.get("action_type") == "decision" and item.get("role") != state.role]
+        self_offers = [item for item in self._transcript(state) if item.get("action_type") == "offer" and item.get("role") == state.role]
 
         opponent_self_shares = [self._float(item.get("self_gain"), money / 2) / money for item in opponent_offers]
         concessions = [opponent_self_shares[i - 1] - opponent_self_shares[i] for i in range(1, len(opponent_self_shares))]
@@ -223,7 +223,7 @@ class JordanStrategicAgent(CandidateAgent):
         other = self._float(state.private_parameters.get(other_key), self._float(state.public_parameters.get(other_key), None))
         known = other is not None
         config = {
-            "max_rounds": state.horizon or 1,
+            "max_rounds": self._horizon(state),
             own_key: own if own is not None else EMPIRICAL_DELTA_MEAN,
             other_key: other if other is not None else EMPIRICAL_DELTA_MEAN,
         }
@@ -233,15 +233,15 @@ class JordanStrategicAgent(CandidateAgent):
             "other_delta": config[other_key],
             "delta_other_known": 1.0 if known else 0.0,
             "spe_share": p1_share if state.role == "player_1" else p2_share,
-            "spe_accept_floor": bargaining_accept_floor(config, state.role, state.round),
+            "spe_accept_floor": bargaining_accept_floor(config, state.role, self._round(state)),
         }
 
     def _bargaining_evidence(self, state: GameState, beliefs: dict[str, float]) -> dict[str, float]:
-        rounds_seen = max(1, len(state.visible_transcript))
+        rounds_seen = max(1, len(self._transcript(state)))
         return {
             "E_concessionary": 1.0 + max(0.0, beliefs["concession_rate"]) * 10.0,
             "E_fairness": 1.0 + beliefs["opponent_fairness"] * 1.5,
-            "E_impatient": 1.0 + max(0.0, 1.0 - state.round / max(1, state.horizon)) * max(0.0, beliefs["concession_rate"]) * 8.0,
+            "E_impatient": 1.0 + max(0.0, 1.0 - self._round(state) / self._horizon(state)) * max(0.0, beliefs["concession_rate"]) * 8.0,
             "E_sample": 1.0 + min(1.0, rounds_seen / 8.0),
         }
 
@@ -269,7 +269,7 @@ class JordanStrategicAgent(CandidateAgent):
         if control.mode == StrategicMode.EXPLOIT:
             share = max(anchor, 1.0 - max(0.34, threshold - 0.02))
         elif control.mode == StrategicMode.EXPLORE:
-            share = anchor + (0.08 if state.round <= 2 else 0.05)
+            share = anchor + (0.08 if self._round(state) <= 2 else 0.05)
         else:
             share = anchor + (0.05 if control.beliefs.get("opponent_fairness", 0.5) < 0.70 else 0.02)
         if remaining <= 2:
@@ -285,7 +285,7 @@ class JordanStrategicAgent(CandidateAgent):
         if control.mode == StrategicMode.EXPLOIT:
             share = 1.0 - max(0.34, threshold - 0.02)
         elif control.mode == StrategicMode.EXPLORE:
-            share = 0.61 if state.round <= 2 else 0.57
+            share = 0.61 if self._round(state) <= 2 else 0.57
         else:
             share = 0.55 if control.beliefs.get("opponent_fairness", 0.5) < 0.70 else 0.52
         if remaining <= 2:
@@ -450,7 +450,7 @@ class JordanStrategicAgent(CandidateAgent):
         order = self._float(state.public_parameters.get("product_price_order"), 1_000_000.0)
         opponent_prices = [
             self._float(item.get("numeric_action"), None) / order
-            for item in state.visible_transcript
+            for item in self._transcript(state)
             if item.get("action_type") == "offer" and item.get("role") != state.role and item.get("numeric_action") is not None
         ]
         opponent_prices = [price for price in opponent_prices if price is not None]
@@ -458,7 +458,7 @@ class JordanStrategicAgent(CandidateAgent):
         mean_concession = sum(concessions) / len(concessions) if concessions else 0.0
         rejection_count = sum(
             1
-            for item in state.visible_transcript
+            for item in self._transcript(state)
             if item.get("action_type") == "decision" and item.get("role") != state.role and item.get("accept_reject") == "RejectOffer"
         )
 
@@ -480,22 +480,22 @@ class JordanStrategicAgent(CandidateAgent):
             "opponent_concession_rate": self._clip(mean_concession, 0.0, 0.30),
             "opponent_rejection_count": float(rejection_count),
             "surplus_room": self._clip(max(0.0, buyer_value - seller_value), 0.0, 1.0),
-            "strategic_delay": self._clip(rejection_count / max(1, state.round), 0.0, 1.0),
+            "strategic_delay": self._clip(rejection_count / max(1, self._round(state)), 0.0, 1.0),
         }
 
     def _negotiation_evidence(self, state: GameState, beliefs: dict[str, float]) -> dict[str, float]:
         return {
             "E_concessionary": 1.0 + beliefs["opponent_concession_rate"] * 8.0,
-            "E_commitment_sensitive": 1.0 + beliefs["strategic_delay"] * (1.0 if state.round >= 2 else 0.25),
+            "E_commitment_sensitive": 1.0 + beliefs["strategic_delay"] * (1.0 if self._round(state) >= 2 else 0.25),
             "E_surplus": 1.0 + min(1.0, beliefs["surplus_room"] * 2.0),
-            "E_sample": 1.0 + min(1.0, len(state.visible_transcript) / 8.0),
+            "E_sample": 1.0 + min(1.0, len(self._transcript(state)) / 8.0),
         }
 
     def _negotiation_offer_price(self, state: GameState, control: StrategicControl) -> float:
         seller_value = control.beliefs["seller_value"]
         buyer_value = control.beliefs["buyer_value"]
         remaining = self._remaining(state)
-        concession = 0.02 * max(0, state.round - 1)
+        concession = 0.02 * max(0, self._round(state) - 1)
         if state.role == "seller":
             if control.mode == StrategicMode.EXPLOIT:
                 price = buyer_value - 0.04 - min(0.06, concession)
@@ -669,9 +669,9 @@ class JordanStrategicAgent(CandidateAgent):
         p = self._float(state.private_parameters.get("p"), self._float(state.public_parameters.get("p"), 0.55))
         v = self._float(state.private_parameters.get("v"), self._float(state.public_parameters.get("v"), 1.2))
         c = self._float(state.private_parameters.get("c"), self._float(state.public_parameters.get("c"), 0.0))
-        seller_actions = [item for item in state.visible_transcript if item.get("role") == "seller"]
-        buyer_actions = [item for item in state.visible_transcript if item.get("role") == "buyer"]
-        qualities = {int(item.get("round", 0)): item for item in state.visible_transcript if item.get("action_type") == "nature_quality"}
+        seller_actions = [item for item in self._transcript(state) if item.get("role") == "seller"]
+        buyer_actions = [item for item in self._transcript(state) if item.get("role") == "buyer"]
+        qualities = {int(item.get("round", 0)): item for item in self._transcript(state) if item.get("action_type") == "nature_quality"}
         truthful = 0
         truth_total = 0
         yes_on_high = 0
@@ -724,12 +724,12 @@ class JordanStrategicAgent(CandidateAgent):
             "E_receiver_obedient": 1.0 + max(0.0, beliefs["receiver_obedience"] - 0.5) * 4.0,
             "E_receiver_skeptical": 1.0 + max(0.0, beliefs["receiver_skepticism"] - 0.5) * 4.0,
             "E_seller_honest": 1.0 + max(0.0, beliefs["seller_honesty"] - 0.5) * 4.0,
-            "E_sample": 1.0 + min(1.0, len(state.visible_transcript) / 20.0),
+            "E_sample": 1.0 + min(1.0, len(self._transcript(state)) / 20.0),
         }
 
     def _persuasion_recommendation(self, state: GameState, control: StrategicControl, quality: str) -> str:
         is_high = quality == "high-quality"
-        remaining_fraction = self._remaining(state) / max(1, state.horizon)
+        remaining_fraction = self._remaining(state) / self._horizon(state)
         if is_high:
             return "yes"
         if self._persuasion_empirical_low_quality_yes(state, control, quality, remaining_fraction):
@@ -761,8 +761,20 @@ class JordanStrategicAgent(CandidateAgent):
         return yes.probability - no_probability >= 0.25
 
     def _persuasion_buy_decision(self, state: GameState, control: StrategicControl) -> str:
-        last = state.visible_transcript[-1] if state.visible_transcript else {}
-        recommendation = last.get("buy_no_buy") or (last.get("structured") or {}).get("decision") or "no"
+        # Search back for the seller's action in this round rather than taking the
+        # last transcript row. With allow_buyer_message enabled the buyer's own
+        # message is the last row, and the blind read misclassified the
+        # recommendation as absent (defaulting to "no"). No released config enables
+        # that flag, but any extra row -- a nature event, a system note -- breaks
+        # the positional assumption the same way.
+        recommendation = "no"
+        for item in reversed(self._transcript(state)):
+            if item.get("role") != "seller":
+                continue
+            value = item.get("buy_no_buy") or (item.get("structured") or {}).get("decision")
+            if value in {"yes", "no"}:
+                recommendation = value
+                break
         if recommendation == "no":
             return "no"
         high_value = control.beliefs["high_value"]
@@ -882,13 +894,13 @@ class JordanStrategicAgent(CandidateAgent):
         return self._clip(base, 0.05, 0.60)
 
     def _last_offer(self, state: GameState) -> dict[str, Any]:
-        for item in reversed(state.visible_transcript):
+        for item in reversed(self._transcript(state)):
             if item.get("action_type") == "offer":
                 return item
         return {}
 
     def _last_numeric(self, state: GameState) -> float | None:
-        for item in reversed(state.visible_transcript):
+        for item in reversed(self._transcript(state)):
             if item.get("numeric_action") is not None:
                 return self._float(item.get("numeric_action"), None)
             structured = item.get("structured") or {}
@@ -907,8 +919,41 @@ class JordanStrategicAgent(CandidateAgent):
         role_key = "alice_gain" if role in {"player_1", "seller"} else "bob_gain"
         return self._float(raw.get(role_key), 0.0) / money
 
+    @staticmethod
+    def _horizon(state: GameState) -> int:
+        """Horizon as a usable positive int.
+
+        A missing or unparseable horizon previously reached `max(1, state.horizon)`
+        directly and raised TypeError, killing the whole decision rather than
+        degrading. The harness always supplies one; an external one might not.
+        """
+
+        value = JordanStrategicAgent._float(getattr(state, "horizon", None), None)
+        if value is None or value != value or value < 1:
+            return 1
+        return int(value)
+
+    @staticmethod
+    def _round(state: GameState) -> int:
+        """Round number as a usable positive int."""
+
+        value = JordanStrategicAgent._float(getattr(state, "round", None), None)
+        if value is None or value != value or value < 1:
+            return 1
+        return int(value)
+
+    @staticmethod
+    def _transcript(state: GameState) -> list[dict[str, Any]]:
+        """Transcript with non-dict entries dropped.
+
+        A single `None` row used to raise AttributeError on the first `.get`.
+        """
+
+        items = getattr(state, "visible_transcript", None) or []
+        return [item for item in items if isinstance(item, dict)]
+
     def _remaining(self, state: GameState) -> int:
-        return max(1, int(state.horizon or state.round or 1) - int(state.round or 1) + 1)
+        return max(1, self._horizon(state) - self._round(state) + 1)
 
     def _action(
         self,
