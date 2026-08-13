@@ -246,9 +246,9 @@ class AgentTimePreferenceTests(unittest.TestCase):
         self.assertAlmostEqual(beliefs["other_delta"], EMPIRICAL_DELTA_MEAN)
         self.assertAlmostEqual(beliefs["own_delta"], 0.95)
 
-    def test_anchor_is_off_by_default_and_changes_play_when_on(self) -> None:
-        self.assertFalse(MyAgent(seed=1).use_theory_anchor)
-        self.assertTrue(MyAgent(seed=1, use_theory_anchor=True).use_theory_anchor)
+    def test_anchor_is_on_by_default_and_can_be_disabled(self) -> None:
+        self.assertTrue(MyAgent(seed=1).use_theory_anchor)
+        self.assertFalse(MyAgent(seed=1, use_theory_anchor=False).use_theory_anchor)
 
         scenario = sample_scenario("bargaining", seed=41, candidate_role="player_1")
         config = dict(scenario.public_parameters)
@@ -262,4 +262,7 @@ class AgentTimePreferenceTests(unittest.TestCase):
             raise AssertionError("no offer recorded")
 
         # SPE share here is 0.738, well above the 0.52-0.58 flat constants.
-        self.assertGreater(first_offer(MyAgent(seed=2, use_theory_anchor=True)), first_offer(MyAgent(seed=2)))
+        self.assertGreater(
+            first_offer(MyAgent(seed=2, use_theory_anchor=True)),
+            first_offer(MyAgent(seed=2, use_theory_anchor=False)),
+        )

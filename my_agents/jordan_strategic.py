@@ -82,7 +82,7 @@ class JordanStrategicAgent(CandidateAgent):
         response_model_path: str | None = None,
         support_index_path: str | None = None,
         coverage_uncertainty_weight: float = 0.15,
-        use_theory_anchor: bool = False,
+        use_theory_anchor: bool = True,
     ):
         self.rng = random.Random(seed)
         self.exploit_evidence_threshold = exploit_evidence_threshold
@@ -90,19 +90,24 @@ class JordanStrategicAgent(CandidateAgent):
         self.max_posterior_regret = max_posterior_regret
         self.max_counterfactual_uncertainty = max_counterfactual_uncertainty
         self.coverage_uncertainty_weight = coverage_uncertainty_weight
-        # The SPE share and continuation-value accept floor are always computed and
-        # always reported in the action's beliefs, so time preference is visible in
-        # the ledger. They only *drive* the offer and accept rules when this is on.
+        # Drive the offer and accept rules from the SPE share and the
+        # continuation-value accept floor. On by default, but only on the strength
+        # of a measurement taken against *calibrated* opponents -- the sign of this
+        # effect depends entirely on who the opponent is:
         #
-        # Off by default because it currently measures worse: paired over 800
-        # bargaining episodes on the real delta grid it costs -0.040 payoff
-        # (t=-5.83) and drops the agreement rate from 0.986 to 0.871. That number
-        # is not yet trustworthy in either direction -- the synthetic opponents
-        # draw accept_threshold from a hand-picked U(0.30, 0.55), which is also
-        # what the delta-blind constants of 0.52-0.58 sit right on top of, so the
-        # comparison currently measures fit to invented opponents. Re-evaluate and
-        # flip this default once the opponent population is calibrated from
-        # population_structure.segments.
+        #   vs hand-picked opponents   -0.040 payoff (t=-5.83), agreement 0.99 -> 0.87
+        #   vs fitted real population  +0.046 payoff (t=+6.60), agreement 0.64 -> 0.75
+        #
+        # Both are paired over 800 bargaining episodes across the real delta grid.
+        # The first number is the artifact: hand-picked opponents accepted anything
+        # above ~0.30-0.55, so the delta-blind constants of 0.52-0.58 were tuned to
+        # invented behavior. Against opponents that accept where real ones do
+        # (0.41-0.50) reasoning about time preference wins clearly, and wins *more*
+        # deals rather than fewer.
+        #
+        # Either way the SPE share and accept floor are always computed and always
+        # reported in the action's beliefs, so time preference stays legible in the
+        # ledger even with this off.
         self.use_theory_anchor = use_theory_anchor
         self.response_model = EmpiricalResponseModel.load(response_model_path or os.getenv("GLEE_RESPONSE_MODEL"))
         self.coverage_gate = CoverageGate.from_path(support_index_path or os.getenv("GLEE_SUPPORT_INDEX"))
