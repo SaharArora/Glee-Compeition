@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from types import SimpleNamespace
+
+from glee_eval.response_models.runtime import negotiation_keys
 from pathlib import Path
 
 from glee_eval.population.sampler import sample_scenario
@@ -147,3 +150,72 @@ class ResponseModelTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NegotiationKeyDeconfoundingTests(unittest.TestCase):
+    """Keys must be built on the responder's own gain, not absolute price."""
+
+    def _state(self, seller_value, buyer_value, order=1.0, round_number=1, horizon=10):
+        return SimpleNamespace(
+            round=round_number,
+            horizon=horizon,
+            public_parameters={
+                "seller_value": seller_value,
+                "buyer_value": buyer_value,
+                "product_price_order": order,
+            },
+            metadata={},
+        )
+
+    def test_gain_keys_lead_the_ladder_when_the_value_is_known(self) -> None:
+        keys = negotiation_keys(self._state(0.8, 1.2), "buyer", 1.0)
+
+        self.assertTrue(keys[0].startswith("role=buyer|round=r1|gain="))
+        self.assertIn("__global__", keys)
+
+    def test_absolute_price_keys_remain_as_fallbacks(self) -> None:
+        keys = negotiation_keys(self._state(0.8, 1.2), "buyer", 1.0)
+
+        self.assertTrue(any("|price=" in key for key in keys))
+        gain_index = min(i for i, key in enumerate(keys) if "gain=" in key)
+        price_index = min(i for i, key in enumerate(keys) if "price=" in key)
+        self.assertLess(gain_index, price_index, "gain keys must be tried first")
+
+    def test_no_gain_keys_when_the_responder_value_is_unknown(self) -> None:
+        state = SimpleNamespace(
+            round=1, horizon=10, public_parameters={"product_price_order": 1.0}, metadata={}
+        )
+
+        keys = negotiation_keys(state, "buyer", 1.0)
+
+        self.assertFalse(any("gain=" in key for key in keys))
+        self.assertTrue(any("price=" in key for key in keys))
+
+    def test_an_explicit_belief_can_supply_the_responder_value(self) -> None:
+        state = SimpleNamespace(
+            round=1, horizon=10, public_parameters={"product_price_order": 1.0}, metadata={}
+        )
+
+        keys = negotiation_keys(state, "buyer", 1.0, responder_value=1.2)
+
+        self.assertTrue(any("gain=" in key for key in keys))
+
+    def test_equal_gain_under_different_absolute_prices_shares_a_bucket(self) -> None:
+        """This is the whole point: the confound was price correlating with value."""
+
+        low = negotiation_keys(self._state(0.6, 1.0), "buyer", 0.90)
+        high = negotiation_keys(self._state(1.1, 1.5), "buyer", 1.40)
+
+        low_gain = next(key for key in low if key.startswith("gain="))
+        high_gain = next(key for key in high if key.startswith("gain="))
+        self.assertEqual(low_gain, high_gain)
+
+    def test_seller_and_buyer_gains_point_in_opposite_directions(self) -> None:
+        state = self._state(0.8, 1.2)
+        cheap = negotiation_keys(state, "seller", 0.85)
+        dear = negotiation_keys(state, "seller", 1.15)
+
+        self.assertNotEqual(
+            next(key for key in cheap if key.startswith("gain=")),
+            next(key for key in dear if key.startswith("gain=")),
+        )

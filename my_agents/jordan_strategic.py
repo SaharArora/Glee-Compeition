@@ -533,8 +533,13 @@ class JordanStrategicAgent(CandidateAgent):
         candidates = [round(low + i * step, 4) for i in range(int((high - low) / step) + 1)]
         candidates.append(high)
         best: tuple[float, float, ResponseEstimate] | None = None
+        # Pass our current belief about the responder's value so the model can be
+        # queried on the responder's gain rather than on the confounded absolute
+        # price. Under complete information this is the true value; otherwise it is
+        # the evidence bound from _negotiation_beliefs.
+        responder_value = buyer_value if state.role == "seller" else seller_value
         for price in sorted(set(candidates)):
-            estimate = self.response_model.negotiation_acceptance(state, responder, price)
+            estimate = self.response_model.negotiation_acceptance(state, responder, price, responder_value)
             if not estimate or estimate.key == "__global__":
                 continue
             payoff_if_accepted = max(0.0, price - seller_value) if state.role == "seller" else max(0.0, buyer_value - price)

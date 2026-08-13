@@ -135,7 +135,34 @@ def bargaining_keys(event_or_state: Any, responder_role: str, offered_share_to_r
     ]
 
 
-def negotiation_keys(event_or_state: Any, responder_role: str, normalized_price: float) -> list[str]:
+def negotiation_keys(
+    event_or_state: Any,
+    responder_role: str,
+    normalized_price: float,
+    responder_value: float | None = None,
+) -> list[str]:
+    """Bucket keys for "will this responder accept this price?".
+
+    Keyed primarily on the responder's own gain at that price -- `price -
+    seller_value` for a seller, `buyer_value - price` for a buyer -- rather than on
+    the absolute normalized price.
+
+    Absolute price is confounded. It is denominated in value units, so it
+    correlates with `buyer_value`, and high-`buyer_value` configs both permit
+    higher prices and leave more room to accept. Keyed that way the table
+    estimated P(accept | price observed) rather than P(accept | price we set), and
+    the fitted acceptance probability *rose* with price across the whole working
+    range (0.008 at 0.60-0.65 up to 0.228 at 1.05-1.10). Since the agent maximizes
+    payoff * probability, a rising curve pushed the argmax straight to the ceiling:
+    it asked for a median 100% of the available surplus and lost 0.040 payoff per
+    game against the rule-based policy.
+
+    The responder's gain is a difference, so it blocks that confound. It is not
+    always observable -- as a seller under incomplete information we do not know
+    the buyer's value -- so the absolute-price keys are retained as lower-priority
+    fallbacks and the agent may pass its current belief as `responder_value`.
+    """
+
     config = _config(event_or_state)
     price_bin = _bin(_clip(normalized_price, 0.0, 2.0), 0.05, 0.0, 1.5)
     round_bin = _round_bin(_round(event_or_state), _horizon(event_or_state))
@@ -144,7 +171,26 @@ def negotiation_keys(event_or_state: Any, responder_role: str, normalized_price:
     buyer_value = _as_float(config.get("buyer_value"), None)
     surplus = None if seller_value is None or buyer_value is None else max(0.0, buyer_value - seller_value)
     surplus_bin = _bin(surplus, 0.10, 0.0, 1.0) if surplus is not None else "unknown"
-    return [
+
+    if responder_value is None:
+        responder_value = seller_value if responder_role == "seller" else buyer_value
+    gain = None
+    if responder_value is not None:
+        gain = normalized_price - responder_value if responder_role == "seller" else responder_value - normalized_price
+
+    keys: list[str] = []
+    if gain is not None:
+        # Symmetric around zero: negative gain means the price is worse than the
+        # responder's own value, which is the decisive region.
+        gain_bin = _bin(_clip(gain, -1.0, 1.0), 0.05, -1.0, 1.0)
+        keys += [
+            f"role={responder_role}|round={round_bin}|gain={gain_bin}|surplus={surplus_bin}|source={source}",
+            f"role={responder_role}|round={round_bin}|gain={gain_bin}|surplus={surplus_bin}",
+            f"role={responder_role}|round={round_bin}|gain={gain_bin}",
+            f"role={responder_role}|gain={gain_bin}",
+            f"gain={gain_bin}",
+        ]
+    keys += [
         f"role={responder_role}|round={round_bin}|price={price_bin}|surplus={surplus_bin}|source={source}",
         f"role={responder_role}|round={round_bin}|price={price_bin}|surplus={surplus_bin}",
         f"role={responder_role}|round={round_bin}|price={price_bin}",
@@ -152,6 +198,7 @@ def negotiation_keys(event_or_state: Any, responder_role: str, normalized_price:
         f"price={price_bin}",
         "__global__",
     ]
+    return keys
 
 
 def message_style(message: str | None) -> str:
@@ -241,8 +288,14 @@ class EmpiricalResponseModel:
     def bargaining_acceptance(self, state: Any, responder_role: str, offered_share_to_responder: float) -> ResponseEstimate | None:
         return self.estimate("bargaining", bargaining_keys(state, responder_role, offered_share_to_responder))
 
-    def negotiation_acceptance(self, state: Any, responder_role: str, normalized_price: float) -> ResponseEstimate | None:
-        return self.estimate("negotiation", negotiation_keys(state, responder_role, normalized_price))
+    def negotiation_acceptance(
+        self,
+        state: Any,
+        responder_role: str,
+        normalized_price: float,
+        responder_value: float | None = None,
+    ) -> ResponseEstimate | None:
+        return self.estimate("negotiation", negotiation_keys(state, responder_role, normalized_price, responder_value))
 
     def persuasion_buy(
         self,
