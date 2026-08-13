@@ -287,8 +287,14 @@ def terminal_negotiation(rows: list[dict[str, Any]], config: dict[str, Any]) -> 
         offer = next((row for row in reversed(rows[:decision_idx]) if as_float(row.get("product_price")) is not None), None)
         price = as_float(offer.get("product_price")) if offer else None
     normalized_price = price / order if price is not None else None
-    seller_payoff = max(0.0, normalized_price - seller_value) if normalized_price is not None else 0.0
-    buyer_payoff = max(0.0, buyer_value - normalized_price) if normalized_price is not None else 0.0
+    # Deliberately unclamped. Clamping at 0 made accepting a value-destroying
+    # trade score identically to correctly walking away, which erased the
+    # individual-rationality signal in exactly the configs where it matters --
+    # 61% of real negotiation configs have no gains from trade. Bargaining
+    # cannot go negative by construction and terminal_persuasion does not clamp
+    # either, so negotiation was the odd one out.
+    seller_payoff = (normalized_price - seller_value) if normalized_price is not None else 0.0
+    buyer_payoff = (buyer_value - normalized_price) if normalized_price is not None else 0.0
     return {
         "result": decision or "no_agreement",
         "agreement_round": agreement_round,

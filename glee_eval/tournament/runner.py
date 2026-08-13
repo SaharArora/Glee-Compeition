@@ -19,6 +19,7 @@ from glee_eval.diagnostics.failures import diagnose_episode
 from glee_eval.opponents.policies import PolicyFactory
 from glee_eval.population.sampler import sample_scenario
 from glee_eval.storage.trajectories import write_json, write_jsonl
+from glee_eval.theory.benchmarks import reference_payoff as theory_reference_payoff
 from glee_eval.tournament.metrics import summarize_episodes
 
 
@@ -243,7 +244,17 @@ def _episode(
     candidate_is_first = scenario.candidate_role == roles[0]
     candidate_payoff = float(terminal.get("player_1_payoff" if candidate_is_first else "player_2_payoff", 0.0) or 0.0)
     opponent_payoff = float(terminal.get("player_2_payoff" if candidate_is_first else "player_1_payoff", 0.0) or 0.0)
-    reference_payoff = max(candidate_payoff, opponent_payoff, 0.5 if scenario.game_family != "persuasion" else candidate_payoff)
+    # Benchmark against what the candidate could actually have obtained in this
+    # config, not a hard-coded 0.5. Under the old constant, a negotiation config
+    # with no gains from trade charged 0.5 regret for the optimal play of walking
+    # away, and diagnose_episode then labelled it UNDER_AGGRESSIVE.
+    theory_reference = theory_reference_payoff(
+        scenario.game_family,
+        scenario.candidate_role,
+        dict(scenario.public_parameters),
+        transcript=transcript,
+    )
+    reference_payoff = max(candidate_payoff, opponent_payoff, theory_reference)
     metrics = {
         "trade_or_sale": terminal.get("result") in {"accept", "AcceptOffer"} or terminal.get("sales", 0) > 0,
         "malformed_response": 0.0,
