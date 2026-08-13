@@ -187,6 +187,11 @@ def run_experiment(
                 "output_dir": search_result["output_dir"],
             }
 
+    coverage_summary = dispatcher.coverage_gate.summary()
+    write_json(run_dir / "simulation" / "coverage_summary.json", coverage_summary)
+    write_jsonl(run_dir / "simulation" / "coverage_requests.jsonl", dispatcher.coverage_gate.requests)
+    write_jsonl(run_dir / "simulation" / "coverage_verdicts.jsonl", dispatcher.coverage_gate.verdicts)
+
     dataset_paths = write_learning_datasets(run_dir, tournament_episodes, elite_episodes)
     match_paths = write_match_ledger(
         run_dir,
@@ -227,6 +232,12 @@ def run_experiment(
             "support_index": str(audit_dir / "support_index.json"),
         },
         "simulation_ledger": str(run_dir / "simulation" / "simulation_ledger.jsonl"),
+        "coverage_summary": coverage_summary,
+        "coverage_paths": {
+            "summary": str(run_dir / "simulation" / "coverage_summary.json"),
+            "requests": str(run_dir / "simulation" / "coverage_requests.jsonl"),
+            "verdicts": str(run_dir / "simulation" / "coverage_verdicts.jsonl"),
+        },
         "dataset_paths": dataset_paths,
         "match_paths": match_paths,
         "hypothesis_paths": {

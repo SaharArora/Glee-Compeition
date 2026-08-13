@@ -11,6 +11,7 @@ from typing import Any
 from glee_eval.adapters.candidate_agent import CandidateAgent
 from glee_eval.data.schemas import AgentAction, GameState, compact_id
 from glee_eval.response_models.runtime import EmpiricalResponseModel, ResponseEstimate
+from glee_eval.simulate.coverage_gate import CoverageGate
 
 
 class StrategicMode(str, Enum):
@@ -29,6 +30,8 @@ class StrategicControl:
     evidence: dict[str, float]
     beliefs: dict[str, float]
     reason: str
+    coverage: dict[str, Any] | None = None
+    counterfactual_uncertainty: float | None = None
 
 
 class JordanStrategicAgent(CandidateAgent):
@@ -39,6 +42,19 @@ class JordanStrategicAgent(CandidateAgent):
     opponent evidence, conservative evidence gates, and game-specific policy
     arms. It intentionally avoids LLM calls and learns only from the legally
     visible state passed by the harness.
+
+    Two empirical-support signals feed this agent, and they are deliberately
+    kept separate because they answer different questions:
+
+    * The audit support index, read through `CoverageGate`, answers "do we have
+      real data about this situation at all?". It is context-level, shared with
+      the simulation dispatcher and the negotiation diagnostic, and it governs
+      the binary question of whether the agent is allowed to escalate to
+      EXPLOIT, plus which decisions get flagged for counterfactual simulation.
+    * The trained response model's own `support_quality` answers "how tightly is
+      this specific offer bucket estimated?". It is bucket-local to one binned
+      table and is only used to weigh candidate numeric values against each
+      other, where a bucket-local answer is the right one.
     """
 
     agent_id = "jordan_strategic_v1"
@@ -51,13 +67,27 @@ class JordanStrategicAgent(CandidateAgent):
         max_posterior_regret: float = 0.18,
         max_counterfactual_uncertainty: float = 0.30,
         response_model_path: str | None = None,
+        support_index_path: str | None = None,
+        coverage_uncertainty_weight: float = 0.15,
     ):
         self.rng = random.Random(seed)
         self.exploit_evidence_threshold = exploit_evidence_threshold
         self.explore_evidence_threshold = explore_evidence_threshold
         self.max_posterior_regret = max_posterior_regret
         self.max_counterfactual_uncertainty = max_counterfactual_uncertainty
+        self.coverage_uncertainty_weight = coverage_uncertainty_weight
         self.response_model = EmpiricalResponseModel.load(response_model_path or os.getenv("GLEE_RESPONSE_MODEL"))
+        self.coverage_gate = CoverageGate.from_path(support_index_path or os.getenv("GLEE_SUPPORT_INDEX"))
+
+    def attach_coverage_gate(self, gate: CoverageGate) -> None:
+        """Accept the run-level coverage gate from the simulation dispatcher.
+
+        A gate handed over this way carries a dispatcher, so out-of-support
+        decisions can request a targeted counterfactual simulation. A gate built
+        from `GLEE_SUPPORT_INDEX` alone is measurement-only.
+        """
+
+        self.coverage_gate = gate
 
     def decide(self, state: GameState) -> AgentAction:
         if state.game_family == "bargaining":
@@ -557,9 +587,11 @@ class JordanStrategicAgent(CandidateAgent):
     ) -> StrategicControl:
         strongest = max(evidence.values()) if evidence else 1.0
         remaining = self._remaining(state)
-        uncertainty = self._counterfactual_uncertainty(state, beliefs, evidence)
+        coverage = self._context_coverage(state, family)
+        uncertainty = self._counterfactual_uncertainty(state, beliefs, evidence, coverage)
         expected_gain = self._expected_exploitation_gain(state, family, beliefs, evidence)
         posterior_regret = self._posterior_regret(state, beliefs, evidence)
+        extra = {"coverage": coverage, "counterfactual_uncertainty": uncertainty}
 
         if (
             expected_gain > 0
@@ -567,15 +599,39 @@ class JordanStrategicAgent(CandidateAgent):
             and strongest >= self.exploit_evidence_threshold
             and uncertainty <= self.max_counterfactual_uncertainty
         ):
-            return StrategicControl(StrategicMode.EXPLOIT, "evidence_gated", expected_gain, posterior_regret, evidence, beliefs, "exploit gate passed")
+            return StrategicControl(StrategicMode.EXPLOIT, "evidence_gated", expected_gain, posterior_regret, evidence, beliefs, "exploit gate passed", **extra)
 
         if family == "negotiation" and remaining > 2 and evidence.get("E_commitment_sensitive", 1.0) >= 1.7:
-            return StrategicControl(StrategicMode.COMMIT, "commitment_screen", expected_gain, posterior_regret, evidence, beliefs, "commitment sensitivity evidence")
+            return StrategicControl(StrategicMode.COMMIT, "commitment_screen", expected_gain, posterior_regret, evidence, beliefs, "commitment sensitivity evidence", **extra)
 
         if remaining > 2 and strongest >= self.explore_evidence_threshold:
-            return StrategicControl(StrategicMode.EXPLORE, "active_information", expected_gain, posterior_regret, evidence, beliefs, "information value remains")
+            return StrategicControl(StrategicMode.EXPLORE, "active_information", expected_gain, posterior_regret, evidence, beliefs, "information value remains", **extra)
 
-        return StrategicControl(StrategicMode.SAFE, "robust_floor", expected_gain, posterior_regret, evidence, beliefs, "default robust floor")
+        reason = "default robust floor"
+        if coverage.get("known") and uncertainty > self.max_counterfactual_uncertainty:
+            reason = "default robust floor (empirical coverage too thin to escalate)"
+        return StrategicControl(StrategicMode.SAFE, "robust_floor", expected_gain, posterior_regret, evidence, beliefs, reason, **extra)
+
+    def _planned_action_type(self, state: GameState) -> str:
+        """The action type this turn will produce, known before the value is chosen."""
+
+        if state.game_family == "persuasion":
+            return "recommendation" if state.role == "seller" else "buy_decision"
+        return "offer" if state.valid_action_schema.get("kind") == "offer" else "decision"
+
+    def _context_coverage(self, state: GameState, family: str) -> dict[str, Any]:
+        """How much real data the audit support index holds for this situation."""
+
+        if not self.coverage_gate or not self.coverage_gate.has_index:
+            return {"known": False, "reason": "no support index available"}
+        support = self.coverage_gate.context_coverage(
+            family,
+            dict(state.public_parameters),
+            state.role,
+            self._planned_action_type(state),
+            state,
+        )
+        return {"known": bool(support.get("found")), **support}
 
     def _expected_exploitation_gain(self, state: GameState, family: str, beliefs: dict[str, float], evidence: dict[str, float]) -> float:
         if family == "bargaining":
@@ -592,9 +648,30 @@ class JordanStrategicAgent(CandidateAgent):
         horizon_penalty = 0.04 if self._remaining(state) <= 2 else 0.10
         return self._clip((0.32 / max(sample_e, 1.0)) + horizon_penalty - 0.05 * (strongest - 1.0), 0.02, 0.50)
 
-    def _counterfactual_uncertainty(self, state: GameState, beliefs: dict[str, float], evidence: dict[str, float]) -> float:
+    def _counterfactual_uncertainty(
+        self,
+        state: GameState,
+        beliefs: dict[str, float],
+        evidence: dict[str, float],
+        coverage: dict[str, Any] | None = None,
+    ) -> float:
+        """Uncertainty about what a counterfactual action would have produced.
+
+        The in-game part shrinks as the transcript grows. The empirical part is
+        the audit support index: the thinner the real-data coverage for this
+        context, the more uncertain any counterfactual claim is, which is what
+        keeps `max_counterfactual_uncertainty` from waving through an EXPLOIT
+        escalation in a region the dataset never visited. When no support index
+        is loaded the empirical term is omitted rather than assumed to be zero
+        coverage, so a data-less run is not silently penalized.
+        """
+
         sample_e = evidence.get("E_sample", 1.0)
-        return self._clip(0.42 / max(sample_e, 1.0), 0.05, 0.45)
+        base = 0.42 / max(sample_e, 1.0)
+        if coverage and coverage.get("known"):
+            context_score = float(coverage.get("context_score") or 0.0)
+            base += self.coverage_uncertainty_weight * (1.0 - self._clip(context_score, 0.0, 1.0))
+        return self._clip(base, 0.05, 0.60)
 
     def _last_offer(self, state: GameState) -> dict[str, Any]:
         for item in reversed(state.visible_transcript):
@@ -639,6 +716,16 @@ class JordanStrategicAgent(CandidateAgent):
     ) -> AgentAction:
         structured = dict(structured)
         structured.setdefault("strategic_control", self._control_payload(control))
+        candidate = {
+            "action_type": action_type,
+            "numeric_action": numeric,
+            "structured": structured,
+            "accept_reject": accept_reject,
+            "buy_no_buy": buy_no_buy,
+        }
+        support = self._review_action_support(state, candidate)
+        if support:
+            structured["action_support"] = support
         return AgentAction(
             action_id=compact_id(state.game_id, state.round, self.agent_id, action_type),
             actor_role=state.role,
@@ -652,6 +739,39 @@ class JordanStrategicAgent(CandidateAgent):
             structured=structured,
         )
 
+    def _review_action_support(self, state: GameState, candidate: dict[str, Any]) -> dict[str, Any] | None:
+        """Score the committed action against the support index, and escalate if needed.
+
+        This is the decision point the `counterfactual` trigger exists for: the
+        agent has settled on a concrete action and is about to play it. If that
+        action falls outside the empirical support the audit measured, the gate is
+        asked for a targeted counterfactual simulation. The gate owns
+        deduplication, the per-run dispatch budget, and re-entrancy, so this call
+        is safe to make on every decision.
+        """
+
+        if not self.coverage_gate or not self.coverage_gate.has_index:
+            return None
+        verdict = self.coverage_gate.evaluate(
+            state.game_family,
+            dict(state.public_parameters),
+            state.role,
+            candidate,
+            state,
+        )
+        payload = verdict.to_dict()
+        if not verdict.inside_support:
+            request = self.coverage_gate.request_counterfactual(
+                state.game_family,
+                dict(state.public_parameters),
+                state.role,
+                candidate,
+                state,
+                verdict=verdict,
+            )
+            payload["counterfactual_request"] = request.get("status")
+        return payload
+
     @staticmethod
     def _control_payload(control: StrategicControl) -> dict[str, Any]:
         return {
@@ -660,6 +780,8 @@ class JordanStrategicAgent(CandidateAgent):
             "expected_gain": control.expected_gain,
             "posterior_regret": control.posterior_regret,
             "reason": control.reason,
+            "coverage": control.coverage,
+            "counterfactual_uncertainty": control.counterfactual_uncertainty,
         }
 
     @staticmethod

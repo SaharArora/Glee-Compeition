@@ -11,6 +11,7 @@ from glee_eval.adapters.candidate_agent import load_agent
 from glee_eval.data.dataset_audit import support_lookup
 from glee_eval.data.schemas import AgentAction, EpisodeResult, GameState, Scenario, to_jsonable
 from glee_eval.population.sampler import sample_scenario
+from glee_eval.simulate.coverage_gate import CoverageGate
 from glee_eval.storage.trajectories import ensure_dir, write_json, write_jsonl
 from glee_eval.tournament.metrics import summarize_episodes
 from glee_eval.tournament.runner import run_episode
@@ -36,6 +37,10 @@ class TargetedSimulationDispatcher:
         audit_report: dict[str, Any] | None,
         seed: int,
         ledger_path: str | Path,
+        coverage_threshold: float = 0.35,
+        max_counterfactual_dispatches: int = 3,
+        counterfactual_games: int = 25,
+        counterfactual_output_root: str | Path | None = None,
     ):
         self.agent_spec = agent_spec
         self.support_index = support_index or {"buckets": {}}
@@ -43,6 +48,28 @@ class TargetedSimulationDispatcher:
         self.seed = seed
         self.ledger_path = Path(ledger_path)
         self.entries: list[dict[str, Any]] = []
+        self._counterfactual_active = False
+        self.coverage_gate = CoverageGate(
+            self.support_index,
+            threshold=coverage_threshold,
+            dispatcher=self,
+            max_dispatches=max_counterfactual_dispatches,
+            games_per_dispatch=counterfactual_games,
+            output_root=counterfactual_output_root or (self.ledger_path.parent / "counterfactual"),
+        )
+
+    def build_agent(self) -> Any:
+        """Load the candidate agent and hand it the run's shared coverage gate.
+
+        Injection is duck-typed: agents that do not implement
+        `attach_coverage_gate` are loaded unchanged.
+        """
+
+        agent = load_agent(self.agent_spec, seed=self.seed)
+        attach = getattr(agent, "attach_coverage_gate", None)
+        if callable(attach):
+            attach(self.coverage_gate)
+        return agent
 
     def _record(self, entry: dict[str, Any]) -> None:
         entry = {"schema_version": 1, **entry}
@@ -74,7 +101,7 @@ class TargetedSimulationDispatcher:
             "note": "OPE-lite placeholder uses local episodes; future variants can swap in pure response-surface rollouts behind this dispatcher.",
         }
         rng = random.Random(self.seed)
-        agent = load_agent(self.agent_spec, seed=self.seed)
+        agent = self.build_agent()
         episodes = []
         for _ in range(games):
             family = rng.choice(families)
@@ -168,6 +195,15 @@ class TargetedSimulationDispatcher:
             output_dir=output_dir,
         )
 
+    def counterfactual_available(self) -> bool:
+        """False while a counterfactual simulation is already running.
+
+        Agents inside a counterfactual simulation reach the same coverage gate,
+        so without this the first out-of-support decision would recurse forever.
+        """
+
+        return not self._counterfactual_active
+
     def counterfactual_simulation(
         self,
         *,
@@ -181,18 +217,25 @@ class TargetedSimulationDispatcher:
         output_dir: str | Path = "reports/counterfactual_simulation",
     ) -> dict[str, Any]:
         coverage = support_lookup(family, config, role, action, state, support_index=self.support_index)
+        if not self.counterfactual_available():
+            self._record({"trigger": "counterfactual", "status": "skipped", "reason": "Already inside a counterfactual simulation.", "gap": coverage, "episodes": 0})
+            return {"skipped": True, "coverage": coverage, "episodes": []}
         if coverage["coverage_score"] >= threshold:
             self._record({"trigger": "counterfactual", "status": "skipped", "reason": "Action was inside empirical support.", "gap": coverage, "episodes": 0})
             return {"skipped": True, "coverage": coverage, "episodes": []}
-        return self._scenario_gap_simulation(
-            trigger="counterfactual",
-            reason="Requested action lies outside reliable empirical support.",
-            gap=coverage,
-            family=family,
-            role=role,
-            games=games,
-            output_dir=output_dir,
-        )
+        self._counterfactual_active = True
+        try:
+            return self._scenario_gap_simulation(
+                trigger="counterfactual",
+                reason="Requested action lies outside reliable empirical support.",
+                gap=coverage,
+                family=family,
+                role=role,
+                games=games,
+                output_dir=output_dir,
+            )
+        finally:
+            self._counterfactual_active = False
 
     def long_horizon_simulation(
         self,
@@ -231,7 +274,7 @@ class TargetedSimulationDispatcher:
         output_dir: str | Path,
     ) -> dict[str, Any]:
         rng = random.Random(self.seed + len(self.entries) + 1000)
-        agent = load_agent(self.agent_spec, seed=self.seed)
+        agent = self.build_agent()
         episodes = [
             run_episode(self._tag(sample_scenario(family, seed=rng.randrange(10**9), candidate_role=role), trigger, reason, gap), agent)
             for _ in range(games)

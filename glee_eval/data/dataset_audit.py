@@ -38,6 +38,38 @@ class SupportResult:
         }
 
 
+DEFAULT_MIN_ACTION_SUPPORT = 20
+DEFAULT_MIN_CONTEXT_SUPPORT = 200
+
+
+@dataclass(frozen=True)
+class ContextSupportResult:
+    """Support for a decision *context*, scored without a candidate action.
+
+    `support_lookup` answers "have we seen this action here?", which needs the
+    action to exist first. This answers the prior question "do we know anything
+    about this situation at all?", so it can be consulted while the agent is
+    still deciding what to do.
+    """
+
+    n: int
+    density: float
+    context_score: float
+    bucket_key: str | None
+    bucket_level: str | None
+    found: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "n": self.n,
+            "density": self.density,
+            "context_score": self.context_score,
+            "bucket_key": self.bucket_key,
+            "bucket_level": self.bucket_level,
+            "found": self.found,
+        }
+
+
 def _present(value: Any) -> bool:
     if value is None:
         return False
@@ -335,6 +367,68 @@ def build_support_index(events: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _resolve_support_bucket(
+    family: str,
+    config: dict[str, Any],
+    role: str,
+    action_type: str,
+    round_bucket: str,
+    buckets: dict[str, Any],
+    min_action_support: int,
+) -> tuple[str, str, dict[str, Any]] | None:
+    """Walk the bucket-specificity ladder, stopping at the first well-populated level.
+
+    Shared by `support_lookup` and `context_support_lookup` so both read the same
+    index through the same exact -> coarse -> family_role_round -> family_action
+    fallback order.
+    """
+
+    fallback: tuple[str, str, dict[str, Any]] | None = None
+    for level, key in _support_keys(family, config, role, action_type, round_bucket):
+        bucket = buckets.get(key)
+        if not bucket:
+            continue
+        if fallback is None:
+            fallback = (level, key, bucket)
+        if int(bucket.get("total_observations") or 0) >= min_action_support:
+            return (level, key, bucket)
+    return fallback
+
+
+def context_support_lookup(
+    family: str,
+    config: dict[str, Any],
+    role: str,
+    action_type: str,
+    state: Any = None,
+    *,
+    support_index: dict[str, Any] | None = None,
+    min_action_support: int = DEFAULT_MIN_ACTION_SUPPORT,
+    min_context_support: int = DEFAULT_MIN_CONTEXT_SUPPORT,
+) -> dict[str, Any]:
+    """Empirical support for a decision context, independent of any candidate action.
+
+    `context_score` blends how many observations the resolved bucket holds with
+    how much of the action space those observations occupy, so a bucket that is
+    large but concentrated in one bin still scores as partially covered.
+    """
+
+    support_index = support_index or {"buckets": {}}
+    buckets = support_index.get("buckets", {})
+    round_number = getattr(state, "round", None) if state is not None else None
+    horizon = getattr(state, "horizon", None) if state is not None else _horizon_from_config(family, config)
+    round_bucket = _round_bucket(round_number, horizon)
+    resolved = _resolve_support_bucket(family, config, role, action_type, round_bucket, buckets, min_action_support)
+    if resolved is None:
+        return ContextSupportResult(0, 0.0, 0.0, None, None, False).to_dict()
+    level, key, bucket = resolved
+    n = int(bucket.get("total_observations") or 0)
+    density = float(bucket.get("density") or 0.0)
+    volume_part = min(1.0, n / max(1, min_context_support))
+    context_score = max(0.0, min(1.0, 0.5 * volume_part + 0.5 * density))
+    return ContextSupportResult(n, density, context_score, key, level, True).to_dict()
+
+
 def support_lookup(
     family: str,
     config: dict[str, Any],
@@ -343,7 +437,7 @@ def support_lookup(
     state: Any = None,
     *,
     support_index: dict[str, Any] | None = None,
-    min_action_support: int = 20,
+    min_action_support: int = DEFAULT_MIN_ACTION_SUPPORT,
 ) -> dict[str, Any]:
     support_index = support_index or {"buckets": {}}
     action_info = _action_value_and_type(family, action, config)
@@ -354,16 +448,7 @@ def support_lookup(
     horizon = getattr(state, "horizon", None) if state is not None else _horizon_from_config(family, config)
     round_bucket = _round_bucket(round_number, horizon)
     buckets = support_index.get("buckets", {})
-    fallback: tuple[str, str, dict[str, Any]] | None = None
-    for level, key in _support_keys(family, config, role, action_type, round_bucket):
-        bucket = buckets.get(key)
-        if not bucket:
-            continue
-        if fallback is None:
-            fallback = (level, key, bucket)
-        if int(bucket.get("total_observations") or 0) >= min_action_support:
-            fallback = (level, key, bucket)
-            break
+    fallback = _resolve_support_bucket(family, config, role, action_type, round_bucket, buckets, min_action_support)
     if fallback is None:
         return SupportResult(0, 0, 0.0, action_bin, None, None, 0.0, 0, _support_total_bins(family, action_type)).to_dict()
     level, key, bucket = fallback
