@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from glee_eval.data.dataset_audit import audit_processed, audit_records
+from glee_eval.data.dataset_audit import audit_processed, audit_records, build_support_index, support_lookup
 from glee_eval.storage.trajectories import write_jsonl
 
 
@@ -58,6 +58,42 @@ class DatasetAuditTests(unittest.TestCase):
             self.assertEqual(report["strategy_recommendation"]["verdict"], "no_processed_dataset")
             self.assertTrue((root / "reports" / "audit.json").exists())
             self.assertTrue((root / "reports" / "audit.md").exists())
+            self.assertTrue((root / "reports" / "support_index.json").exists())
+
+    def test_support_lookup_reports_coverage_for_state_action(self) -> None:
+        events = [
+            {
+                "event_id": "e1",
+                "game_id": "g1",
+                "game_family": "negotiation",
+                "role": "seller",
+                "round": 1,
+                "action_type": "offer",
+                "numeric_action": 900,
+                "configuration": {"seller_value": 0.7, "buyer_value": 1.1, "product_price_order": 1000, "max_rounds": 6},
+            },
+            {
+                "event_id": "e2",
+                "game_id": "g2",
+                "game_family": "negotiation",
+                "role": "seller",
+                "round": 1,
+                "action_type": "offer",
+                "numeric_action": 900,
+                "configuration": {"seller_value": 0.7, "buyer_value": 1.1, "product_price_order": 1000, "max_rounds": 6},
+            },
+        ]
+        support_index = build_support_index(events)
+        result = support_lookup(
+            "negotiation",
+            {"seller_value": 0.7, "buyer_value": 1.1, "product_price_order": 1000, "max_rounds": 6},
+            "seller",
+            {"action_type": "offer", "numeric_action": 900, "structured": {"product_price": 900}},
+            support_index=support_index,
+            min_action_support=2,
+        )
+        self.assertEqual(result["action_n"], 2)
+        self.assertGreater(result["coverage_score"], 0.7)
 
 
 if __name__ == "__main__":

@@ -5,16 +5,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from glee_eval.adapters.candidate_agent import load_agent
+from glee_eval.audit.dataset_audit import audit_processed
 from glee_eval.config import DEFAULT_DATA_DIR
 from glee_eval.data.schemas import EpisodeResult, to_jsonable
+from glee_eval.diagnostics.negotiation import diagnostic_hypothesis, negotiation_diagnostic
 from glee_eval.experiments.hypotheses import generate_hypotheses, hypotheses_markdown
 from glee_eval.experiments.matches import write_match_ledger
 from glee_eval.probes.runner import run_probes
 from glee_eval.scoring.shadow import score_run
-from glee_eval.search.adversarial import search_failures
-from glee_eval.storage.trajectories import ensure_dir, write_json, write_jsonl
-from glee_eval.tournament.runner import run_tournament
+from glee_eval.simulate.dispatch import TargetedSimulationDispatcher
+from glee_eval.storage.trajectories import ensure_dir, read_json, write_json, write_jsonl
 
 
 def _timestamp_name(agent_spec: str) -> str:
@@ -138,6 +138,10 @@ def run_experiment(
     }
     write_json(run_dir / "config.json", config)
 
+    audit_dir = ensure_dir(run_dir / "audit")
+    audit_report = audit_processed(data_dir=data_dir, output_dir=audit_dir)
+    support_index = read_json(audit_dir / "support_index.json")
+
     probe_summary = None
     if not skip_probes and (Path(data_dir) / "processed" / "events.jsonl").exists():
         probe_result = run_probes(
@@ -149,11 +153,17 @@ def run_experiment(
         )
         probe_summary = probe_result["summary"]
 
-    tournament_result = run_tournament(
+    dispatcher = TargetedSimulationDispatcher(
         agent_spec=agent_spec,
+        support_index=support_index,
+        audit_report=audit_report,
+        seed=seed,
+        ledger_path=run_dir / "simulation" / "simulation_ledger.jsonl",
+    )
+
+    tournament_result = dispatcher.policy_optimization_simulation(
         families=families,
         games=games,
-        seed=seed,
         output_dir=run_dir / "tournament",
     )
     tournament_episodes = tournament_result["episodes"]
@@ -162,13 +172,12 @@ def run_experiment(
     search_summaries: dict[str, Any] = {}
     if not skip_search:
         for family in search_families:
-            search_result = search_failures(
-                agent_spec=agent_spec,
+            search_result = dispatcher.adversarial_simulation(
                 family=family,
                 population=search_population,
                 elite_frac=search_elite_frac,
                 generations=search_generations,
-                seed=seed,
+                objective="maximum_regret",
                 output_dir=run_dir / "search" / family,
             )
             elite_episodes.extend(search_result["elites"])
@@ -186,6 +195,18 @@ def run_experiment(
         max_report_rows=match_report_limit,
     )
     hypothesis_report = generate_hypotheses(tournament_episodes, elite_episodes)
+    negotiation_report = negotiation_diagnostic(
+        data_dir=data_dir,
+        run_dir=run_dir,
+        support_index=support_index,
+        output_dir=run_dir / "diagnostics" / "negotiation",
+    )
+    hypothesis_report.setdefault("hypotheses", []).insert(0, diagnostic_hypothesis(negotiation_report))
+    hypothesis_report.setdefault("diagnostics", {})["negotiation"] = {
+        "json": str(run_dir / "diagnostics" / "negotiation" / "negotiation_diagnostic.json"),
+        "markdown": str(run_dir / "diagnostics" / "negotiation" / "negotiation_diagnostic.md"),
+        "top_candidate_cause": (negotiation_report.get("ranked_candidate_causes") or [{}])[0],
+    }
     ensure_dir(run_dir / "hypotheses")
     write_json(run_dir / "hypotheses" / "hypotheses.json", hypothesis_report)
     (run_dir / "hypotheses" / "hypotheses.md").write_text(hypotheses_markdown(hypothesis_report), encoding="utf-8")
@@ -200,11 +221,21 @@ def run_experiment(
         "probe_summary": probe_summary,
         "tournament_metrics": tournament_result["metrics"],
         "search_summaries": search_summaries,
+        "audit_paths": {
+            "json": str(audit_dir / "audit.json"),
+            "markdown": str(audit_dir / "audit.md"),
+            "support_index": str(audit_dir / "support_index.json"),
+        },
+        "simulation_ledger": str(run_dir / "simulation" / "simulation_ledger.jsonl"),
         "dataset_paths": dataset_paths,
         "match_paths": match_paths,
         "hypothesis_paths": {
             "json": str(run_dir / "hypotheses" / "hypotheses.json"),
             "markdown": str(run_dir / "hypotheses" / "hypotheses.md"),
+        },
+        "diagnostic_paths": {
+            "negotiation_json": str(run_dir / "diagnostics" / "negotiation" / "negotiation_diagnostic.json"),
+            "negotiation_markdown": str(run_dir / "diagnostics" / "negotiation" / "negotiation_diagnostic.md"),
         },
         "shadow_score": shadow_score_result,
     }

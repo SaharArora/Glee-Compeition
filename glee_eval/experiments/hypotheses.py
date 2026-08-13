@@ -23,6 +23,11 @@ def _cluster_key(episode: EpisodeResult, failure_type: str) -> tuple[str, str, s
     )
 
 
+def _simulation_trigger(episode: EpisodeResult) -> str:
+    simulation = (episode.scenario.metadata or {}).get("simulation", {})
+    return str(simulation.get("trigger") or "none")
+
+
 def generate_hypotheses(episodes: list[EpisodeResult], elite_episodes: list[EpisodeResult] | None = None) -> dict[str, Any]:
     elite_episodes = elite_episodes or []
     cluster_rows: dict[tuple[str, str, str, str], list[EpisodeResult]] = defaultdict(list)
@@ -45,6 +50,10 @@ def generate_hypotheses(episodes: list[EpisodeResult], elite_episodes: list[Epis
                 "mean_regret": mean(regrets) if regrets else None,
                 "max_regret": max(regrets) if regrets else None,
                 "example_episode_id": rows[0].episode_id,
+                "simulation_triggers": {
+                    trigger: sum(1 for row in rows if _simulation_trigger(row) == trigger)
+                    for trigger in sorted({_simulation_trigger(row) for row in rows})
+                },
             }
         )
     clusters.sort(key=lambda row: (row["mean_regret"] or 0.0, -(row["mean_payoff"] or 0.0), row["count"]), reverse=True)
@@ -65,6 +74,7 @@ def generate_hypotheses(episodes: list[EpisodeResult], elite_episodes: list[Epis
                     "mean_regret": cluster["mean_regret"],
                     "max_regret": cluster["max_regret"],
                     "example_episode_id": cluster["example_episode_id"],
+                    "simulation_triggers": cluster.get("simulation_triggers", {}),
                 },
                 "next_check": "Inspect the example transcript and compare the critical decision with the reference/regret signal.",
             }
@@ -82,6 +92,7 @@ def generate_hypotheses(episodes: list[EpisodeResult], elite_episodes: list[Epis
                 "opponent_archetype": episode.opponent_spec.archetype,
                 "candidate_payoff": episode.candidate_payoff,
                 "regret": episode.metrics.get("regret"),
+                "simulation_trigger": _simulation_trigger(episode),
                 "scenario": to_jsonable(episode.scenario),
             }
             for episode in worst
@@ -96,25 +107,35 @@ def hypotheses_markdown(report: dict[str, Any]) -> str:
         lines.append("No high-regret hypothesis clusters were found in this run.")
     for idx, item in enumerate(hypotheses, start=1):
         evidence = item.get("evidence", {})
-        lines.extend(
-            [
-                f"## {idx}. {item['hypothesis']}",
-                "",
-                f"- Count: {evidence.get('count')}",
-                f"- Mean payoff: {evidence.get('mean_payoff')}",
-                f"- Mean regret: {evidence.get('mean_regret')}",
-                f"- Max regret: {evidence.get('max_regret')}",
-                f"- Example episode: `{evidence.get('example_episode_id')}`",
-                f"- Next check: {item.get('next_check')}",
-                "",
-            ]
-        )
+        lines.extend([f"## {idx}. {item['hypothesis']}", ""])
+        if item.get("source"):
+            lines.extend(
+                [
+                    f"- Source: `{item.get('source')}`",
+                    f"- Evidence: `{evidence}`",
+                    f"- Next check: {item.get('next_check')}",
+                    "",
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    f"- Count: {evidence.get('count')}",
+                    f"- Mean payoff: {evidence.get('mean_payoff')}",
+                    f"- Mean regret: {evidence.get('mean_regret')}",
+                    f"- Max regret: {evidence.get('max_regret')}",
+                    f"- Example episode: `{evidence.get('example_episode_id')}`",
+                    f"- Simulation triggers: `{evidence.get('simulation_triggers', {})}`",
+                    f"- Next check: {item.get('next_check')}",
+                    "",
+                ]
+            )
     lines.extend(["## Worst Episodes", ""])
     for episode in report.get("worst_episodes", [])[:20]:
         lines.append(
             f"- `{episode['episode_id']}`: {episode['family']} as {episode['role']} "
-            f"vs {episode['opponent_archetype']}, payoff={episode['candidate_payoff']}, regret={episode['regret']}"
+            f"vs {episode['opponent_archetype']}, payoff={episode['candidate_payoff']}, regret={episode['regret']}, "
+            f"trigger={episode.get('simulation_trigger')}"
         )
     lines.append("")
     return "\n".join(lines)
-

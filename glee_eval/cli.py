@@ -3,10 +3,11 @@ from __future__ import annotations
 import argparse
 
 from glee_eval.audit import main as audit_main
-from glee_eval.data.dataset_audit import main as dataset_audit_main
+from glee_eval.audit.dataset_audit import main as dataset_audit_main
 from glee_eval.data.ingest import main as ingest_main
 from glee_eval.data.stats import main as stats_main
 from glee_eval.data.validation import main as validate_main
+from glee_eval.diagnostics.negotiation import main as negotiation_diagnostic_main
 from glee_eval.experiments.run import main as experiment_main
 from glee_eval.population.calibration import main as calibrate_main
 from glee_eval.probes.runner import main as probes_main
@@ -32,6 +33,7 @@ def main(argv: list[str] | None = None) -> None:
         "calibrate-population",
         "search-failures",
         "shadow-score",
+        "negotiation-diagnostic",
     ]:
         sub.add_parser(name)
     args, rest = parser.parse_known_args(argv)
@@ -59,6 +61,8 @@ def main(argv: list[str] | None = None) -> None:
         search_main(rest)
     elif args.command == "shadow-score":
         shadow_score_main(rest)
+    elif args.command == "negotiation-diagnostic":
+        negotiation_diagnostic_main(rest)
     else:  # pragma: no cover
         parser.error(f"Unknown command: {args.command}")
 

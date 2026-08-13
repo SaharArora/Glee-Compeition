@@ -64,6 +64,7 @@ Read:
 ```text
 reports/dataset_audit/audit.md
 reports/dataset_audit/audit.json
+reports/dataset_audit/support_index.json
 ```
 
 The audit checks:
@@ -74,6 +75,7 @@ The audit checks:
 - private/public state key coverage
 - player/model identity availability
 - whether the data is only useful for smoke testing or rich enough to be an empirical foundation
+- state-action support coverage by family/config/role/round bucket
 
 If the verdict is `no_processed_dataset` or `toy_or_smoke_dataset`, do not run huge continuous simulations expecting a serious training set. Get more real data first, and use synthetic games only to verify the harness and find obvious agent failures.
 
@@ -105,7 +107,7 @@ The v0 model estimates:
 - negotiation: `P(AcceptOffer | normalized_price, role, round, surplus, source)`
 - persuasion: `P(buy | recommendation, quality, round, p-bin, message-style, source)`
 
-It also stores support counts and uncertainty. Sparse or out-of-support buckets are penalized at runtime.
+It also stores support counts, uncertainty, theory-residual summaries, and lightweight population-structure features by `family|config_id|role`. Sparse or out-of-support buckets are penalized at runtime.
 
 Enable the model-backed Jordan agent:
 
@@ -205,7 +207,53 @@ The first decision rule is simple:
 - If payoff improves but low-support bucket count is high, treat it as a hypothesis, not a proven improvement.
 - If negotiation mean percentile or displayed rating is worse, patch negotiation before running longer tests.
 
-## 6. Run Historical Decision Probes
+## 6. Targeted Simulation And Diagnostics
+
+The standard experiment pipeline now runs an audit first and routes experiment-time simulation through the targeted dispatcher. The dispatcher has exactly five trigger labels:
+
+```text
+rare_type
+counterfactual
+adversarial
+long_horizon
+policy_optimization
+```
+
+Every simulated episode is tagged with one trigger in `scenario.metadata.simulation`, and the run-level ledger records why simulation fired:
+
+```text
+runs/<run_name>/simulation/simulation_ledger.jsonl
+```
+
+The match ledger also includes the trigger column:
+
+```text
+runs/<run_name>/matches/match_ledger.md
+```
+
+Negotiation diagnostics run as a normal experiment stage:
+
+```text
+runs/<run_name>/diagnostics/negotiation/negotiation_diagnostic.md
+runs/<run_name>/diagnostics/negotiation/negotiation_diagnostic.json
+```
+
+The diagnostic compares real accepted-deal surplus capture, midpoint residuals, support coverage near the current surplus-capture floor, and smoke-test negotiation failures. Its top candidate cause is inserted into:
+
+```text
+runs/<run_name>/hypotheses/hypotheses.md
+```
+
+You can also run it directly:
+
+```bash
+python -m glee_eval negotiation-diagnostic \
+  --data-dir data \
+  --run-dir runs/ab_empirical_jordan_300 \
+  --output-dir reports/negotiation_diagnostic
+```
+
+## 7. Run Historical Decision Probes
 
 Historical probes ask your agent what it would do at states extracted from real GLEE logs.
 
@@ -219,7 +267,7 @@ python -m glee_eval probes \
 
 This does not pretend the historical continuation is a counterfactual. It is a cheap decision-quality benchmark.
 
-## 7. Run A Simulation Stress-Test Experiment
+## 8. Run A Simulation Stress-Test Experiment
 
 This runs probes when processed real data exists, plus a synthetic tournament, adversarial scenario search, dataset export, and hypothesis generation into one self-contained run folder. Treat it as stress testing unless the dataset audit shows that your real GLEE data is too small or unavailable.
 
@@ -258,6 +306,10 @@ Main outputs:
 runs/my_agent_v1/manifest.json
 runs/my_agent_v1/tournament/episodes.jsonl
 runs/my_agent_v1/probes/decisions.jsonl
+runs/my_agent_v1/audit/audit.md
+runs/my_agent_v1/audit/support_index.json
+runs/my_agent_v1/simulation/simulation_ledger.jsonl
+runs/my_agent_v1/diagnostics/negotiation/negotiation_diagnostic.md
 runs/my_agent_v1/search/<family>/elite_episodes.jsonl
 runs/my_agent_v1/datasets/state_action_outcome.jsonl
 runs/my_agent_v1/datasets/episode_summary.jsonl
@@ -273,9 +325,11 @@ Use `state_action_outcome.jsonl` for later analysis/training-data conversion. Us
 
 Use `matches/match_ledger.md` as the running document for compiled match results. It summarizes all matches and lists the highest-regret rows up to `--match-report-limit` so very large runs do not create an unreadable document. The full match ledger is always available in `matches/match_ledger.csv` and `matches/match_ledger.jsonl`.
 
-## 8. Run Synthetic Tournaments Only
+## 9. Run Synthetic Tournaments Only
 
 Synthetic tournaments play full games against deterministic opponent archetypes.
+
+Note: the standalone tournament command is still useful for a quick isolated simulator smoke test. The full `experiment` command is the audit-first path that tags simulation through the dispatcher.
 
 ```bash
 python -m glee_eval tournament \
@@ -293,7 +347,7 @@ reports/my_agent_tournament/episodes.jsonl
 reports/my_agent_tournament/metrics.json
 ```
 
-## 9. Search For Failures Only
+## 10. Search For Failures Only
 
 Use this to generate hard scenarios before working on leaderboard submissions.
 
@@ -315,7 +369,7 @@ reports/my_agent_search/elite_episodes.jsonl
 reports/my_agent_search/summary.json
 ```
 
-## 10. Refresh Historical Data
+## 11. Refresh Historical Data
 
 Small all-family sample:
 
@@ -349,7 +403,7 @@ python -m glee_eval train-response-models --data-dir data --output-dir models/re
 python -m glee_eval calibrate-population --games 10000 --data-dir data --output-dir reports
 ```
 
-## 9. Publishing Guidance
+## 12. Publishing Guidance
 
 Do not commit:
 

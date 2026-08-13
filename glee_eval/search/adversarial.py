@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import random
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,9 @@ def search_failures(
     seed: int = 42,
     objective: str = "maximum_regret",
     output_dir: str | Path = "reports/search_failures",
+    simulation_trigger: str | None = None,
+    simulation_reason: str | None = None,
+    simulation_gap: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     rng = random.Random(seed)
     agent = load_agent(agent_spec, seed=seed)
@@ -49,6 +53,19 @@ def search_failures(
                 scenario = sample_scenario(family, seed=base.seed + rng.randrange(1, 10_000), candidate_role=base.candidate_role)
             else:
                 scenario = sample_scenario(family, seed=rng.randrange(10**9))
+            if simulation_trigger:
+                scenario = replace(
+                    scenario,
+                    source="targeted_simulation",
+                    metadata={
+                        **dict(scenario.metadata),
+                        "simulation": {
+                            "trigger": simulation_trigger,
+                            "reason": simulation_reason,
+                            "gap": simulation_gap or {},
+                        },
+                    },
+                )
             episodes.append(run_episode(scenario, agent))
         ranked = sorted(episodes, key=lambda ep: _score(ep, objective), reverse=True)
         keep = max(1, int(population * elite_frac))
@@ -96,4 +113,3 @@ def main(argv: list[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

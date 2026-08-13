@@ -8,8 +8,9 @@ This repository is designed to help you iterate before making a real leaderboard
 
 - Create a candidate agent.
 - Audit real GLEE data before treating simulations as training data.
+- Build a reusable state-action support index from the empirical data.
 - Run historical decision probes.
-- Run synthetic tournaments as smoke tests and stress tests.
+- Route standard experiment simulation through named, auditable targeted triggers.
 - Search for hard failure scenarios.
 - Estimate an official-style shadow leaderboard score from local reference percentiles.
 - Save structured traces for later analysis, hypothesis generation, and training data construction.
@@ -53,6 +54,10 @@ Important outputs:
 runs/smoke/datasets/state_action_outcome.jsonl
 runs/smoke/datasets/episode_summary.jsonl
 runs/smoke/datasets/failure_cases.jsonl
+runs/smoke/audit/audit.md
+runs/smoke/audit/support_index.json
+runs/smoke/simulation/simulation_ledger.jsonl
+runs/smoke/diagnostics/negotiation/negotiation_diagnostic.md
 runs/smoke/matches/match_ledger.md
 runs/smoke/matches/match_ledger.csv
 runs/smoke/hypotheses/hypotheses.md
@@ -74,6 +79,7 @@ Read:
 ```text
 reports/dataset_audit/audit.md
 reports/dataset_audit/audit.json
+reports/dataset_audit/support_index.json
 ```
 
 If the audit says `toy_or_smoke_dataset` or `no_processed_dataset`, keep simulations small. If it says `empirical_foundation_candidate`, shift effort toward empirical response models and use simulation only for targeted stress tests.
@@ -86,6 +92,8 @@ export GLEE_RESPONSE_MODEL=models/response_v0
 ```
 
 With `GLEE_RESPONSE_MODEL` set, `my_agents.jordan_strategic:MyAgent` uses the learned response estimates where support is available and falls back to its original conservative rules elsewhere.
+
+The response model also carries lightweight population-structure summaries and theory-residual fields. These are diagnostic context, not a neural policy and not online learning.
 
 Run a same-seed A/B comparison:
 

@@ -35,9 +35,12 @@ def _terminal_brief(episode: EpisodeResult) -> str:
 
 def episode_to_match_row(episode: EpisodeResult, source: str) -> dict[str, Any]:
     failures = _failure_types(episode)
+    simulation = (episode.scenario.metadata or {}).get("simulation", {})
     return {
         "episode_id": episode.episode_id,
         "source": source,
+        "simulation_trigger": simulation.get("trigger"),
+        "simulation_reason": simulation.get("reason"),
         "scenario_id": episode.scenario.scenario_id,
         "family": episode.scenario.game_family,
         "candidate_role": episode.scenario.candidate_role,
@@ -70,6 +73,8 @@ def write_match_csv(path: Path, rows: list[dict[str, Any]]) -> Path:
     fieldnames = [
         "episode_id",
         "source",
+        "simulation_trigger",
+        "simulation_reason",
         "scenario_id",
         "family",
         "candidate_role",
@@ -155,13 +160,13 @@ def match_report_markdown(rows: list[dict[str, Any]], *, max_rows: int = 200) ->
             "",
             f"## Highest-Regret Matches {'(truncated)' if len(rows) > max_rows else ''}",
             "",
-            "| # | Episode | Source | Family | Role | Opponent | Payoff | Regret | Terminal | Failures |",
-            "|---:|---|---|---|---|---|---:|---:|---|---|",
+            "| # | Episode | Source | Trigger | Family | Role | Opponent | Payoff | Regret | Terminal | Failures |",
+            "|---:|---|---|---|---|---|---|---:|---:|---|---|",
         ]
     )
     for idx, row in enumerate(displayed, start=1):
         lines.append(
-            f"| {idx} | `{row['episode_id']}` | {row['source']} | {row['family']} | {row['candidate_role']} | "
+            f"| {idx} | `{row['episode_id']}` | {row['source']} | {row.get('simulation_trigger') or ''} | {row['family']} | {row['candidate_role']} | "
             f"{row['opponent_archetype']} | {_fmt(row['candidate_payoff'])} | {_fmt(row['regret'])} | "
             f"{row['terminal_brief']} | {row.get('failure_types') or ''} |"
         )
@@ -185,4 +190,3 @@ def write_match_ledger(
     markdown = match_dir / "match_ledger.md"
     markdown.write_text(match_report_markdown(rows, max_rows=max_report_rows), encoding="utf-8")
     return {"jsonl": str(jsonl), "csv": str(csv_path), "markdown": str(markdown)}
-

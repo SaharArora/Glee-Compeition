@@ -190,7 +190,7 @@ def displayed_rating(raw_rating: float, games: int) -> float:
     return 1000.0 + shrink * (raw_rating - 1000.0)
 
 
-def _episode_fields(record: dict[str, Any]) -> tuple[str, str, dict[str, Any], float] | None:
+def _episode_fields(record: dict[str, Any]) -> tuple[str, str, dict[str, Any], float, str | None] | None:
     scenario = _as_dict(record.get("scenario"))
     family = str(scenario.get("game_family") or record.get("family") or "")
     role = str(scenario.get("candidate_role") or record.get("role") or "")
@@ -198,7 +198,8 @@ def _episode_fields(record: dict[str, Any]) -> tuple[str, str, dict[str, Any], f
     payoff = as_float(record.get("candidate_payoff"))
     if family not in FAMILIES or not role or payoff is None:
         return None
-    return family, role, config, payoff
+    simulation = _as_dict(scenario.get("metadata")).get("simulation", {})
+    return family, role, config, payoff, simulation.get("trigger") if isinstance(simulation, dict) else None
 
 
 def score_episodes(
@@ -220,7 +221,7 @@ def score_episodes(
         if fields is None:
             skipped += 1
             continue
-        family, role, config, payoff = fields
+        family, role, config, payoff, simulation_trigger = fields
         choice = _choose_bucket(reference, family, role, config, min_reference=min_reference)
         percentile = None
         rating = None
@@ -250,6 +251,7 @@ def score_episodes(
                 "bucket_support": choice.support if choice else 0,
                 "reference_key": choice.key if choice else None,
                 "opponent_adjusted": False,
+                "simulation_trigger": simulation_trigger,
             }
         )
 

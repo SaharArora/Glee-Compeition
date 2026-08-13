@@ -104,6 +104,9 @@ class ResponseModelTests(unittest.TestCase):
             model = EmpiricalResponseModel.load(root / "models")
             self.assertIsNotNone(model)
             self.assertIn("bargaining", model.payload["families"])
+            self.assertIn("population_structure", model.payload)
+            bucket = next(iter(model.payload["families"]["bargaining"]["buckets"].values()))
+            self.assertIn("theory_residual", bucket)
             self.assertTrue((root / "models" / "training_report.md").exists())
 
     def test_jordan_agent_runs_with_response_model(self) -> None:

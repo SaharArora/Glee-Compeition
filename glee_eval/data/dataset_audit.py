@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean, median
 from typing import Any
@@ -9,6 +10,32 @@ from typing import Any
 from glee_eval.config import DEFAULT_DATA_DIR
 from glee_eval.data.ingest import as_float
 from glee_eval.storage.trajectories import ensure_dir, read_records, write_json
+
+
+@dataclass(frozen=True)
+class SupportResult:
+    n: int
+    action_n: int
+    coverage_score: float
+    action_bin: str
+    bucket_key: str | None
+    bucket_level: str | None
+    density: float
+    occupied_bins: int
+    total_bins: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "n": self.n,
+            "action_n": self.action_n,
+            "coverage_score": self.coverage_score,
+            "action_bin": self.action_bin,
+            "bucket_key": self.bucket_key,
+            "bucket_level": self.bucket_level,
+            "density": self.density,
+            "occupied_bins": self.occupied_bins,
+            "total_bins": self.total_bins,
+        }
 
 
 def _present(value: Any) -> bool:
@@ -62,6 +89,302 @@ def _bin(value: float, width: float = 0.1, low: float = 0.0, high: float = 1.5) 
     return f"{start:.1f}-{end:.1f}"
 
 
+def _round_bucket(round_number: Any, horizon: Any = None) -> str:
+    round_int = int(as_float(round_number) or 0)
+    horizon_int = int(as_float(horizon) or 0)
+    if round_int <= 1:
+        return "r1"
+    if round_int == 2:
+        return "r2"
+    if round_int == 3:
+        return "r3"
+    if horizon_int and round_int >= max(1, horizon_int - 1):
+        return "late"
+    if round_int <= 5:
+        return "r4_5"
+    return "r6_plus"
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _normalized_scalar(value: Any) -> Any:
+    if isinstance(value, bool) or value is None:
+        return value
+    parsed = as_float(value)
+    if parsed is not None:
+        if abs(parsed - round(parsed)) < 1e-9:
+            return int(round(parsed))
+        return round(parsed, 6)
+    return str(value)
+
+
+def _canonical_json(payload: dict[str, Any]) -> str:
+    clean = {str(key): _normalized_scalar(value) for key, value in sorted(payload.items()) if value is not None}
+    return json.dumps(clean, sort_keys=True, separators=(",", ":"))
+
+
+def _horizon_from_config(family: str, config: dict[str, Any]) -> int | None:
+    key = "total_rounds" if family == "persuasion" else "max_rounds"
+    parsed = as_float(config.get(key))
+    return int(parsed) if parsed is not None else None
+
+
+def _coarse_config(family: str, config: dict[str, Any]) -> dict[str, Any]:
+    if family == "bargaining":
+        return {
+            "max_rounds": config.get("max_rounds"),
+            "complete_information": config.get("complete_information"),
+            "messages_allowed": config.get("messages_allowed"),
+            "delta_1": _bin(as_float(config.get("delta_1")) or 0.0, width=0.05, low=0.0, high=1.0),
+            "delta_2": _bin(as_float(config.get("delta_2")) or 0.0, width=0.05, low=0.0, high=1.0),
+        }
+    if family == "negotiation":
+        seller_value = as_float(config.get("seller_value"))
+        buyer_value = as_float(config.get("buyer_value"))
+        surplus = None if seller_value is None or buyer_value is None else max(0.0, buyer_value - seller_value)
+        return {
+            "max_rounds": config.get("max_rounds"),
+            "complete_information": config.get("complete_information"),
+            "seller_value": _bin(seller_value or 0.0, width=0.1, low=0.0, high=1.5),
+            "buyer_value": _bin(buyer_value or 0.0, width=0.1, low=0.0, high=1.5),
+            "surplus": _bin(surplus or 0.0, width=0.1, low=0.0, high=1.0),
+        }
+    if family == "persuasion":
+        return {
+            "total_rounds": config.get("total_rounds"),
+            "p": _bin(as_float(config.get("p")) or 0.0, width=0.1, low=0.0, high=1.0),
+            "v": _bin(as_float(config.get("v")) or 0.0, width=0.1, low=0.0, high=2.0),
+            "c": _bin(as_float(config.get("c")) or 0.0, width=0.1, low=0.0, high=1.5),
+            "seller_message_type": config.get("seller_message_type"),
+            "is_seller_know_cv": config.get("is_seller_know_cv"),
+            "is_buyer_know_p": config.get("is_buyer_know_p"),
+        }
+    return {}
+
+
+def _message_style(message: Any) -> str:
+    text = str(message or "").strip()
+    if not text:
+        return "none"
+    lowered = text.lower()
+    length = "short" if len(text) < 80 else "medium" if len(text) < 240 else "long"
+    confidence = "hedged" if any(word in lowered for word in ["maybe", "might", "could", "uncertain", "possibly"]) else "confident"
+    return f"{length}_{confidence}"
+
+
+def _action_value_and_type(family: str, action: Any, config: dict[str, Any]) -> tuple[str, str] | None:
+    if not isinstance(action, dict):
+        action = {
+            "action_type": getattr(action, "action_type", None),
+            "numeric_action": getattr(action, "numeric_action", None),
+            "structured": getattr(action, "structured", {}),
+            "accept_reject": getattr(action, "accept_reject", None),
+            "buy_no_buy": getattr(action, "buy_no_buy", None),
+        }
+    structured = _as_dict(action.get("structured"))
+    action_type = str(action.get("action_type") or structured.get("action_type") or "")
+    if family == "bargaining" and action_type == "offer":
+        money = as_float(config.get("money_to_divide")) or 100.0
+        numeric = as_float(action.get("numeric_action"))
+        if numeric is None:
+            numeric = as_float(structured.get("self_gain"))
+        if numeric is None or money <= 0:
+            return None
+        return "offer", _bin(numeric / money, width=0.05, low=0.0, high=1.0)
+    if family == "bargaining" and action_type == "decision":
+        decision = action.get("accept_reject") or structured.get("decision")
+        return "decision", str(decision or "unknown")
+    if family == "negotiation" and action_type == "offer":
+        order = as_float(config.get("product_price_order")) or 1_000_000.0
+        numeric = as_float(action.get("numeric_action"))
+        if numeric is None:
+            numeric = as_float(structured.get("product_price"))
+        if numeric is None or order <= 0:
+            return None
+        return "offer", _bin(numeric / order, width=0.05, low=0.0, high=1.5)
+    if family == "negotiation" and action_type == "decision":
+        decision = action.get("accept_reject") or structured.get("decision")
+        return "decision", str(decision or "unknown")
+    if family == "persuasion" and action_type in {"recommendation", "message"}:
+        decision = action.get("buy_no_buy") or structured.get("decision")
+        return "recommendation", str(decision or "unknown")
+    if family == "persuasion" and action_type == "buy_decision":
+        decision = action.get("buy_no_buy") or structured.get("decision")
+        return "buy_decision", str(decision or "unknown")
+    return None
+
+
+def _event_action(event: dict[str, Any]) -> tuple[str, str] | None:
+    family = str(event.get("game_family") or "")
+    config = _as_dict(event.get("configuration") or event.get("public_parameters"))
+    action_type = str(event.get("action_type") or "")
+    raw = _as_dict(event.get("raw_record"))
+    if family == "bargaining" and action_type == "offer":
+        money = as_float(config.get("money_to_divide")) or 100.0
+        numeric = as_float(event.get("numeric_action"))
+        if numeric is None or money <= 0:
+            return None
+        return "offer", _bin(numeric / money, width=0.05, low=0.0, high=1.0)
+    if family == "bargaining" and action_type == "decision":
+        return "decision", str(raw.get("decision") or ("accept" if event.get("accepted") else "reject" if event.get("rejected") else "unknown"))
+    if family == "negotiation" and action_type == "offer":
+        order = as_float(config.get("product_price_order")) or 1_000_000.0
+        numeric = as_float(event.get("numeric_action"))
+        if numeric is None or order <= 0:
+            return None
+        return "offer", _bin(numeric / order, width=0.05, low=0.0, high=1.5)
+    if family == "negotiation" and action_type == "decision":
+        return "decision", str(raw.get("decision") or ("AcceptOffer" if event.get("accepted") else "RejectOffer" if event.get("rejected") else "unknown"))
+    if family == "persuasion" and event.get("role") == "seller" and action_type in {"recommendation", "message"}:
+        decision = raw.get("decision") or event.get("buy_no_buy") or raw.get("recommendation")
+        return "recommendation", str(decision or "unknown")
+    if family == "persuasion" and event.get("role") == "buyer" and action_type == "buy_decision":
+        return "buy_decision", str(raw.get("decision") or event.get("buy_no_buy") or "unknown")
+    return None
+
+
+def _support_keys(family: str, config: dict[str, Any], role: str, action_type: str, round_bucket: str) -> list[tuple[str, str]]:
+    exact = _canonical_json(config)
+    coarse = _canonical_json(_coarse_config(family, config))
+    return [
+        ("exact", f"exact|{family}|{role}|{action_type}|{round_bucket}|{exact}"),
+        ("coarse", f"coarse|{family}|{role}|{action_type}|{round_bucket}|{coarse}"),
+        ("family_role_round", f"family_role_round|{family}|{role}|{action_type}|{round_bucket}"),
+        ("family_action", f"family_action|{family}|{action_type}"),
+    ]
+
+
+def _support_total_bins(family: str, action_type: str) -> int:
+    if family == "bargaining" and action_type == "offer":
+        return 20
+    if family == "negotiation" and action_type == "offer":
+        return 30
+    return 2
+
+
+def build_support_index(events: list[dict[str, Any]]) -> dict[str, Any]:
+    buckets: dict[str, dict[str, Any]] = {}
+    for event in events:
+        family = str(event.get("game_family") or "")
+        role = str(event.get("role") or "unknown")
+        config = _as_dict(event.get("configuration") or event.get("public_parameters"))
+        event_action = _event_action(event)
+        if family not in {"bargaining", "negotiation", "persuasion"} or not event_action:
+            continue
+        action_type, action_bin = event_action
+        round_bucket = _round_bucket(event.get("round"), _horizon_from_config(family, config))
+        for level, key in _support_keys(family, config, role, action_type, round_bucket):
+            bucket = buckets.setdefault(
+                key,
+                {
+                    "level": level,
+                    "family": family,
+                    "role": role if level != "family_action" else None,
+                    "action_type": action_type,
+                    "round_bucket": round_bucket if level != "family_action" else None,
+                    "config": config if level == "exact" else _coarse_config(family, config) if level == "coarse" else None,
+                    "total_observations": 0,
+                    "action_counts": {},
+                    "total_bins": _support_total_bins(family, action_type),
+                },
+            )
+            bucket["total_observations"] += 1
+            bucket["action_counts"][action_bin] = int(bucket["action_counts"].get(action_bin, 0)) + 1
+    for bucket in buckets.values():
+        occupied = len([count for count in bucket["action_counts"].values() if count])
+        total_bins = int(bucket.get("total_bins") or 1)
+        bucket["occupied_bins"] = occupied
+        bucket["density"] = occupied / total_bins if total_bins else 0.0
+    low_coverage = sorted(
+        (
+            {
+                "key": key,
+                "family": bucket["family"],
+                "role": bucket.get("role"),
+                "action_type": bucket["action_type"],
+                "round_bucket": bucket.get("round_bucket"),
+                "total_observations": bucket["total_observations"],
+                "density": bucket["density"],
+                "occupied_bins": bucket["occupied_bins"],
+                "total_bins": bucket["total_bins"],
+            }
+            for key, bucket in buckets.items()
+            if bucket["level"] in {"exact", "coarse"} and (bucket["total_observations"] < 50 or bucket["density"] < 0.20)
+        ),
+        key=lambda row: (row["total_observations"], row["density"]),
+    )
+    return {
+        "schema_version": 1,
+        "bucket_count": len(buckets),
+        "buckets": buckets,
+        "summary": {
+            "bucket_count": len(buckets),
+            "low_coverage_bucket_count": len(low_coverage),
+            "lowest_coverage_buckets": low_coverage[:100],
+        },
+    }
+
+
+def support_lookup(
+    family: str,
+    config: dict[str, Any],
+    role: str,
+    action: Any,
+    state: Any = None,
+    *,
+    support_index: dict[str, Any] | None = None,
+    min_action_support: int = 20,
+) -> dict[str, Any]:
+    support_index = support_index or {"buckets": {}}
+    action_info = _action_value_and_type(family, action, config)
+    if not action_info:
+        return SupportResult(0, 0, 0.0, "unknown", None, None, 0.0, 0, 0).to_dict()
+    action_type, action_bin = action_info
+    round_number = getattr(state, "round", None) if state is not None else None
+    horizon = getattr(state, "horizon", None) if state is not None else _horizon_from_config(family, config)
+    round_bucket = _round_bucket(round_number, horizon)
+    buckets = support_index.get("buckets", {})
+    fallback: tuple[str, str, dict[str, Any]] | None = None
+    for level, key in _support_keys(family, config, role, action_type, round_bucket):
+        bucket = buckets.get(key)
+        if not bucket:
+            continue
+        if fallback is None:
+            fallback = (level, key, bucket)
+        if int(bucket.get("total_observations") or 0) >= min_action_support:
+            fallback = (level, key, bucket)
+            break
+    if fallback is None:
+        return SupportResult(0, 0, 0.0, action_bin, None, None, 0.0, 0, _support_total_bins(family, action_type)).to_dict()
+    level, key, bucket = fallback
+    action_n = int((bucket.get("action_counts") or {}).get(action_bin, 0))
+    n = int(bucket.get("total_observations") or 0)
+    density = float(bucket.get("density") or 0.0)
+    support_part = min(1.0, action_n / max(1, min_action_support))
+    coverage_score = max(0.0, min(1.0, 0.75 * support_part + 0.25 * density))
+    return SupportResult(
+        n=n,
+        action_n=action_n,
+        coverage_score=coverage_score,
+        action_bin=action_bin,
+        bucket_key=key,
+        bucket_level=level,
+        density=density,
+        occupied_bins=int(bucket.get("occupied_bins") or 0),
+        total_bins=int(bucket.get("total_bins") or 0),
+    ).to_dict()
+
+
 def _private_key_counts(events: list[dict[str, Any]]) -> dict[str, int]:
     counts: Counter[str] = Counter()
     for event in events:
@@ -96,6 +419,7 @@ def _message_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
     messages = [str(event.get("free_text_message")) for event in events if _present(event.get("free_text_message"))]
     lengths = [float(len(message)) for message in messages]
     top_messages = Counter(messages).most_common(10)
+    styles = Counter(_message_style(message) for message in messages)
     player_turns = [event for event in events if event.get("role") not in {"nature", "missing"}]
     return {
         "message_events": len(messages),
@@ -103,6 +427,7 @@ def _message_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
         "message_rate_per_player_turn": len(messages) / len(player_turns) if player_turns else None,
         "length_chars": _summary(lengths),
         "unique_messages": len(set(messages)),
+        "style_distribution": dict(styles.most_common()),
         "top_messages": [{"message": message, "count": count} for message, count in top_messages],
     }
 
@@ -165,6 +490,26 @@ def _repeated_identity_summary(games: list[dict[str, Any]]) -> dict[str, Any]:
         "player_2_model_availability": _field_rate(games, "player_2_model", require_nonempty=True),
         "top_player_1_models": dict(p1_models.most_common(20)),
         "top_player_2_models": dict(p2_models.most_common(20)),
+        "composition": {
+            "human_labeled_games": sum(
+                1
+                for game in games
+                if str(game.get("source") or "").startswith("human")
+                or "human" in str(game.get("player_1_model") or "").lower()
+                or "human" in str(game.get("player_2_model") or "").lower()
+            ),
+            "llm_labeled_games": sum(
+                1
+                for game in games
+                if "llm" in str(game.get("source") or "").lower()
+                or any(token in str(game.get(field) or "").lower() for field in ["player_1_model", "player_2_model"] for token in ["gpt", "claude", "gemini", "llama"])
+            ),
+            "bot_labeled_games": sum(
+                1
+                for game in games
+                if any(token in str(game.get(field) or "").lower() for field in ["player_1_model", "player_2_model"] for token in ["bot", "agent", "heuristic"])
+            ),
+        },
         "repeated_public_names": {
             "player_1": {name: count for name, count in p1_names.most_common(20) if count > 1},
             "player_2": {name: count for name, count in p2_names.most_common(20) if count > 1},
@@ -272,6 +617,7 @@ def _strategy_verdict(games: list[dict[str, Any]], events: list[dict[str, Any]])
 
 
 def audit_records(games: list[dict[str, Any]], events: list[dict[str, Any]]) -> dict[str, Any]:
+    support_index = build_support_index(events)
     return {
         "dataset_size": {
             "games": len(games),
@@ -294,6 +640,7 @@ def audit_records(games: list[dict[str, Any]], events: list[dict[str, Any]]) -> 
             "private_information_keys": _private_key_counts(events),
         },
         "empirical_action_support": _support_summary(events),
+        "empirical_action_support_by_state": support_index["summary"],
         "strategy_recommendation": _strategy_verdict(games, events),
     }
 
@@ -362,6 +709,7 @@ def audit_markdown(report: dict[str, Any]) -> str:
             f"- Message events: {messages['message_events']}",
             f"- Message rate per player turn: {messages['message_rate_per_player_turn']}",
             f"- Unique messages: {messages['unique_messages']}",
+            f"- Message style distribution: `{messages.get('style_distribution', {})}`",
             "",
         ]
     )
@@ -371,6 +719,25 @@ def audit_markdown(report: dict[str, Any]) -> str:
     lines.extend(_counter_table("Negotiation Price Support", support["negotiation_price_bins"]))
     lines.extend(_counter_table("Persuasion Seller Recommendations", support["persuasion_seller_recommendations"]))
     lines.extend(_counter_table("Persuasion Buyer Decisions", support["persuasion_buyer_decisions"]))
+
+    state_support = report.get("empirical_action_support_by_state", {})
+    lines.extend(
+        [
+            "## State-Action Coverage",
+            "",
+            f"- Support buckets: {state_support.get('bucket_count', 'see support_index.json')}",
+            f"- Low-coverage buckets: {state_support.get('low_coverage_bucket_count')}",
+            "",
+            "| Family | Role | Action | Round Bucket | Observations | Density |",
+            "|---|---|---|---|---:|---:|",
+        ]
+    )
+    for row in state_support.get("lowest_coverage_buckets", [])[:20]:
+        lines.append(
+            f"| {row.get('family')} | {row.get('role')} | {row.get('action_type')} | {row.get('round_bucket')} | "
+            f"{row.get('total_observations')} | {row.get('density')} |"
+        )
+    lines.append("")
 
     lines.extend(["## Next Actions", ""])
     for item in recommendation["next_actions"]:
@@ -387,8 +754,11 @@ def audit_processed(
     games = read_records(data_dir / "processed" / "games.jsonl")
     events = read_records(data_dir / "processed" / "events.jsonl")
     report = audit_records(games, events)
+    support_index = build_support_index(events)
+    report["empirical_action_support_by_state"] = support_index["summary"]
     out = ensure_dir(output_dir)
     write_json(out / "audit.json", report)
+    write_json(out / "support_index.json", support_index)
     (out / "audit.md").write_text(audit_markdown(report), encoding="utf-8")
     return report
 
