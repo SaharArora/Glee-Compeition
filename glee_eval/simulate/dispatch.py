@@ -38,7 +38,7 @@ class TargetedSimulationDispatcher:
         seed: int,
         ledger_path: str | Path,
         coverage_threshold: float = 0.35,
-        max_counterfactual_dispatches: int = 3,
+        max_counterfactual_dispatches: int = 8,
         counterfactual_games: int = 25,
         counterfactual_output_root: str | Path | None = None,
     ):

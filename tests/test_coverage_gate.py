@@ -365,3 +365,43 @@ class AgentCoverageWiringTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BucketDeduplicationTests(unittest.TestCase):
+    """Budget-dropped buckets must dedupe too, or the ledger buries distinct gaps."""
+
+    def setUp(self) -> None:
+        self.index = build_support_index(_bargaining_events(0.57, 80))
+        self.state = SimpleNamespace(round=1, horizon=6)
+
+    def test_repeats_of_a_budget_dropped_bucket_collapse(self) -> None:
+        gate = CoverageGate(self.index, dispatcher=_RecordingDispatcher(), max_dispatches=1)
+
+        gate.request_counterfactual("bargaining", BARGAINING_CONFIG, "player_2", _offer_action(95.0), self.state)
+        statuses = [
+            gate.request_counterfactual("bargaining", BARGAINING_CONFIG, "player_2", _offer_action(10.0), self.state)["status"]
+            for _ in range(5)
+        ]
+
+        self.assertEqual(statuses[0], "budget_exhausted")
+        self.assertEqual(set(statuses[1:]), {"duplicate_bucket"})
+
+    def test_summary_separates_distinct_gaps_from_covered_ones(self) -> None:
+        gate = CoverageGate(self.index, dispatcher=_RecordingDispatcher(), max_dispatches=1)
+
+        gate.request_counterfactual("bargaining", BARGAINING_CONFIG, "player_2", _offer_action(95.0), self.state)
+        for _ in range(4):
+            gate.request_counterfactual("bargaining", BARGAINING_CONFIG, "player_2", _offer_action(10.0), self.state)
+
+        summary = gate.summary()
+        self.assertEqual(summary["distinct_out_of_support_buckets"], 2)
+        self.assertEqual(summary["uncovered_buckets"], 1)
+
+    def test_a_dispatched_bucket_is_marked_as_previously_dispatched(self) -> None:
+        gate = CoverageGate(self.index, dispatcher=_RecordingDispatcher(), max_dispatches=4)
+
+        gate.request_counterfactual("bargaining", BARGAINING_CONFIG, "player_2", _offer_action(95.0), self.state)
+        repeat = gate.request_counterfactual("bargaining", BARGAINING_CONFIG, "player_2", _offer_action(96.0), self.state)
+
+        self.assertEqual(repeat["status"], "duplicate_bucket")
+        self.assertTrue(repeat["previously_dispatched"])

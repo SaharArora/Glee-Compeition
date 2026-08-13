@@ -9,7 +9,7 @@ from glee_eval.storage.trajectories import read_json
 
 
 DEFAULT_COVERAGE_THRESHOLD = 0.35
-DEFAULT_MAX_DISPATCHES = 3
+DEFAULT_MAX_DISPATCHES = 8
 
 
 @dataclass(frozen=True)
@@ -85,6 +85,7 @@ class CoverageGate:
         self.verdicts: list[dict[str, Any]] = []
         self.requests: list[dict[str, Any]] = []
         self._probed: set[tuple[str, str, str, str]] = set()
+        self._seen: set[tuple[str, str, str, str]] = set()
         self._dispatch_count = 0
 
     @classmethod
@@ -200,12 +201,20 @@ class CoverageGate:
             request["status"] = "no_dispatcher"
         else:
             probe_key = (family, role, verdict.action_type, verdict.action_bin)
-            if probe_key in self._probed:
+            if probe_key in self._seen:
+                # Deduplicate on the bucket regardless of whether it was actually
+                # probed. Without this, once the budget ran out every later decision
+                # in the same bucket logged another budget_exhausted row -- one run
+                # produced 140 rows for a single persuasion bucket, which buries how
+                # many *distinct* gaps went uncovered.
                 request["status"] = "duplicate_bucket"
+                request["previously_dispatched"] = probe_key in self._probed
             elif self.dispatches_remaining <= 0:
+                self._seen.add(probe_key)
                 request["status"] = "budget_exhausted"
                 request["max_dispatches"] = self.max_dispatches
             else:
+                self._seen.add(probe_key)
                 self._probed.add(probe_key)
                 self._dispatch_count += 1
                 request["status"] = "dispatched"
@@ -250,6 +259,8 @@ class CoverageGate:
             "request_status_counts": statuses,
             "dispatch_budget": self.max_dispatches,
             "dispatches_used": self._dispatch_count,
+            "distinct_out_of_support_buckets": len(self._seen),
+            "uncovered_buckets": len(self._seen) - len(self._probed),
         }
 
     @staticmethod
