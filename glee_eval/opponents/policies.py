@@ -81,6 +81,7 @@ class NegotiationPolicy(OpponentPolicy):
             return _action(state, "offer", {"product_price": round(normalized * order, 2)}, numeric=round(normalized * order, 2))
         offer_price = _last_numeric_offer(state)
         normalized_offer = offer_price / order if offer_price is not None else None
+        exit_action = "SellToJhon" if role == "seller" else "BuyFromJhon"
         if normalized_offer is None:
             decision = "RejectOffer"
         elif role == "seller":
@@ -89,6 +90,10 @@ class NegotiationPolicy(OpponentPolicy):
         else:
             max_accept = buyer_value - float(params.get("accept_margin", 0.02))
             decision = "AcceptOffer" if normalized_offer <= max_accept else "RejectOffer"
+        if decision == "RejectOffer" and state.round >= max(1, int(state.horizon or 1)):
+            # Real players end 19.2% of negotiation decisions on Jhon's deal rather
+            # than a bare rejection, concentrated in the closing round.
+            decision = exit_action
         return _action(state, "decision", {"decision": decision}, accept_reject=decision)
 
 

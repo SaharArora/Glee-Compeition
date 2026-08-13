@@ -34,6 +34,16 @@ def _delta(config: dict[str, Any], key: str) -> float:
 EMPIRICAL_DELTA_GRID = (0.8, 0.9, 0.95, 1.0)
 EMPIRICAL_DELTA_MEAN = 0.9133
 
+# Negotiation values are likewise near-uniform over a four-point grid: seller
+# mean 1.1230, buyer mean 1.1255 over 33,627 games. Used as the prior for an
+# unobserved counterpart value under complete_information=False. Note both means
+# sit *above* 1.0, so the old hard-coded defaults of 0.72 (seller) and 1.08
+# (buyer) were both biased, and the buyer one was biased in the direction that
+# invents gains from trade.
+EMPIRICAL_VALUE_GRID = (0.8, 1.0, 1.2, 1.5)
+EMPIRICAL_SELLER_VALUE_MEAN = 1.1230
+EMPIRICAL_BUYER_VALUE_MEAN = 1.1255
+
 
 def bargaining_secured_shares(config: dict[str, Any]) -> list[float]:
     """`A(r)` for every round: the share the round-`r` proposer secures in SPE.

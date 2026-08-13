@@ -13,7 +13,9 @@ from glee_eval.data.schemas import AgentAction, GameState, compact_id
 from glee_eval.response_models.runtime import EmpiricalResponseModel, ResponseEstimate
 from glee_eval.simulate.coverage_gate import CoverageGate
 from glee_eval.theory.benchmarks import (
+    EMPIRICAL_BUYER_VALUE_MEAN,
     EMPIRICAL_DELTA_MEAN,
+    EMPIRICAL_SELLER_VALUE_MEAN,
     bargaining_accept_floor,
     bargaining_spe_shares,
 )
@@ -421,8 +423,30 @@ class JordanStrategicAgent(CandidateAgent):
         return self._action(state, "decision", structured, accept_reject=decision, control=control)
 
     def _negotiation_beliefs(self, state: GameState) -> dict[str, float]:
-        seller_value = self._float(state.private_parameters.get("seller_value"), self._float(state.public_parameters.get("seller_value"), 0.72))
-        buyer_value = self._float(state.private_parameters.get("buyer_value"), self._float(state.public_parameters.get("buyer_value"), 1.08))
+        """Beliefs about the trade zone, without inventing one.
+
+        Two fixes over the previous version. The hard-coded fallbacks of 0.72
+        (seller) and 1.08 (buyer) are replaced by the empirical grid means, both of
+        which are above 1.0. And the counterpart value is no longer inferred as
+        `max(prior, observed_prices, own_value + 0.12)`: that used the prior and an
+        arbitrary +0.12 as *floors*, so as a seller the agent could never believe
+        the buyer valued the good below 1.08 and therefore never believed a
+        no-trade zone existed -- in 61% of real configs, where one does.
+
+        The replacement is an evidence bound rather than an optimistic floor. A
+        buyer offering price `p` reveals their value is at least `p`; a seller
+        offering `p` reveals theirs is at most `p`. With no offers observed yet the
+        prior stands on its own.
+        """
+
+        own_key = "seller_value" if state.role == "seller" else "buyer_value"
+        other_key = "buyer_value" if state.role == "seller" else "seller_value"
+        own_observed = self._float(state.private_parameters.get(own_key), self._float(state.public_parameters.get(own_key), None))
+        other_observed = self._float(state.private_parameters.get(other_key), self._float(state.public_parameters.get(other_key), None))
+        counterpart_known = other_observed is not None
+        prior = {"seller_value": EMPIRICAL_SELLER_VALUE_MEAN, "buyer_value": EMPIRICAL_BUYER_VALUE_MEAN}
+        own_value = own_observed if own_observed is not None else prior[own_key]
+
         order = self._float(state.public_parameters.get("product_price_order"), 1_000_000.0)
         opponent_prices = [
             self._float(item.get("numeric_action"), None) / order
@@ -437,18 +461,25 @@ class JordanStrategicAgent(CandidateAgent):
             for item in state.visible_transcript
             if item.get("action_type") == "decision" and item.get("role") != state.role and item.get("accept_reject") == "RejectOffer"
         )
-        if state.role == "seller":
-            inferred_buyer_value = max([buyer_value] + opponent_prices + [seller_value + 0.12])
-            surplus_room = max(0.0, inferred_buyer_value - seller_value)
+
+        if counterpart_known:
+            other_value = other_observed
+        elif opponent_prices:
+            # Evidence bound, not a floor: their offers reveal which side of the
+            # price their value must lie on.
+            other_value = max(opponent_prices) if state.role == "seller" else min(opponent_prices)
         else:
-            inferred_seller_value = min([seller_value] + opponent_prices + [buyer_value - 0.12])
-            surplus_room = max(0.0, buyer_value - inferred_seller_value)
+            other_value = prior[other_key]
+
+        seller_value = own_value if state.role == "seller" else other_value
+        buyer_value = other_value if state.role == "seller" else own_value
         return {
             "seller_value": seller_value,
             "buyer_value": buyer_value,
+            "counterpart_value_known": 1.0 if counterpart_known else 0.0,
             "opponent_concession_rate": self._clip(mean_concession, 0.0, 0.30),
             "opponent_rejection_count": float(rejection_count),
-            "surplus_room": self._clip(surplus_room, 0.0, 1.0),
+            "surplus_room": self._clip(max(0.0, buyer_value - seller_value), 0.0, 1.0),
             "strategic_delay": self._clip(rejection_count / max(1, state.round), 0.0, 1.0),
         }
 
@@ -527,7 +558,46 @@ class JordanStrategicAgent(CandidateAgent):
             "acceptance_estimate": estimate.to_dict(),
         }
 
+    def _negotiation_outside_option(
+        self,
+        state: GameState,
+        control: StrategicControl,
+        normalized_price: float | None,
+    ) -> str | None:
+        """Take Jhon's deal when no profitable agreement is reachable.
+
+        `SellToJhon` / `BuyFromJhon` transact at the player's own value
+        (`final_value = product_price_order * seller_value` upstream), so the
+        outside option is worth exactly zero surplus -- the same as running the
+        clock out. It is therefore not a way to win more payoff; it is the action
+        real players take in 19.2% of negotiation decisions, and 16,003 of those
+        are in no-trade-zone configs where they take it 7.6x more often than they
+        accept. Without it our action distribution cannot match the population the
+        response model and support index are built from.
+
+        Only taken where it is provably not worse than continuing: when the trade
+        zone is known to be empty, or in the closing round when nothing on the
+        table beats our own value.
+        """
+
+        exit_action = "SellToJhon" if state.role == "seller" else "BuyFromJhon"
+        seller_value = control.beliefs["seller_value"]
+        buyer_value = control.beliefs["buyer_value"]
+        own_value = seller_value if state.role == "seller" else buyer_value
+        counterpart_known = bool(control.beliefs.get("counterpart_value_known", 0.0))
+
+        if counterpart_known and buyer_value <= seller_value:
+            return exit_action
+        if self._remaining(state) <= 1 and normalized_price is not None:
+            beats_own_value = normalized_price > own_value if state.role == "seller" else normalized_price < own_value
+            if not beats_own_value:
+                return exit_action
+        return None
+
     def _negotiation_decision(self, state: GameState, control: StrategicControl, normalized_price: float | None) -> str:
+        outside = self._negotiation_outside_option(state, control, normalized_price)
+        if outside:
+            return outside
         if normalized_price is None:
             return "RejectOffer"
         seller_value = control.beliefs["seller_value"]
