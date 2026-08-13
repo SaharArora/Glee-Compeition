@@ -187,6 +187,35 @@ def run_experiment(
                 "output_dir": search_result["output_dir"],
             }
 
+    # The remaining two of the five named triggers. Both were defined but never
+    # called from anywhere, so their decisions were invisible; wiring them means the
+    # ledger records why they ran or why they declined, rather than nothing.
+    rare_type_results = []
+    for gap in ((audit_report.get("empirical_action_support_by_state") or {}).get("lowest_coverage_buckets") or [])[:2]:
+        family = gap.get("family")
+        if family not in families:
+            continue
+        rare_type_results.append(
+            dispatcher.rare_type_simulation(
+                family=family,
+                config={},
+                role=gap.get("role") or "unknown",
+                action={"action_type": gap.get("action_type"), "structured": {}},
+                state=None,
+                games=min(25, max(5, games // 20)),
+                output_dir=run_dir / "simulation" / "rare_type" / str(family),
+            )
+        )
+    long_horizon_results = [
+        dispatcher.long_horizon_simulation(
+            family=family,
+            min_horizon=64,
+            games=min(25, max(5, games // 20)),
+            output_dir=run_dir / "simulation" / "long_horizon" / family,
+        )
+        for family in families
+    ]
+
     coverage_summary = dispatcher.coverage_gate.summary()
     write_json(run_dir / "simulation" / "coverage_summary.json", coverage_summary)
     write_jsonl(run_dir / "simulation" / "coverage_requests.jsonl", dispatcher.coverage_gate.requests)
@@ -233,6 +262,14 @@ def run_experiment(
         },
         "simulation_ledger": str(run_dir / "simulation" / "simulation_ledger.jsonl"),
         "coverage_summary": coverage_summary,
+        "rare_type_simulations": [
+            {"skipped": bool(r.get("skipped")), "episodes": len(r.get("episodes") or []), "gap": r.get("gap") or r.get("coverage")}
+            for r in rare_type_results
+        ],
+        "long_horizon_simulations": [
+            {"skipped": bool(r.get("skipped")), "episodes": len(r.get("episodes") or []), "gap": r.get("gap")}
+            for r in long_horizon_results
+        ],
         "coverage_paths": {
             "summary": str(run_dir / "simulation" / "coverage_summary.json"),
             "requests": str(run_dir / "simulation" / "coverage_requests.jsonl"),

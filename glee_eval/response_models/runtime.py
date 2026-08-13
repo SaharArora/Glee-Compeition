@@ -7,6 +7,14 @@ from pathlib import Path
 from typing import Any
 
 
+# Both ways the estimator can end up reporting a family-wide rate rather than a
+# real bucket: "__global__" when that literal bucket exists in the table, and this
+# when it falls through to `global_rate`. Callers rejecting one must reject both --
+# the agent guarded only on "__global__" and so never caught the fall-through path.
+GLOBAL_FALLBACK_KEY = "implicit_global"
+GLOBAL_KEYS = frozenset({"__global__", GLOBAL_FALLBACK_KEY})
+
+
 @dataclass(frozen=True)
 class ResponseEstimate:
     probability: float
@@ -20,9 +28,16 @@ class ResponseEstimate:
     def ood_penalty(self) -> float:
         return 1.0 - self.support_quality
 
+    @property
+    def is_global_fallback(self) -> bool:
+        """True when this is a family-wide rate rather than a real bucket estimate."""
+
+        return self.key in GLOBAL_KEYS
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "probability": self.probability,
+            "is_global_fallback": self.is_global_fallback,
             "support": self.support,
             "uncertainty": self.uncertainty,
             "support_quality": self.support_quality,
@@ -281,7 +296,7 @@ class EmpiricalResponseModel:
             support=int(family_model.get("global_trials", 0) or 0),
             uncertainty=0.5,
             support_quality=0.0,
-            key="implicit_global",
+            key=GLOBAL_FALLBACK_KEY,
             fallback_level=len(keys),
         )
 

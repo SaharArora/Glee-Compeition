@@ -470,6 +470,25 @@ def support_lookup(
     ).to_dict()
 
 
+def _composition_counts(games: list[dict[str, Any]]) -> dict[str, int]:
+    """Mutually exclusive population buckets, decided by source first."""
+
+    counts = {"human_labeled_games": 0, "llm_labeled_games": 0, "bot_labeled_games": 0, "unlabeled_games": 0}
+    llm_tokens = ("gpt", "claude", "gemini", "llama", "mistral", "o3-", "o1-")
+    for game in games:
+        source = str(game.get("source") or "").lower()
+        models = " ".join(str(game.get(field) or "").lower() for field in ("player_1_model", "player_2_model"))
+        if source.startswith("human") or "human" in models:
+            counts["human_labeled_games"] += 1
+        elif "bot" in source or "otree" in models:
+            counts["bot_labeled_games"] += 1
+        elif source.startswith("llm") or any(token in models for token in llm_tokens):
+            counts["llm_labeled_games"] += 1
+        else:
+            counts["unlabeled_games"] += 1
+    return counts
+
+
 def _private_key_counts(events: list[dict[str, Any]]) -> dict[str, int]:
     counts: Counter[str] = Counter()
     for event in events:
@@ -576,24 +595,11 @@ def _repeated_identity_summary(games: list[dict[str, Any]]) -> dict[str, Any]:
         "top_player_1_models": dict(p1_models.most_common(20)),
         "top_player_2_models": dict(p2_models.most_common(20)),
         "composition": {
-            "human_labeled_games": sum(
-                1
-                for game in games
-                if str(game.get("source") or "").startswith("human")
-                or "human" in str(game.get("player_1_model") or "").lower()
-                or "human" in str(game.get("player_2_model") or "").lower()
-            ),
-            "llm_labeled_games": sum(
-                1
-                for game in games
-                if "llm" in str(game.get("source") or "").lower()
-                or any(token in str(game.get(field) or "").lower() for field in ["player_1_model", "player_2_model"] for token in ["gpt", "claude", "gemini", "llama"])
-            ),
-            "bot_labeled_games": sum(
-                1
-                for game in games
-                if any(token in str(game.get(field) or "").lower() for field in ["player_1_model", "player_2_model"] for token in ["bot", "agent", "heuristic"])
-            ),
+            # Source is authoritative and the three buckets are mutually exclusive.
+            # Matching on substrings alone double-counted every human game as an LLM
+            # game too, because the human source directory is named "human_vs_llm":
+            # the audit reported 3,405 human and 80,872 LLM games out of 80,872.
+            **_composition_counts(games),
         },
         "repeated_public_names": {
             "player_1": {name: count for name, count in p1_names.most_common(20) if count > 1},

@@ -322,7 +322,7 @@ class JordanStrategicAgent(CandidateAgent):
         for self_share in candidates:
             offered_share = 1.0 - self_share
             estimate = self.response_model.bargaining_acceptance(state, responder, offered_share)
-            if not estimate or estimate.key == "__global__":
+            if not estimate or estimate.is_global_fallback:
                 continue
             robust_score = (
                 self_share * estimate.probability
@@ -540,7 +540,7 @@ class JordanStrategicAgent(CandidateAgent):
         responder_value = buyer_value if state.role == "seller" else seller_value
         for price in sorted(set(candidates)):
             estimate = self.response_model.negotiation_acceptance(state, responder, price, responder_value)
-            if not estimate or estimate.key == "__global__":
+            if not estimate or estimate.is_global_fallback:
                 continue
             payoff_if_accepted = max(0.0, price - seller_value) if state.role == "seller" else max(0.0, buyer_value - price)
             robust_score = (
@@ -755,7 +755,7 @@ class JordanStrategicAgent(CandidateAgent):
             return False
         yes = self.response_model.persuasion_buy(state, "yes", quality, "I recommend buying this product.")
         no = self.response_model.persuasion_buy(state, "no", quality, "I recommend passing on this product.")
-        if not yes or yes.key == "__global__" or yes.support_quality < 0.35:
+        if not yes or yes.is_global_fallback or yes.support_quality < 0.35:
             return False
         no_probability = no.probability if no else 0.0
         return yes.probability - no_probability >= 0.25
