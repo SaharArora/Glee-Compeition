@@ -7,7 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from glee_eval.adapters.candidate_agent import CandidateAgent, load_agent
-from glee_eval.data.ingest import terminal_bargaining, terminal_negotiation, terminal_persuasion
+from glee_eval.data.ingest import (
+    public_parameters,
+    terminal_bargaining,
+    terminal_negotiation,
+    terminal_persuasion,
+    visible_private_parameters,
+)
 from glee_eval.data.schemas import DecisionRecord, EpisodeResult, GameState, OpponentSpec, Scenario, to_jsonable
 from glee_eval.diagnostics.failures import diagnose_episode
 from glee_eval.opponents.policies import PolicyFactory
@@ -28,10 +34,19 @@ def _state(
     horizon: int,
     transcript: list[dict[str, Any]],
     kind: str,
-    private: dict[str, Any] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> GameState:
+    """Build the state a policy is allowed to see.
+
+    The engine below keeps the full config, but a policy only ever gets what the
+    game's own information structure permits -- `complete_information` for
+    bargaining and negotiation, `is_seller_know_cv` / `is_buyer_know_p` for
+    persuasion. These are the same filters `ingest.py` applies to real games, so
+    a synthetic episode and a real one hide the same things.
+    """
+
     visible_transcript = _visible_transcript(scenario.game_family, role, round_number, transcript)
+    config = _config(scenario.game_family, scenario.public_parameters)
     return GameState(
         scenario_id=scenario.scenario_id,
         game_id=game_id,
@@ -39,8 +54,8 @@ def _state(
         role=role,
         round=round_number,
         horizon=horizon,
-        public_parameters=dict(scenario.public_parameters),
-        private_parameters=private or {},
+        public_parameters=public_parameters(scenario.game_family, config),
+        private_parameters=visible_private_parameters(scenario.game_family, role, config),
         visible_transcript=visible_transcript,
         valid_action_schema=_schema(kind, seller_message_type=scenario.public_parameters.get("seller_message_type")),
         metadata=metadata or {},
@@ -155,16 +170,15 @@ def _run_negotiation(scenario: Scenario, candidate: CandidateAgent) -> EpisodeRe
     terminal: dict[str, Any] | None = None
     roles = ("seller", "buyer")
     names = {"seller": "Alice", "buyer": "Bob"}
-    private = {"seller": {"seller_value": cfg.get("seller_value")}, "buyer": {"buyer_value": cfg.get("buyer_value")}}
     for round_number in range(1, horizon + 1):
         proposer = roles[0] if round_number % 2 else roles[1]
         receiver = roles[1] if proposer == roles[0] else roles[0]
-        state = _state(scenario, game_id, proposer, round_number, horizon, transcript, "offer", private=private[proposer])
+        state = _state(scenario, game_id, proposer, round_number, horizon, transcript, "offer")
         offer = _policy_for_role(scenario, candidate, proposer).decide(state)
         rows.append({"player": names[proposer], "round": round_number, "product_price": offer.numeric_action})
         transcript.append({"round": round_number, "role": proposer, "action_type": "offer", "numeric_action": offer.numeric_action, "structured": offer.structured})
         records.append(_decision_record(scenario, game_id, state, offer))
-        state = _state(scenario, game_id, receiver, round_number, horizon, transcript, "decision", private=private[receiver])
+        state = _state(scenario, game_id, receiver, round_number, horizon, transcript, "decision")
         decision = _policy_for_role(scenario, candidate, receiver).decide(state)
         rows.append({"player": names[receiver], "round": round_number, "decision": decision.accept_reject})
         transcript.append({"round": round_number, "role": receiver, "action_type": "decision", "accept_reject": decision.accept_reject, "structured": decision.structured})
@@ -192,14 +206,14 @@ def _run_persuasion(scenario: Scenario, candidate: CandidateAgent) -> EpisodeRes
         quality = "high-quality" if is_high else "low-quality"
         rows.append({"player": "Nature", "round": round_number, "round_quality": quality, "product_worth": worth})
         transcript.append({"round": round_number, "role": "nature", "action_type": "nature_quality", "quality": quality, "product_worth": worth})
-        state = _state(scenario, game_id, "seller", round_number, horizon, transcript, "recommendation", private={"p": cfg.get("p")}, metadata={"quality": quality})
+        state = _state(scenario, game_id, "seller", round_number, horizon, transcript, "recommendation", metadata={"quality": quality})
         seller_action = _policy_for_role(scenario, candidate, "seller").decide(state)
         seller_row = {"player": "Alice", "round": round_number}
         seller_row.update(seller_action.structured)
         rows.append(seller_row)
         transcript.append({"round": round_number, "role": "seller", "action_type": seller_action.action_type, "buy_no_buy": seller_action.buy_no_buy, "structured": seller_action.structured})
         records.append(_decision_record(scenario, game_id, state, seller_action))
-        state = _state(scenario, game_id, "buyer", round_number, horizon, transcript, "buy_decision", private={"c": cfg.get("c"), "v": cfg.get("v")})
+        state = _state(scenario, game_id, "buyer", round_number, horizon, transcript, "buy_decision")
         buyer_action = _policy_for_role(scenario, candidate, "buyer").decide(state)
         rows.append({"player": "Bob", "round": round_number, "decision": buyer_action.buy_no_buy})
         transcript.append({"round": round_number, "role": "buyer", "action_type": "buy_decision", "buy_no_buy": buyer_action.buy_no_buy, "structured": buyer_action.structured})
