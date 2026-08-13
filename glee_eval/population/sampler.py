@@ -86,6 +86,14 @@ UNCALIBRATED_RANGES: dict[str, dict[str, tuple[float, float]]] = {
 }
 
 
+def load_config_catalogue(path: str | None = None):
+    """Real configuration catalogue, from a path or GLEE_CONFIG_CATALOGUE."""
+
+    from glee_eval.population.config_catalogue import ConfigCatalogue
+
+    return ConfigCatalogue.load(path or os.getenv("GLEE_CONFIG_CATALOGUE"))
+
+
 def load_opponent_population(path: str | None = None):
     """Fitted opponent population, from an explicit path or GLEE_OPPONENT_POPULATION."""
 
@@ -124,19 +132,39 @@ def sample_opponent_spec(
     return OpponentSpec(archetype=archetype, game_family=game_family, parameters=params, seed=rng.randrange(10**9))
 
 
-def sample_scenario(game_family: str, seed: int, candidate_role: str | None = None, population: Any = None) -> Scenario:
+def sample_scenario(
+    game_family: str,
+    seed: int,
+    candidate_role: str | None = None,
+    population: Any = None,
+    catalogue: Any = None,
+) -> Scenario:
+    """Sample a scenario, using a real observed configuration when one is available.
+
+    Falls back to the invented `DEFAULT_CONFIGS` perturbations only when no
+    catalogue is present, and records which happened in the scenario metadata so a
+    run cannot silently claim realistic configurations it did not use.
+    """
+
     rng = random.Random(seed)
     population = population if population is not None else load_opponent_population()
-    config = dict(DEFAULT_CONFIGS[game_family])
-    if game_family == "bargaining":
-        config["delta_1"] = round(rng.uniform(0.75, 1.0), 2)
-        config["delta_2"] = round(rng.uniform(0.75, 1.0), 2)
-    elif game_family == "negotiation":
-        config["seller_value"] = round(rng.uniform(0.5, 0.95), 2)
-        config["buyer_value"] = round(rng.uniform(config["seller_value"], 1.25), 2)
-    elif game_family == "persuasion":
-        config["p"] = round(rng.uniform(0.2, 0.85), 2)
-        config["v"] = round(rng.uniform(1.05, 1.5), 2)
+    catalogue = catalogue if catalogue is not None else load_config_catalogue()
+    sampled = catalogue.sample(game_family, rng) if catalogue is not None else None
+    if sampled:
+        config = sampled
+        config_source = "observed_real_config"
+    else:
+        config_source = "invented_default_config"
+        config = dict(DEFAULT_CONFIGS[game_family])
+        if game_family == "bargaining":
+            config["delta_1"] = round(rng.uniform(0.75, 1.0), 2)
+            config["delta_2"] = round(rng.uniform(0.75, 1.0), 2)
+        elif game_family == "negotiation":
+            config["seller_value"] = round(rng.uniform(0.5, 0.95), 2)
+            config["buyer_value"] = round(rng.uniform(config["seller_value"], 1.25), 2)
+        elif game_family == "persuasion":
+            config["p"] = round(rng.uniform(0.2, 0.85), 2)
+            config["v"] = round(rng.uniform(1.05, 1.5), 2)
     roles = {
         "bargaining": ("player_1", "player_2"),
         "negotiation": ("seller", "buyer"),
@@ -163,5 +191,6 @@ def sample_scenario(game_family: str, seed: int, candidate_role: str | None = No
         },
         seed=seed,
         source="synthetic",
+        metadata={"config_source": config_source, "parameter_source": opponent.parameters.get("parameter_source")},
     )
 
