@@ -179,6 +179,24 @@ class CoverageGateTests(unittest.TestCase):
             )["status"]
             self.assertEqual(status, "no_dispatcher")
 
+    def test_probe_decisions_are_labeled_and_kept_out_of_the_summary(self) -> None:
+        dispatcher = _RecordingDispatcher(available=False)
+        gate = self._gate(dispatcher)
+
+        gate.evaluate("bargaining", BARGAINING_CONFIG, "player_2", _offer_action(57.0), self.state)
+        summary = gate.summary()
+
+        self.assertTrue(gate.verdicts[0]["nested_in_counterfactual"])
+        self.assertEqual(summary["decisions_evaluated"], 0)
+        self.assertEqual(summary["decisions_inside_counterfactual_probes"], 1)
+
+    def test_summary_reports_which_bucket_levels_were_reachable(self) -> None:
+        gate = self._gate()
+
+        gate.evaluate("bargaining", BARGAINING_CONFIG, "player_2", _offer_action(57.0), self.state)
+
+        self.assertEqual(sum(gate.summary()["bucket_level_counts"].values()), 1)
+
     def test_from_path_returns_none_when_absent(self) -> None:
         self.assertIsNone(CoverageGate.from_path(None))
         self.assertIsNone(CoverageGate.from_path("/nonexistent/support_index.json"))

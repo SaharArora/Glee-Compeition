@@ -164,8 +164,18 @@ class CoverageGate:
             bucket_level=support.get("bucket_level"),
         )
         if record:
-            self.verdicts.append(verdict.to_dict())
+            self.verdicts.append({**verdict.to_dict(), "nested_in_counterfactual": self._nested()})
         return verdict
+
+    def _nested(self) -> bool:
+        """True when this reading came from an agent running inside a counterfactual probe.
+
+        Those decisions are the probe's output, not the policy run's, so the
+        ledger labels them rather than blending the two populations.
+        """
+
+        available = getattr(self.dispatcher, "counterfactual_available", None)
+        return bool(callable(available) and not available())
 
     # ------------------------------------------------------------------
     # Acting on the index
@@ -183,7 +193,7 @@ class CoverageGate:
         """Ask for a targeted counterfactual simulation of an out-of-support action."""
 
         verdict = verdict or self.evaluate(family, config, role, action, state, record=False)
-        request: dict[str, Any] = {"coverage": verdict.to_dict()}
+        request: dict[str, Any] = {"coverage": verdict.to_dict(), "nested_in_counterfactual": self._nested()}
         if verdict.inside_support:
             request["status"] = "inside_support"
         elif self.dispatcher is None:
@@ -221,11 +231,18 @@ class CoverageGate:
         for request in self.requests:
             status = str(request.get("status"))
             statuses[status] = statuses.get(status, 0) + 1
-        scored = [v for v in self.verdicts if v.get("known")]
+        policy_run = [v for v in self.verdicts if not v.get("nested_in_counterfactual")]
+        scored = [v for v in policy_run if v.get("known")]
+        levels: dict[str, int] = {}
+        for verdict in scored:
+            level = str(verdict.get("bucket_level"))
+            levels[level] = levels.get(level, 0) + 1
         return {
             "has_index": self.has_index,
             "threshold": self.threshold,
-            "decisions_evaluated": len(self.verdicts),
+            "decisions_evaluated": len(policy_run),
+            "decisions_inside_counterfactual_probes": len(self.verdicts) - len(policy_run),
+            "bucket_level_counts": levels,
             "decisions_with_known_support": len(scored),
             "out_of_support_decisions": sum(1 for v in scored if not v.get("inside_support")),
             "mean_coverage_score": (sum(float(v["coverage_score"]) for v in scored) / len(scored)) if scored else None,
