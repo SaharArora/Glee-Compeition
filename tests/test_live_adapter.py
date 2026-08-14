@@ -416,3 +416,116 @@ class MarketStatisticsRecoveryTests(unittest.TestCase):
                             seller_total_payoff=10000 * 500, buyer_total_payoff=0)
 
         self.assertIsNone(stats)
+
+
+class UnboundedHorizonTests(unittest.TestCase):
+    """A deadline-free game must not present as a game about to end.
+
+    The adapter stood a horizon of 99 in for "no deadline", which is fine on round 1
+    and wrong by round 98: the round counter climbs while the sentinel stays put, so
+    the agent's endgame branch -- accept almost anything, or walk away -- fired on a
+    number this module invented rather than one the server sent. Live negotiation
+    9cf35978 ended that way, a mutual walk-away at round 99 for 0.0/0.0.
+
+    Before this fix a capped-at-99 game and an unbounded one were byte-identical
+    downstream, so the log could not tell us which had happened.
+    """
+
+    def _negotiation(self, round: int, *, capped: bool) -> dict:
+        game = fixtures.negotiation_decision(round=round, max_rounds=99, complete_information=False)
+        if not capped:
+            del game["game_state"]["max_rounds"]
+            game["game_state"]["horizon_known"] = False
+        return game
+
+    def _bargaining(self, round: int, *, capped: bool) -> dict:
+        game = fixtures.bargaining_offer(round=round, max_rounds=99)
+        if not capped:
+            del game["game_state"]["max_rounds"]
+            game["game_state"]["horizon_known"] = False
+        return game
+
+    def test_a_real_cap_is_reported_as_known(self):
+        for build in (self._negotiation, self._bargaining):
+            state = to_game_state(build(50, capped=True))
+            self.assertEqual(state.horizon, 99)
+            self.assertIs(state.metadata["horizon_known"], True)
+
+    def test_an_unbounded_game_is_reported_as_unknown(self):
+        for build in (self._negotiation, self._bargaining):
+            state = to_game_state(build(50, capped=False))
+            self.assertIs(state.metadata["horizon_known"], False)
+
+    def test_horizon_known_is_never_none(self):
+        """Downstream should not have to tell 'unbounded' from 'nobody said'."""
+
+        game = self._negotiation(5, capped=True)
+        del game["game_state"]["horizon_known"]
+        self.assertIs(to_game_state(game).metadata["horizon_known"], True)
+
+    def test_the_horizon_rolls_so_remaining_never_runs_down(self):
+        agent = MyAgent(seed=1)
+        for round_number in (1, 50, 98, 99, 140):
+            state = to_game_state(self._negotiation(round_number, capped=False))
+            self.assertEqual(
+                agent._remaining(state),
+                100,
+                f"round {round_number} of a deadline-free game should never look near the end",
+            )
+
+    def test_a_capped_game_still_reaches_its_endgame(self):
+        """The fix must not make every game look infinite -- a real cap still bites."""
+
+        agent = MyAgent(seed=1)
+        state = to_game_state(self._negotiation(99, capped=True))
+        self.assertEqual(agent._remaining(state), 1)
+
+    def test_the_two_cases_are_now_distinguishable_in_behaviour(self):
+        """Probes A and B were identical before, which is why the log was mute."""
+
+        def decision(capped: bool) -> str:
+            game = self._negotiation(99, capped=capped)
+            game["game_state"].pop("player_1_value", None)
+            game["game_state"]["player_2_value"] = 8000
+            game["game_state"]["last_offer"] = {
+                "price": 9000,
+                "message": None,
+                "from_player": "player_1",
+                "round": 99,
+            }
+            return LiveStrategy(MyAgent(seed=1), observation_log=None)(game)["decision"]
+
+        self.assertEqual(decision(capped=True), "WalkAway")
+        self.assertEqual(decision(capped=False), "RejectOffer")
+
+    def test_an_unbounded_rejection_still_carries_a_counteroffer(self):
+        """No cap means no final round, so a bare RejectOffer would be illegal."""
+
+        game = self._negotiation(99, capped=False)
+        # An ask above our own value, so rejecting is the correct call and the
+        # counteroffer requirement is actually exercised.
+        game["game_state"].pop("player_1_value", None)
+        game["game_state"]["player_2_value"] = 8000
+        game["game_state"]["last_offer"] = {
+            "price": 20000,
+            "message": None,
+            "from_player": "player_1",
+            "round": 99,
+        }
+
+        payload = LiveStrategy(MyAgent(seed=1), observation_log=None)(game)
+        self.assertEqual(payload["decision"], "RejectOffer")
+        self.assertIn("product_price", payload)
+
+    def test_the_final_round_of_a_capped_game_sends_no_counteroffer(self):
+        """The server takes none there, and sending one is an invalid move."""
+
+        class _Reject:
+            structured = {"decision": "RejectOffer"}
+            accept_reject = "RejectOffer"
+            numeric_action = None
+            message = None
+
+        payload = to_live_action(self._negotiation(99, capped=True), _Reject())
+        self.assertEqual(payload["decision"], "RejectOffer")
+        self.assertNotIn("product_price", payload)

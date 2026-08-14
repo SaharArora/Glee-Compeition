@@ -77,20 +77,45 @@ def _player_index(name: str) -> str:
     return name.rsplit("_", 1)[-1] if name else ""
 
 
+#: How far ahead a deadline-free game is treated as running. Long enough that a
+#: discounted continuation is worth ~nothing at the far end, short enough that the
+#: backward-induction loop in `bargaining_spe_shares` stays cheap.
+UNBOUNDED_LOOKAHEAD = 99
+
+
+def _horizon_of(state: dict[str, Any]) -> tuple[int, bool]:
+    """The horizon to hand the agent, and whether it is real.
+
+    An unbounded game has no `max_rounds` at all, flagged by `horizon_known`.
+    Feeding the agent a horizon of 0 would make every round look like the last one
+    and collapse its accept floor, so a long horizon stands in for "no deadline".
+
+    The horizon *rolls* rather than being a fixed 99, and that is the whole point.
+    A fixed sentinel is worse than none: the round counter climbs toward it while it
+    stays put, so round 98 of a deadline-free game presents as the final round and
+    the endgame branch -- accept almost anything, or walk away -- fires on a number
+    this module invented. Live negotiation 9cf35978 ended exactly that way, a mutual
+    walk-away at round 99 with 0.0/0.0. Rolling it keeps "no deadline in sight" true
+    at every round instead of only at the first.
+
+    The second element is returned so callers can record whether the horizon was
+    real. Never `None`: downstream code should not have to distinguish "unbounded"
+    from "nobody said".
+    """
+
+    max_rounds = _num(state.get("max_rounds"))
+    if max_rounds is None or state.get("horizon_known") is False:
+        current = int(_num(state.get("round"), 1) or 1)
+        return current + UNBOUNDED_LOOKAHEAD, False
+    return max(1, int(max_rounds)), True
+
+
 def _bargaining_state(game: dict[str, Any]) -> GameState:
     state = _as_dict(game.get("game_state"))
     me = str(state.get("current_player") or game.get("your_player") or "player_1")
     money = _num(state.get("money_to_divide"), 100.0) or 100.0
 
-    # An unbounded game has no max_rounds at all. Feeding the agent a horizon of 0
-    # would make every round look like the last one and collapse its accept floor,
-    # so an explicit long horizon stands in for "no deadline".
-    horizon_known = state.get("horizon_known")
-    max_rounds = _num(state.get("max_rounds"))
-    if max_rounds is None or horizon_known is False:
-        horizon = 99
-    else:
-        horizon = int(max_rounds)
+    horizon, horizon_known = _horizon_of(state)
 
     config: dict[str, Any] = {
         "money_to_divide": money,
@@ -170,9 +195,7 @@ def _negotiation_state(game: dict[str, Any]) -> GameState:
     other_role = "buyer" if role == "seller" else "seller"
     scale = negotiation_scale(game)
 
-    horizon_known = state.get("horizon_known")
-    max_rounds = _num(state.get("max_rounds"))
-    horizon = 99 if (max_rounds is None or horizon_known is False) else int(max_rounds)
+    horizon, horizon_known = _horizon_of(state)
 
     config: dict[str, Any] = {
         # Prices are handed to the agent already normalised, so the order is 1.
@@ -452,9 +475,12 @@ def _negotiation_action(game: dict[str, Any], action: Any) -> dict[str, Any]:
     # game where the server takes none. Sending RejectOffer without one is an
     # invalid move, which burns a limited attempt.
     payload = {"decision": "RejectOffer"}
-    max_rounds = _num(state.get("max_rounds"))
+    # Only a *real* cap makes a round final. A deadline-free game has none, and
+    # `_horizon_of` reports that rather than handing back a sentinel we could then
+    # mistake for the server's own number.
+    capped_horizon, horizon_known = _horizon_of(state)
     round_number = _num(state.get("round"), 1) or 1
-    final_round = max_rounds is not None and round_number >= max_rounds
+    final_round = horizon_known and round_number >= capped_horizon
     if not final_round:
         counter = _num(structured.get("counter_price"), _num(structured.get("product_price")))
         if counter is None:
@@ -466,8 +492,8 @@ def _negotiation_action(game: dict[str, Any], action: Any) -> dict[str, Any]:
             # margin as the rounds run out, because a fixed 15% repeated every round
             # is what produced 98 identical counteroffers and no agreement.
             margin = 0.15
-            if max_rounds is not None and max_rounds > 1:
-                elapsed = min(1.0, max(0.0, (round_number - 1) / float(max_rounds - 1)))
+            if horizon_known and capped_horizon > 1:
+                elapsed = min(1.0, max(0.0, (round_number - 1) / float(capped_horizon - 1)))
                 margin = max(0.01, 0.15 * (1.0 - elapsed ** 2.5))
             counter_absolute = own * (1.0 + margin if role == "seller" else 1.0 - margin)
             payload["product_price"] = round(counter_absolute, 2)
