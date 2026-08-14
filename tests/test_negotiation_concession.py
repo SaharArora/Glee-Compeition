@@ -36,15 +36,16 @@ def _counter_prices(agent: MyAgent, rounds: tuple[int, ...]) -> list[float | Non
 
 
 def _fixed(**kwargs) -> MyAgent:
-    """An agent with both rejected negotiation flags forced on.
+    """An agent with all three rejected negotiation flags forced on.
 
-    Both default to off because the promotion gate rejected them on
+    All three default to off because the promotion gate rejected them on
     `minimum_effect`. These tests describe what the flags do when enabled, so they
     must set them explicitly rather than inherit a default that says otherwise.
     """
 
     kwargs.setdefault("use_time_concession", True)
     kwargs.setdefault("guarantee_own_margin", True)
+    kwargs.setdefault("debias_counterpart_value", True)
     return MyAgent(seed=1, **kwargs)
 
 
@@ -99,16 +100,24 @@ class CounterofferIsAgentPricedTests(unittest.TestCase):
 
 
 class RejectedByTheGateTests(unittest.TestCase):
-    """Both flags are off, and that is the recorded verdict rather than an oversight.
+    """All three flags are off, and that is a recorded verdict, not an oversight.
 
-    Guarded by a test so neither can be flipped on later without someone having to
+    Guarded by a test so none can be flipped on later without someone having to
     delete an assertion that says why it is off.
     """
 
-    def test_both_negotiation_flags_default_off(self):
+    def test_every_negotiation_flag_defaults_off(self):
+        """All three were rejected -- individually, and again as one combined change.
+
+        Combined they measured +0.0109 (t=+10.07) and passed every check on seed
+        4242, then +0.0094 (t=+12.49) and failed `minimum_effect` on an independent
+        confirmation run declared in advance. The marginal pass did not replicate.
+        """
+
         agent = MyAgent(seed=1)
         self.assertFalse(agent.use_time_concession, "rejected: +0.0003 vs 0.0100 minimum effect")
         self.assertFalse(agent.guarantee_own_margin, "rejected: +0.0076 vs 0.0100 minimum effect")
+        self.assertFalse(agent.debias_counterpart_value, "rejected: +0.0072 vs 0.0100 minimum effect")
 
     def test_the_counteroffer_plumbing_is_coupled_to_the_margin_guarantee(self):
         """The two cannot ship apart, and this is why.

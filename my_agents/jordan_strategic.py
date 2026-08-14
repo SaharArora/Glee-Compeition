@@ -15,7 +15,9 @@ from glee_eval.response_models.runtime import EmpiricalResponseModel, ResponseEs
 from glee_eval.simulate.coverage_gate import CoverageGate
 from my_agents.message_composer import PersuasionMessageComposer, shadow_record
 from glee_eval.theory.benchmarks import (
+    EMPIRICAL_BUYER_FIRST_OFFER_SHADING,
     EMPIRICAL_BUYER_VALUE_MEAN,
+    EMPIRICAL_SELLER_FIRST_ASK_MARKUP,
     EMPIRICAL_DELTA_MEAN,
     EMPIRICAL_SELLER_VALUE_MEAN,
     bargaining_accept_floor,
@@ -94,6 +96,7 @@ class JordanStrategicAgent(CandidateAgent):
         concession_convexity: float = 2.5,
         min_negotiation_margin: float = 0.02,
         guarantee_own_margin: bool = False,
+        debias_counterpart_value: bool = False,
     ):
         self.rng = random.Random(seed)
         self.exploit_evidence_threshold = exploit_evidence_threshold
@@ -187,6 +190,9 @@ class JordanStrategicAgent(CandidateAgent):
         # value, which is *worse* than the adapter's own_value*0.85 fallback. Shipping
         # the counteroffer plumbing without the clip fix would be a regression.
         self.guarantee_own_margin = guarantee_own_margin
+        # Correct the counterpart-value inference for the measured gap between an
+        # opening offer and the offerer's own value. Off until gated; see below.
+        self.debias_counterpart_value = debias_counterpart_value
         self.response_model = EmpiricalResponseModel.load(response_model_path or os.getenv("GLEE_RESPONSE_MODEL"))
         self.coverage_gate = CoverageGate.from_path(support_index_path or os.getenv("GLEE_SUPPORT_INDEX"))
 
@@ -569,11 +575,24 @@ class JordanStrategicAgent(CandidateAgent):
             # earlier and makes a no-trade zone unbelievable in the 61% of real
             # configs that have one. See test_a_hidden_no_trade_zone_is_now_believable.
             #
-            # The open question it leaves is asymmetric and is *not* settled here:
-            # a seller's ask is an anchor above cost, so as a buyer this estimate is
-            # pessimistic by however much sellers mark up. Measured, not guessed,
-            # below -- see docs/HANDOVER.md.
-            other_value = max(opponent_prices) if state.role == "seller" else min(opponent_prices)
+            # What it *does* get wrong is reading an anchor as a valuation, and that
+            # is now measured rather than argued about. Over 96,214 real negotiation
+            # offers, a first ask is a median 1.50x the seller's own cost and a first
+            # offer is a median 0.75x the buyer's own value (incomplete information).
+            # So the raw price overestimates a seller's cost by ~50% and
+            # underestimates a buyer's value by ~25% -- both shrinking the believed
+            # trade zone, which is how the agent talks itself out of live deals.
+            #
+            # Dividing by the measured multiple stays on the correct side of the
+            # bound in both directions (ask/1.5 < ask; offer/0.75 > offer), so it
+            # de-biases without restoring the optimistic floor: a genuinely low-value
+            # buyer offering 0.8 still lands at 1.067, well under a 1.5 cost.
+            if state.role == "seller":
+                bound = max(opponent_prices)
+                other_value = bound / EMPIRICAL_BUYER_FIRST_OFFER_SHADING if self.debias_counterpart_value else bound
+            else:
+                bound = min(opponent_prices)
+                other_value = bound / EMPIRICAL_SELLER_FIRST_ASK_MARKUP if self.debias_counterpart_value else bound
         else:
             other_value = prior[other_key]
 

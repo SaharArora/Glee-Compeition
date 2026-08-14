@@ -221,6 +221,62 @@ separable: with the margin guarantee off, the agent's own counter price can land
 its reservation value, which is *worse* than the adapter's `own_value * 0.85` fallback.
 Shipping the counteroffer plumbing alone would have been a live regression dressed as a fix.
 
+**Negotiation counterpart-value de-bias.** The counterpart-value inference read an opening
+offer as a valuation. Measured over 96,214 real negotiation offers, taking the earliest offer
+per game per role under incomplete information, a first ask is a median **1.50×** the seller's
+own cost and a first offer is a median **0.75×** the buyer's own value. So the raw price
+overestimates a seller's cost by ~50% and underestimates a buyer's value by ~25% — both
+shrinking the believed trade zone, which is how the agent talks itself out of live deals.
+Dividing by the measured multiple stays on the correct side of the bound each offer licenses,
+so it de-biases without restoring the optimistic floor removed earlier: a genuinely low-value
+buyer offering 0.8 still lands at 1.067, well under a 1.5 cost.
+
+Rejected: **+0.0072, t=+7.52**, 64 wins / 1 loss / 1,535 ties, failing `minimum_effect`
+(0.0072 vs 0.0100) and `subgroup_concentration[config_regime]` (0.5951 vs 0.5000).
+
+### The combined counteroffer path, and why it was still rejected
+
+This is the most important entry in this file, and it is about method rather than about
+negotiation.
+
+Three changes — time concession, own-margin clip, value de-bias — each measured +0.0072 to
++0.0076 and each failed `minimum_effect` alone. That pattern suggested the *grouping* was
+wrong: the three were diagnosed together, as one chain producing one live symptom, before any
+of them was measured. On that argument the whole counteroffer path is the honest unit of
+change, so it was gated as one:
+
+| Run | n | Effect | t | W/L/T | Verdict |
+|---|---:|---:|---:|---|---|
+| Combined, seed 4242 | 1,600 | **+0.0109** | +10.07 | 136/42/1422 | **PROMOTE** — every check passed |
+| Combined, seed 9999 | 3,200 | **+0.0094** | +12.49 | 233/94/2873 | **DO NOT PROMOTE** |
+
+The first run passed everything. It was also the **fifth** gate run in this area, and it
+passed two checks by a hair: `minimum_effect` at 0.0109 against 0.0100, and
+`subgroup_concentration[config_regime]` at 0.4985 against 0.5000. A skeptic would say the
+candidate was recombined until something passed, and that criticism would have been fair.
+
+So a confirmation run on an independent sample was **declared in advance** — different seed,
+twice the games, ship only if every check still cleared. It did not: the effect fell to +0.0094
+and concentration rose to 0.5539. Both marginal passes evaporated, which is exactly what a
+marginal pass on a multiply-tested candidate is expected to do.
+
+All three flags are therefore **off**, and the change is rejected. Two things are worth keeping
+from this:
+
+- Declaring the confirmation run *before* seeing its result is what made the rejection
+  possible. Had the 0.0109 been taken as the answer, a change that does not clear the bar would
+  now be a default, and the gate would have been decorative in exactly the way it was built to
+  avoid.
+- A higher `t` does not rescue a smaller effect. The confirmation run had *more* significance
+  (12.49 vs 10.07) and still failed, because `minimum_effect` asks a different question than
+  `significance` — "is this worth the policy surface" rather than "is this real". Both runs
+  agree the effect is real. Neither shows it is big enough.
+
+Whether `minimum_effect` is the right threshold for a defect fix on a code path the offline
+population barely exercises is a legitimate open question — 1,422 of 1,600 pairs were ties. It
+is a question about the criteria, and it must be answered before the next measurement rather
+than after, or it is just this rejection re-litigated until it goes the other way.
+
 ## Applying it
 
 ```bash

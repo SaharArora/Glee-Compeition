@@ -44,6 +44,29 @@ EMPIRICAL_VALUE_GRID = (0.8, 1.0, 1.2, 1.5)
 EMPIRICAL_SELLER_VALUE_MEAN = 1.1230
 EMPIRICAL_BUYER_VALUE_MEAN = 1.1255
 
+# How far a real player's *first* offer sits from their own value, as a multiple of
+# it. Measured over 96,214 negotiation offers, taking the earliest offer per game
+# per role and splitting on complete_information:
+#
+#             n        median   mean    p10    p90
+#   seller    16,542   1.500    2.604   1.250  2.000    (incomplete information)
+#   buyer      7,647   0.750    0.715   0.500  0.833
+#   seller    17,085   1.200    1.244   1.000  1.500    (complete information)
+#   buyer      8,714   0.800    0.796   0.667  0.900
+#
+# Only the incomplete-information rows are used, because that is the only case
+# where the counterpart value has to be inferred at all. Medians, not means: the
+# seller mean of 2.604 is dragged by a long right tail of opening anchors.
+#
+# These exist to de-bias an inference that was reading an anchor as a valuation.
+# Treating the opponent's price as the point estimate of their value overestimates
+# a seller's cost by ~50% and underestimates a buyer's value by ~25%, and both
+# errors shrink the believed trade zone -- so the agent talks itself out of deals
+# that exist. Dividing by these puts the estimate back on the observed centre while
+# staying on the side of the logical bound the offer licenses.
+EMPIRICAL_SELLER_FIRST_ASK_MARKUP = 1.50
+EMPIRICAL_BUYER_FIRST_OFFER_SHADING = 0.75
+
 
 def bargaining_secured_shares(config: dict[str, Any]) -> list[float]:
     """`A(r)` for every round: the share the round-`r` proposer secures in SPE.
