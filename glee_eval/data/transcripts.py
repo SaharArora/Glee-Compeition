@@ -133,6 +133,33 @@ def persuasion_round_quality(event: dict[str, Any]) -> str | None:
     return str(quality) if quality else None
 
 
+def transcript_item_quality(item: dict[str, Any] | None) -> str | None:
+    """Quality label on a transcript row, whichever shape it is in.
+
+    Synthetic rows carry `quality` directly; ingested real rows carry it under
+    `raw.round_quality`. Reading only the first silently yields None on every real
+    transcript, which is not an error anyone notices -- it just makes a belief
+    update learn nothing.
+    """
+
+    if not item:
+        return None
+    raw = as_dict(item.get("raw") or item.get("raw_record"))
+    value = item.get("quality") or raw.get("round_quality")
+    return str(value) if value else None
+
+
+def transcript_item_decision(item: dict[str, Any] | None) -> str | None:
+    """Yes/no decision on a transcript row, across synthetic and ingested shapes."""
+
+    if not item:
+        return None
+    raw = as_dict(item.get("raw") or item.get("raw_record"))
+    structured = as_dict(item.get("structured"))
+    value = item.get("buy_no_buy") or structured.get("decision") or raw.get("decision")
+    return str(value) if value else None
+
+
 def persuasion_recommendation(seller_item: dict[str, Any] | None) -> str | None:
     if not seller_item:
         return None

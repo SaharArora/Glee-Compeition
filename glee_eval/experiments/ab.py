@@ -44,9 +44,16 @@ def config_regime(family: str, config: dict[str, Any]) -> str:
             zone = "gains_from_trade" if buyer > seller else "no_trade_zone"
         return f"rounds={config.get('max_rounds')}|{zone}"
     if family == "persuasion":
+        # `total_rounds` and `p` alone collapsed real persuasion into two regimes,
+        # too few for the gate to judge concentration. The two axes that actually
+        # divide the family are whether the buyer has memory and whether the seller
+        # signals in free text -- both close to 50/50 in the released data, and both
+        # strategically central.
         p = as_float(config.get("p"))
         prior = "unknown" if p is None else ("low_prior" if p < 0.5 else "high_prior")
-        return f"rounds={config.get('total_rounds')}|{prior}"
+        memory = "myopic" if config.get("is_myopic") else "persistent"
+        channel = str(config.get("seller_message_type") or "unknown")
+        return f"{memory}|{channel}|{prior}"
     return "unknown"
 
 

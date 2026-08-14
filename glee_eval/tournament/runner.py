@@ -46,7 +46,9 @@ def _state(
     a synthetic episode and a real one hide the same things.
     """
 
-    visible_transcript = _visible_transcript(scenario.game_family, role, round_number, transcript)
+    visible_transcript = _visible_transcript(
+        scenario.game_family, role, round_number, transcript, scenario.public_parameters
+    )
     config = _config(scenario.game_family, scenario.public_parameters)
     return GameState(
         scenario_id=scenario.scenario_id,
@@ -63,20 +65,70 @@ def _state(
     )
 
 
+def _market_statistics(round_number: int, transcript: list[dict[str, Any]]) -> dict[str, Any]:
+    """The aggregate a myopic buyer is given in place of history.
+
+    Upstream shows "N of the buyers purchased ... M high-quality product have been
+    sold", accumulated over prior rounds only.
+    """
+
+    quality_by_round = {
+        item.get("round"): item.get("quality")
+        for item in transcript
+        if item.get("action_type") == "nature_quality"
+    }
+    sold = 0
+    high_quality_sold = 0
+    for item in transcript:
+        if item.get("action_type") != "buy_decision" or item.get("buy_no_buy") != "yes":
+            continue
+        if int(item.get("round") or 0) >= round_number:
+            continue
+        sold += 1
+        if quality_by_round.get(item.get("round")) == "high-quality":
+            high_quality_sold += 1
+    return {
+        "round": round_number,
+        "role": "market",
+        "action_type": "market_statistics",
+        "products_sold": sold,
+        "high_quality_sold": high_quality_sold,
+    }
+
+
 def _visible_transcript(
     game_family: str,
     role: str,
     round_number: int,
     transcript: list[dict[str, Any]],
+    config: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
+    """What a player is allowed to have seen so far.
+
+    Persuasion's buyer is the interesting case. Under `is_myopic` the upstream
+    game calls `end_chat()` then `new_chat()` on the buyer at the end of every
+    round, so each round is a genuinely fresh buyer who carries nothing forward
+    and is handed aggregate market statistics instead. 49.4% of real persuasion
+    games are myopic, so replaying full history to the buyer over-informs it
+    across half the family -- the same class of mistake as the negotiation
+    information leak, in the family that had not been examined.
+    """
+
     if game_family != "persuasion":
         return list(transcript)
+
     visible: list[dict[str, Any]] = []
     for item in transcript:
         if role == "buyer" and item.get("action_type") == "nature_quality" and item.get("round") == round_number:
             continue
         visible.append(dict(item))
-    return visible
+
+    if role != "buyer" or not bool((config or {}).get("is_myopic")):
+        return visible
+
+    # A fresh buyer: only this round's exchange, plus the market summary.
+    current_round = [item for item in visible if int(item.get("round") or 0) == round_number]
+    return [_market_statistics(round_number, transcript), *current_round]
 
 
 def _decision_record(

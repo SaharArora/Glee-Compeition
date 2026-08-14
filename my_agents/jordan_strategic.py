@@ -10,6 +10,7 @@ from typing import Any
 
 from glee_eval.adapters.candidate_agent import CandidateAgent
 from glee_eval.data.schemas import AgentAction, GameState, compact_id
+from glee_eval.data.transcripts import transcript_item_decision, transcript_item_quality
 from glee_eval.response_models.runtime import EmpiricalResponseModel, ResponseEstimate
 from glee_eval.simulate.coverage_gate import CoverageGate
 from glee_eval.theory.benchmarks import (
@@ -679,8 +680,8 @@ class JordanStrategicAgent(CandidateAgent):
         yes_on_low = 0
         low_total = 0
         for item in seller_actions:
-            rec = item.get("buy_no_buy") or (item.get("structured") or {}).get("decision")
-            quality = qualities.get(int(item.get("round", 0)), {}).get("quality")
+            rec = transcript_item_decision(item)
+            quality = transcript_item_quality(qualities.get(int(item.get("round", 0))))
             if rec in {"yes", "no"} and quality:
                 truth_total += 1
                 truthful += int((rec == "yes") == (quality == "high-quality"))
@@ -694,17 +695,33 @@ class JordanStrategicAgent(CandidateAgent):
         yes_seen = 0
         seller_by_round = {int(item.get("round", 0)): item for item in seller_actions}
         for item in buyer_actions:
-            seller_item = seller_by_round.get(int(item.get("round", 0)), {})
-            rec = seller_item.get("buy_no_buy") or (seller_item.get("structured") or {}).get("decision")
+            rec = transcript_item_decision(seller_by_round.get(int(item.get("round", 0))))
             if rec == "yes":
                 yes_seen += 1
-                buys_after_yes += int(item.get("buy_no_buy") == "yes")
+                buys_after_yes += int(transcript_item_decision(item) == "yes")
         honesty = (truthful + 1) / (truth_total + 2)
         yes_given_high = (yes_on_high + 2) / (high_total + 3)
         yes_given_low = (yes_on_low + 1) / (low_total + 3)
         yes_denominator = p * yes_given_high + (1.0 - p) * yes_given_low
         posterior_quality_given_yes = (p * yes_given_high / yes_denominator) if yes_denominator > 0 else p
         obedience = (buys_after_yes + 1) / (yes_seen + 2)
+
+        # A myopic buyer carries no round history -- upstream wipes its chat every
+        # round -- and is handed aggregate market statistics instead. Those counts
+        # are its only evidence, and the fraction of sold products that turned out
+        # high quality is a direct estimate of exactly the quantity the purchase
+        # rule needs. Without this the buyer falls back to an uninformative prior in
+        # the ~49% of real persuasion games that are myopic.
+        stats = next((item for item in self._transcript(state) if item.get("action_type") == "market_statistics"), None)
+        market_sold = market_high = 0
+        if stats is not None:
+            market_sold = int(self._float(stats.get("products_sold"), 0) or 0)
+            market_high = int(self._float(stats.get("high_quality_sold"), 0) or 0)
+            if market_sold > 0:
+                # Laplace-smoothed toward the prior so a single early sale does not
+                # swing the posterior to 0 or 1.
+                prior_weight = 4.0
+                posterior_quality_given_yes = (market_high + prior_weight * p) / (market_sold + prior_weight)
         base_ev = p * (v - 1.0) + (1.0 - p) * (c - 1.0)
         return {
             "base_quality_prob": self._clip(p, 0.0, 1.0),
@@ -717,6 +734,9 @@ class JordanStrategicAgent(CandidateAgent):
             "posterior_quality_given_yes": self._clip(posterior_quality_given_yes, 0.0, 1.0),
             "receiver_obedience": obedience,
             "receiver_skepticism": 1.0 - obedience,
+            "market_products_sold": float(market_sold),
+            "market_high_quality_sold": float(market_high),
+            "myopic_buyer": 1.0 if stats is not None else 0.0,
         }
 
     def _persuasion_evidence(self, state: GameState, beliefs: dict[str, float]) -> dict[str, float]:
@@ -771,7 +791,7 @@ class JordanStrategicAgent(CandidateAgent):
         for item in reversed(self._transcript(state)):
             if item.get("role") != "seller":
                 continue
-            value = item.get("buy_no_buy") or (item.get("structured") or {}).get("decision")
+            value = transcript_item_decision(item)
             if value in {"yes", "no"}:
                 recommendation = value
                 break

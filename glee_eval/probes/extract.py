@@ -17,18 +17,23 @@ def _valid_schema(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _filter_visible_transcript(event: dict[str, Any]) -> list[dict[str, Any]]:
+    """Same visibility rules the synthetic runner applies, so probes match episodes.
+
+    Includes the myopic reset: upstream wipes the buyer's chat every round when
+    `is_myopic`, replacing history with aggregate market statistics. Replaying the
+    full transcript here would hand the agent information a real buyer never had in
+    roughly half of persuasion games.
+    """
+
+    from glee_eval.tournament.runner import _visible_transcript
+
     transcript = event.get("transcript_so_far") or []
     if event.get("game_family") != "persuasion" or event.get("role") != "buyer":
         return transcript
-    current_round = int(event.get("round") or 0)
-    visible = []
-    for item in transcript:
-        action_type = item.get("action_type")
-        item_round = int(item.get("round") or 0)
-        if action_type == "nature_quality" and item_round == current_round:
-            continue
-        visible.append(item)
-    return visible
+    config = event.get("configuration") or event.get("public_parameters") or {}
+    if isinstance(config, dict) and "game_args" in config:
+        config = config.get("game_args") or {}
+    return _visible_transcript("persuasion", "buyer", int(event.get("round") or 0), list(transcript), config)
 
 
 def state_from_event(event: dict[str, Any]) -> GameState:

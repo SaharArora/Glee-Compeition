@@ -72,6 +72,36 @@ Assignment is by SHA1 bucket of a stable key, never by RNG, so partitions are re
 across machines and runs without storing split state. Every fitted artifact records its
 `provenance` block, so an evaluation cannot silently claim a holdout it did not use.
 
+## Defect fixes
+
+A gate designed for "should we adopt behaviour B over behaviour A" becomes incoherent when
+A is not a policy but a defect. Concluding "do not fix the bug" because the fix helps
+unevenly would be the wrong answer, and the obvious way to dodge that is to relabel tuning
+changes as bug fixes. So the carve-out is written down and deliberately narrow.
+
+A change may ship despite a failing gate only when **all** of the following hold, and the
+verdict is recorded as failing rather than quietly re-run until it passes:
+
+1. The pre-change behaviour is **provably defective against real data**, with the evidence
+   stated — not merely worse on a synthetic A/B.
+2. The only failing checks are `subgroup_breadth` or `subgroup_coverage`. A failure of
+   `minimum_effect`, `significance`, `downside_p5`, `sample_size` or `structural_holdout`
+   blocks the change outright, defect or not.
+3. The mechanism behind the regressing subgroups is identified and filed as follow-up work.
+
+### Invoked once so far
+
+**Persuasion transcript-accessor fix.** The buy rule read the round quality from a key that
+exists only on synthetic transcripts, so on real data it learned nothing and its posterior
+stayed pinned at the prior. Condition 1: the agent would have bought **0 of 66,480** real
+buyer decisions, while real buyers bought 52.1% and earned +1.016 surplus per purchase.
+Condition 2: it passed effect (+0.0160), significance (t=7.25), downside, sample size and
+holdout, failing only `subgroup_breadth[opponent_archetype]` at 0.4375 against 0.40.
+Condition 3: the seven regressing archetypes are the deceptive end of the honesty
+distribution — `deceptive` −0.025, `rational` −0.011, `level_2` −0.009 — because a posterior
+learned from a short history over-trusts a seller who lies at a rate the early sample
+underestimates. Filed as the next persuasion work item.
+
 ## Applying it
 
 ```bash
