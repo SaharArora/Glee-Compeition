@@ -1,0 +1,29 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -e '.[live]'
+
+      # The offline half of the schema check needs the ingested dataset, which is
+      # gitignored and multi-GB, so it skips here and the live half still runs.
+      # Anyone refreshing the data locally gets the full check from the same suite.
+      - name: Tests
+        run: python -m unittest discover -s tests -v
+
+      # Redundant with the suite by design: this bug class has cost us twice, and a
+      # dedicated step names it in the CI log rather than burying it among 250 dots.
+      - name: Schema contracts
+        run: python -m glee_eval schema-check --limit 4000
