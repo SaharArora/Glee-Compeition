@@ -226,6 +226,56 @@ def _negotiation_state(game: dict[str, Any]) -> GameState:
     )
 
 
+def _persuasion_market_statistics(
+    state: dict[str, Any],
+    price: float,
+    high: float | None,
+    low: float | None,
+) -> dict[str, Any] | None:
+    """Recover the buyer's own purchase history from the running payoff totals.
+
+    The live payload carries no per-round history -- only `seller_total_payoff` and
+    `buyer_total_payoff`. Without this the buyer's belief update has nothing to
+    read, so its posterior stays pinned at the prior for the whole game and it can
+    never adapt to *this* seller. That is worse than any fixed estimate, because a
+    truthful seller and a liar are indistinguishable to it.
+
+    Persuasion is one buyer across all rounds and the seller is paid the price on
+    every sale, so both counts are exactly recoverable:
+
+        sold = seller_total / price
+        buyer_total = h * (v - price) + (sold - h) * (u - price)
+        =>  h = (buyer_total - sold * (u - price)) / (v - u)
+
+    Returns None rather than guessing when the algebra is not determined -- no
+    price, no distinct v/u, or nothing sold yet.
+    """
+
+    if price <= 0 or high is None or low is None or high == low:
+        return None
+    seller_total = _num(state.get("seller_total_payoff"))
+    buyer_total = _num(state.get("buyer_total_payoff"))
+    if seller_total is None or buyer_total is None:
+        return None
+
+    sold = int(round(seller_total / price))
+    if sold <= 0:
+        # Nothing bought yet, so there is genuinely nothing to report. Emitting a
+        # zero row would be honest but useless; omitting it keeps the agent on its
+        # prior, which is the correct belief with no observations.
+        return None
+    high_quality = (buyer_total - sold * (low - price)) / (high - low)
+    high_quality = int(round(min(max(high_quality, 0.0), float(sold))))
+    return {
+        "round": int(_num(state.get("round"), 1) or 1),
+        "role": "market",
+        "action_type": "market_statistics",
+        "products_sold": sold,
+        "high_quality_sold": high_quality,
+        "derived_from": "seller_total_payoff and buyer_total_payoff",
+    }
+
+
 def _persuasion_state(game: dict[str, Any]) -> GameState:
     state = _as_dict(game.get("game_state"))
     action_type = action_type_of(game)
@@ -259,6 +309,11 @@ def _persuasion_state(game: dict[str, Any]) -> GameState:
         metadata["quality"] = "high-quality" if str(quality).startswith("high") else "low-quality"
 
     transcript: list[dict[str, Any]] = []
+    if role == "buyer":
+        stats = _persuasion_market_statistics(state, price, high, low)
+        if stats is not None:
+            transcript.append(stats)
+
     seller_message = state.get("seller_message")
     if seller_message is not None and role == "buyer":
         decision = None

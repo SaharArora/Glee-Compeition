@@ -314,3 +314,90 @@ class BuildStrategyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MarketStatisticsRecoveryTests(unittest.TestCase):
+    """The live payload has no per-round history, only running payoff totals.
+
+    Without recovering the buyer's own purchase record from those totals its
+    posterior stays pinned at the prior for the whole game, so a truthful seller
+    and a liar are indistinguishable to it. Both counts are exactly determined:
+    `sold = seller_total / price`, then `h` solves
+    `buyer_total = h(v - price) + (sold - h)(u - price)`.
+    """
+
+    def _stats(self, **overrides):
+        game = fixtures.persuasion_buyer_decision(**overrides)
+        state = to_game_state(game)
+        return next(
+            (row for row in state.visible_transcript if row.get("action_type") == "market_statistics"),
+            None,
+        )
+
+    def test_counts_are_recovered_exactly(self) -> None:
+        # price 10000, v 12500, u 0. Four sold, three of them high quality:
+        # seller_total = 4*10000; buyer_total = 3*2500 + 1*(-10000) = -2500
+        stats = self._stats(product_price=10000, v=12500, u=0, seller_total_payoff=40000, buyer_total_payoff=-2500)
+
+        self.assertIsNotNone(stats)
+        self.assertEqual(stats["products_sold"], 4)
+        self.assertEqual(stats["high_quality_sold"], 3)
+
+    def test_all_high_quality_is_recovered(self) -> None:
+        # Five sold, all high: buyer_total = 5*2500
+        stats = self._stats(product_price=10000, v=12500, u=0, seller_total_payoff=50000, buyer_total_payoff=12500)
+
+        self.assertEqual(stats["products_sold"], 5)
+        self.assertEqual(stats["high_quality_sold"], 5)
+
+    def test_all_low_quality_is_recovered(self) -> None:
+        stats = self._stats(product_price=10000, v=12500, u=0, seller_total_payoff=30000, buyer_total_payoff=-30000)
+
+        self.assertEqual(stats["products_sold"], 3)
+        self.assertEqual(stats["high_quality_sold"], 0)
+
+    def test_nothing_sold_yet_emits_no_row(self) -> None:
+        """With no observations the prior is the correct belief, not a zero row."""
+
+        self.assertIsNone(self._stats(seller_total_payoff=0, buyer_total_payoff=0))
+
+    def test_indeterminate_algebra_is_omitted_rather_than_guessed(self) -> None:
+        # v == u leaves h undetermined.
+        self.assertIsNone(self._stats(v=10000, u=10000, seller_total_payoff=40000, buyer_total_payoff=0))
+        # No price to divide by.
+        self.assertIsNone(self._stats(product_price=0, seller_total_payoff=40000, buyer_total_payoff=0))
+
+    def test_missing_totals_are_omitted(self) -> None:
+        game = fixtures.persuasion_buyer_decision()
+        game["game_state"].pop("seller_total_payoff", None)
+        state = to_game_state(game)
+
+        self.assertFalse([r for r in state.visible_transcript if r.get("action_type") == "market_statistics"])
+
+    def test_recovered_counts_are_clamped_to_a_sane_range(self) -> None:
+        """Garbage totals must not produce a negative or impossible count."""
+
+        stats = self._stats(product_price=10000, v=12500, u=0, seller_total_payoff=20000, buyer_total_payoff=-10**9)
+
+        self.assertGreaterEqual(stats["high_quality_sold"], 0)
+        self.assertLessEqual(stats["high_quality_sold"], stats["products_sold"])
+
+    def test_the_seller_never_receives_market_statistics(self) -> None:
+        """It is the buyer's own record; the seller already has full history."""
+
+        state = to_game_state(fixtures.persuasion_seller_recommendation(seller_total_payoff=40000, buyer_total_payoff=0))
+
+        self.assertFalse([r for r in state.visible_transcript if r.get("action_type") == "market_statistics"])
+
+    def test_the_agent_actually_moves_its_posterior_off_the_prior(self) -> None:
+        """The point of the whole fix."""
+
+        agent = MyAgent(seed=1)
+        frozen = agent._persuasion_beliefs(to_game_state(fixtures.persuasion_buyer_decision(
+            product_price=10000, v=12500, u=0, seller_total_payoff=0, buyer_total_payoff=0)))
+        informed = agent._persuasion_beliefs(to_game_state(fixtures.persuasion_buyer_decision(
+            product_price=10000, v=12500, u=0, seller_total_payoff=80000, buyer_total_payoff=20000)))
+
+        self.assertEqual(frozen["market_products_sold"], 0.0)
+        self.assertEqual(informed["market_products_sold"], 8.0)
+        self.assertGreater(informed["posterior_quality_given_yes"], frozen["posterior_quality_given_yes"])
