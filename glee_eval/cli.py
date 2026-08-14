@@ -12,6 +12,7 @@ from glee_eval.diagnostics.language import main as language_diagnostic_main
 from glee_eval.diagnostics.persuasion import main as persuasion_diagnostic_main
 from glee_eval.experiments.ab import main as promotion_check_main
 from glee_eval.experiments.run import main as experiment_main
+from glee_eval.live.run import main as live_main
 from glee_eval.population.calibration import main as calibrate_main
 from glee_eval.population.config_catalogue import main as config_catalogue_main
 from glee_eval.population.opponent_fit import main as fit_opponents_main
@@ -39,6 +40,7 @@ def main(argv: list[str] | None = None) -> None:
         "fit-opponents",
         "config-catalogue",
         "promotion-check",
+        "live",
         "search-failures",
         "shadow-score",
         "negotiation-diagnostic",
@@ -73,6 +75,8 @@ def main(argv: list[str] | None = None) -> None:
         config_catalogue_main(rest)
     elif args.command == "promotion-check":
         promotion_check_main(rest)
+    elif args.command == "live":
+        live_main(rest)
     elif args.command == "search-failures":
         search_main(rest)
     elif args.command == "shadow-score":

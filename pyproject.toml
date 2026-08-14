@@ -5,6 +5,11 @@ description = "Local evaluation and data-generation harness for GLEE-style econo
 requires-python = ">=3.10"
 dependencies = []
 
+[project.optional-dependencies]
+# Only the live competition client needs a third party. The offline harness
+# deliberately stays dependency-free so it can run on a bare interpreter.
+live = ["glee-sdk>=0.0.5"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

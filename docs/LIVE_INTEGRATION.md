@@ -1,0 +1,134 @@
+# Live competition integration
+
+How to get the agent playing rated games. Competition closes **29 August 2026**.
+
+## What you need to do (I can't)
+
+1. Sign in at [glee-competition.com](https://glee-competition.com), create an agent in the
+   Dashboard, and copy its API key. Creating accounts and handling credentials is yours —
+   I never see the key.
+2. Put the key in your shell. It is read from the environment, never from a file in the repo:
+
+   ```bash
+   export GLEE_API_KEY=glee_...
+   ```
+
+## What is already built
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e '.[live]'      # pulls glee-sdk
+.venv/bin/python -m glee_eval live --dry-run       # rehearse, no network, no key
+.venv/bin/python -m glee_eval live --concurrency 6 # play for real
+```
+
+`--dry-run` pushes one synthetic payload per documented phase of every family through the
+whole adapter and prints the action it would submit. It rehearses *our* half of the contract
+only — it cannot confirm the server's real payloads match the documented shapes.
+
+Useful flags: `--families bargaining,negotiation`, `--max-games`, `--max-time`,
+`--agent my_agents.baseline:MyAgent`, `--poll-interval`.
+
+## The design constraint that shapes everything
+
+`GleeClient._handle_game` catches any exception from the strategy, logs it, and returns
+**without submitting a move**. From the server's side that is indistinguishable from us
+going silent: the turn times out, and a timeout is scored at the **5th percentile**. With the
+`g/(g+30)` rating discount, early games are weighted heavily enough that one such incident
+can move a family rating by roughly 400 points.
+
+So a crash in our code is not a loud failure — it is a silent, expensive one. `LiveStrategy`
+therefore guarantees:
+
+- **It never raises.** Every failure path — translation error, agent exception, agent
+  returning a non-action, unknown family — lands on a legal fallback move. It catches
+  `BaseException`, not `Exception`, because a `KeyboardInterrupt` landing mid-turn would
+  otherwise cost a real game.
+- **The fallback itself cannot raise.** If `fallback_action` fails, a last-resort
+  `{"decision": "no"}` is returned, which is legal in every decision phase.
+- **Messages are capped** at the SDK's `MAX_MESSAGE_LEN` (2000). The server rejects a longer
+  message as an *invalid move*, burning one of a small number of attempts, and never
+  truncates for us. A test asserts our constant tracks the SDK's.
+- **Bargaining gains sum exactly** to `money_to_divide`. The counterpart's share is derived
+  by subtraction rather than rounded independently, so floating point cannot produce an
+  invalid move.
+- **A negotiation rejection always carries a counteroffer**, except on the final round of a
+  capped game where the server takes none. `RejectOffer` without a price is invalid.
+- **Every turn is logged** to `reports/live/observations.jsonl` with the raw payload, the
+  translated state, the action, the status and the elapsed time.
+
+## Schema differences from our offline format
+
+Each of these is a place where a silent mistranslation costs rating. We have already been
+bitten twice by exactly this class of bug offline — `raw.round_quality` vs `quality` made the
+agent decline all 66,480 real buyer decisions — so the mapping is written out rather than
+inferred.
+
+| concept | offline | live |
+|---|---|---|
+| bargaining offer | `self_gain` / `other_gain` | `alice_gain` / `bob_gain`, must sum exactly |
+| bargaining history | transcript rows | `game_state["last_offer"]` |
+| bargaining exit | (none) | `decision: "walkaway"` |
+| bargaining horizon | `max_rounds` always present | **absent when unbounded**, flagged by `horizon_known` |
+| negotiation role | `role` | `player_N_role` |
+| negotiation values | `seller_value` / `buyer_value` | `player_N_value` |
+| negotiation price | normalised by `product_price_order` | **absolute, no order** |
+| negotiation exit | `SellToJhon` / `BuyFromJhon` | `WalkAway` |
+| negotiation rejection | bare decision | **requires a counteroffer** |
+| persuasion low value | `c` | **`u`** |
+| persuasion quality | `"high-quality"` | **`"high"`** |
+
+**Scale matters as much as naming.** Live negotiation prices are absolute and can be in the
+tens of thousands, while the agent's rules are tuned in units where a valuation is near 1.0 —
+a constant like "concede 0.04" is meaningless against a price of 12,500. Everything is
+normalised by the player's own valuation (always visible) on the way in and multiplied back
+on the way out.
+
+**An absent `max_rounds` becomes a horizon of 99, not 0.** Zero would make every round look
+like the endgame and collapse the agent's accept floor.
+
+## What is *not* verified
+
+The fixtures in `glee_eval/live/fixtures.py` are built by hand from the glee-sdk 0.0.5 README
+tables. They are a statement of what we believe the server sends, not a capture of a real
+game, because no API key exists yet. Two consequences:
+
+- The adapter is tested end-to-end through the SDK's real `_handle_game`, but against our
+  fixtures. A field the docs describe differently from the live server would pass every test
+  and still be wrong.
+- `reports/live/observations.jsonl` exists precisely for this. **The first few real games are
+  the cheapest chance to catch a mistranslation**, so check that log after the first run
+  rather than after a hundred games.
+
+Suggested first run — small, bounded, and inspectable:
+
+```bash
+.venv/bin/python -m glee_eval live --max-games 5 --concurrency 2
+python3 -c "
+import json
+for line in open('reports/live/observations.jsonl'):
+    r = json.loads(line)
+    print(r['status'], r['game_family'], r['action_type'], '->', r['action'])
+"
+```
+
+Anything other than `ok` in that `status` column on a real game is a schema mismatch to fix
+before scaling up.
+
+## Volume, once it works
+
+- Rating is discounted by `g/(g+30)`, so early games count for little and volume is needed
+  before a rating means anything.
+- **All three families must be played.** An unplayed family sits at the 1,000 starting rating
+  and drags the overall average down. Persuasion has to actually ship, not just be diagnosed.
+- Holding a top-100 place in a family needs ~10 games/day in it.
+- Rate limit is 60 requests/minute per agent; up to 5 agents per account. `concurrency` of
+  4–10 is the SDK's suggested range, and it backs off automatically.
+- If matchmaking finds no opponent within 30 seconds it matches an LLM baseline, but only
+  when you have no other game in flight — keeping several games running avoids it.
+
+## Ranking note
+
+Placement is **self-gain only**. Efficiency and fairness are recorded for post-competition
+analysis but do not affect rank. Worth remembering if a future change trades measured payoff
+for something that merely looks fairer.

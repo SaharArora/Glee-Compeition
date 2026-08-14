@@ -21,3 +21,6 @@ models/
 *.key
 *.pem
 litellm/
+
+# Local virtualenv for the live competition client
+.venv/
