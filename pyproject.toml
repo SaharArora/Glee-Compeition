@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "glee-eval-harness"
 version = "0.1.0"
@@ -10,7 +14,29 @@ dependencies = []
 # deliberately stays dependency-free so it can run on a bare interpreter.
 live = ["glee-sdk>=0.0.5"]
 
+# Without this, setuptools' flat-layout autodiscovery refuses to build at all:
+# the repo root holds several top-level directories and it will not guess which
+# are the distribution. On a dev machine it reports eight, because the gitignored
+# generated directories (work, data, runs, models, reports) are present too.
+#
+# Include patterns rather than a flat package list, deliberately. A flat list
+# would silently omit any subpackage added later -- the same
+# quietly-missing-thing failure mode the schema contracts exist to catch -- while
+# `glee_eval*` picks up new subpackages automatically. `tests` needs no entry: it
+# has no __init__.py, so it is not a package.
+#
+# `eval` is excluded on purpose. It is a compatibility shim package whose own
+# docstring calls it that: nine three-line modules forwarding to `main` functions
+# the `glee_eval` CLI already exposes, verified one-for-one. Nothing in the repo
+# imports it, and `python -m eval.<cmd>` works from the repo root regardless of
+# installation because the working directory is on sys.path -- so packaging it
+# buys nothing. Against that, installing a distribution that owns a top-level
+# name as generic as `eval` in site-packages invites collisions with unrelated
+# packages. Kept in the tree, left out of the wheel.
+[tool.setuptools.packages.find]
+include = ["glee_eval*", "my_agents*"]
+namespaces = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-
