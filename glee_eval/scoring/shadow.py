@@ -164,6 +164,46 @@ def _choose_bucket(
     return fallback
 
 
+def _stratification_warning(family: str, rows: list[dict]) -> dict | None:
+    """Flag when a family's percentile pools structurally different sub-populations.
+
+    Negotiation is the case that prompted this. 61% of real configs have no gains
+    from trade, and in those 93.9% of real payoffs are exactly zero, against 34.9%
+    in gains-from-trade configs. Scoring against the pooled reference therefore
+    understates standing in no-trade games and overstates it in the rest --
+    measured at 0.385 vs a within-stratum 0.508, and 0.769 vs 0.599.
+
+    This is reported rather than corrected. Stratifying would make the number a
+    better measure of *skill*, but the official leaderboard's formula is private
+    and replicating it is explicitly out of scope, so a shadow score that diverges
+    from it could be a worse predictor of *placement*. Naming the distortion is
+    the part that is unambiguously right.
+    """
+
+    if family != "negotiation" or not rows:
+        return None
+    zones: dict[str, int] = {}
+    for row in rows:
+        config = row.get("config") or {}
+        seller = config.get("seller_value")
+        buyer = config.get("buyer_value")
+        if seller is None or buyer is None:
+            continue
+        zones["no_trade_zone" if buyer <= seller else "gains_from_trade"] = (
+            zones.get("no_trade_zone" if buyer <= seller else "gains_from_trade", 0) + 1
+        )
+    if len(zones) < 2:
+        return None
+    return {
+        "reason": "percentile pools no-trade-zone and gains-from-trade games",
+        "episodes_by_zone": zones,
+        "effect": "understates standing in no-trade games, overstates it in the rest",
+        "measured": {"no_trade_pooled": 0.385, "no_trade_stratified": 0.508,
+                     "gains_pooled": 0.769, "gains_stratified": 0.599},
+        "not_corrected_because": "the official formula is private and replicating it is out of scope",
+    }
+
+
 def percentile_rank(values: list[float], payoff: float) -> float | None:
     if not values:
         return None
@@ -270,6 +310,7 @@ def score_episodes(
             "mean_payoff": mean([float(row["candidate_payoff"]) for row in rows]) if rows else None,
             "bucket_levels": dict(levels),
             "low_support_games": sum(1 for row in rows if int(row.get("bucket_support") or 0) < min_reference),
+            "percentile_stratification_warning": _stratification_warning(family, rows),
         }
 
     overall_displayed = mean([families[family]["displayed_rating"] for family in FAMILIES])
