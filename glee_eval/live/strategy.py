@@ -32,6 +32,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Callable
 
+from glee_eval.contracts import ContractReport, Mode, enforce, live_contract
 from glee_eval.live.schema import FAMILIES, action_type_of, fallback_action, to_game_state, to_live_action
 
 logger = logging.getLogger("glee_eval.live")
@@ -61,6 +62,9 @@ class LiveStrategy:
                 logger.exception("Cannot create %s; continuing without an observation log", self.observation_log)
                 self.observation_log = None
         self.counters: Counter = Counter()
+        # OBSERVE, never STRICT: a raise here would be swallowed by the SDK and
+        # cost the game by timeout. Loud means logged and counted, not thrown.
+        self.contract_report = ContractReport()
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------------
@@ -98,6 +102,18 @@ class LiveStrategy:
         if family not in FAMILIES:
             record["status"] = "fallback_unknown_family"
             return self._safe_fallback(game)
+
+        contract = live_contract(family)
+        if contract is not None:
+            violations = enforce(
+                game,
+                contract,
+                mode=Mode.OBSERVE,
+                report=self.contract_report,
+                context=f"game {game.get('game_id')}",
+            )
+            if violations:
+                record["schema_violations"] = [v.to_dict() for v in violations]
 
         state = to_game_state(game)
         record["translated_state"] = {
@@ -171,6 +187,7 @@ class LiveStrategy:
             "fallbacks": failures,
             "fallback_rate": (failures / total) if total else None,
             "counters": counters,
+            "schema": self.contract_report.to_dict(),
             "observation_log": str(self.observation_log) if self.observation_log else None,
         }
 

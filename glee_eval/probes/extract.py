@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from glee_eval.config import DEFAULT_DATA_DIR
+from glee_eval.contracts import INGESTED_EVENT, Mode, enforce
 from glee_eval.data.schemas import GameState
 from glee_eval.storage.trajectories import iter_jsonl, write_jsonl
 
@@ -36,7 +37,15 @@ def _filter_visible_transcript(event: dict[str, Any]) -> list[dict[str, Any]]:
     return _visible_transcript("persuasion", "buyer", int(event.get("round") or 0), list(transcript), config)
 
 
-def state_from_event(event: dict[str, Any]) -> GameState:
+def state_from_event(event: dict[str, Any], *, schema_mode: Mode = Mode.STRICT) -> GameState:
+    """Ingested event -> the state the agent sees.
+
+    Validated strictly: this is the boundary where real data crosses into the
+    agent, and a field we cannot find is a bug we want to hear about immediately
+    rather than a silently degraded belief.
+    """
+
+    enforce(event, INGESTED_EVENT, mode=schema_mode, context=str(event.get("game_id")))
     config = event.get("configuration") or {}
     horizon = int(config.get("max_rounds") or config.get("total_rounds") or 0)
     historical = {

@@ -10,6 +10,7 @@ from glee_eval.data.validation import main as validate_main
 from glee_eval.diagnostics.negotiation import main as negotiation_diagnostic_main
 from glee_eval.diagnostics.language import main as language_diagnostic_main
 from glee_eval.diagnostics.persuasion import main as persuasion_diagnostic_main
+from glee_eval.diagnostics.schema_check import main as schema_check_main
 from glee_eval.experiments.ab import main as promotion_check_main
 from glee_eval.experiments.run import main as experiment_main
 from glee_eval.live.run import main as live_main
@@ -46,6 +47,7 @@ def main(argv: list[str] | None = None) -> None:
         "negotiation-diagnostic",
         "persuasion-calibration",
         "language-analysis",
+        "schema-check",
     ]:
         sub.add_parser(name)
     args, rest = parser.parse_known_args(argv)
@@ -87,6 +89,8 @@ def main(argv: list[str] | None = None) -> None:
         persuasion_diagnostic_main(rest)
     elif args.command == "language-analysis":
         language_diagnostic_main(rest)
+    elif args.command == "schema-check":
+        schema_check_main(rest)
     else:  # pragma: no cover
         parser.error(f"Unknown command: {args.command}")
 
