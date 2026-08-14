@@ -176,6 +176,51 @@ system that computes it.
 Kept behind an `include_remaining` flag, defaulted off, so the experiment can be rerun in one
 line if the key ladder changes rather than being deleted and rediscovered.
 
+**Negotiation time-dependent concession.** A Boulware curve replacing an offer rule that was
+round-independent everywhere except EXPLOIT. Live game 9cf35978 shows what that cost: an
+identical counteroffer at rounds 1, 50, 97 and 98, 99 rounds, nothing closed.
+
+Rejected: **+0.0003, t=+2.11** paired over 1,600 holdout negotiation episodes, against the
+0.0100 minimum. 1,518 of 1,600 pairs tied, because the offline population rarely plays a long
+negotiation out — the very regime the change exists for.
+
+The first gate run is worth recording because it caught a bug in the candidate rather than a
+bug in the hypothesis: **−0.0054, t=−7.57**, driven by `rounds=1|gains_from_trade` at −0.0447.
+`_negotiation_concession_factor` returned `0.0` when the horizon was 1, reading "no rounds
+left" as "concede everything" when round 1 of a 1-round game is all opening and no endgame.
+The re-run after fixing it is a different candidate, not the same one re-rolled until it
+passed; the distinction matters, and a re-run that had only changed the seed would not be
+legitimate.
+
+**Negotiation own-margin offer clip.** The closest call so far, and the one most worth a human
+decision. The old clip used the counterpart's believed value as a hard bound:
+`min(seller_value, buyer_value)` as a floor for a buyer, `max(...)` as a ceiling for a seller.
+Once the believed counterpart value crosses our own, that window collapses to a single point,
+so the only legal offer is **exactly our own reservation value** — worth zero to us even when
+accepted. That is defective by arithmetic, not by A/B, and live game 9cf35978 shows it
+happening in a rated game: 99 rounds, 0.0/0.0.
+
+Rejected anyway: **+0.0076, t=+9.46, 117 wins / 0 losses / 1,483 ties**, every subgroup check
+passing with 0.0000 breadth, failing only `minimum_effect` at 0.0076 against 0.0100.
+
+Two notes on how that verdict was reached, because both were live temptations:
+
+- The 1,483 ties are pairs where the collapsing branch is never reached — offline the agent
+  takes the outside option in a no-trade zone before it ever prices. Conditioning the effect
+  on the 117 pairs that do reach it would give a large number and a pass. That endpoint was
+  *not* declared in advance, and switching to it after seeing the result is precisely the move
+  this document exists to prevent. It is recorded and not used.
+- The change satisfies carve-out condition 1 more strongly than any previous candidate — the
+  defect is provable analytically. It still fails condition 2, because `minimum_effect` is
+  named as unwaivable. Shipping it would mean deciding that the written rule does not apply
+  when the reasoning feels strong enough, which is the failure mode the gate was built after.
+
+So it is off by default and flagged for a human call. `guarantee_own_margin` also governs
+whether the agent attaches `counter_price` to a live rejection, because the two are not
+separable: with the margin guarantee off, the agent's own counter price can land exactly on
+its reservation value, which is *worse* than the adapter's `own_value * 0.85` fallback.
+Shipping the counteroffer plumbing alone would have been a live regression dressed as a fix.
+
 ## Applying it
 
 ```bash

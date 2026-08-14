@@ -90,6 +90,10 @@ class JordanStrategicAgent(CandidateAgent):
         message_mode: str = "shadow",
         persuasion_explore: bool = False,
         max_exploration_loss: float = 0.45,
+        use_time_concession: bool = False,
+        concession_convexity: float = 2.5,
+        min_negotiation_margin: float = 0.02,
+        guarantee_own_margin: bool = False,
     ):
         self.rng = random.Random(seed)
         self.exploit_evidence_threshold = exploit_evidence_threshold
@@ -146,6 +150,43 @@ class JordanStrategicAgent(CandidateAgent):
         self.persuasion_explore = persuasion_explore
         # Never explore when a single buy would cost more than this in price units.
         self.max_exploration_loss = max_exploration_loss
+        # Concede over time in negotiation instead of repeating one price forever.
+        #
+        # OFF by default: rejected by the promotion gate. Paired over 1,600 holdout
+        # negotiation episodes it measured +0.0003 (t=+2.11) -- statistically real and
+        # far below the 0.0100 minimum effect, with 1,518 of 1,600 pairs tied because
+        # the offline population almost never plays a long negotiation out.
+        # `minimum_effect` is not waivable by the defect carve-out.
+        self.use_time_concession = use_time_concession
+        # >1 is Boulware-shaped: hold the margin early, give it up late. Right here
+        # because negotiation has no discounting, so speed is worth nothing and only
+        # running out of rounds costs anything.
+        self.concession_convexity = concession_convexity
+        self.min_negotiation_margin = min_negotiation_margin
+        # Clip negotiation offers on our own profitability instead of on the
+        # counterpart's believed value, and price our own live counteroffers.
+        #
+        # OFF by default, and this one is the closest call in the repo. The old clip
+        # is `min(seller_value, buyer_value)` as a floor, which collapses to a single
+        # point once the believed counterpart value crosses our own -- so the only
+        # legal offer is exactly our reservation value, worth zero to us even when
+        # accepted. That is provably defective by arithmetic, and live game 9cf35978
+        # shows it happening: 99 rounds, 0.0/0.0, an unchanging counteroffer.
+        #
+        # Gated anyway, and rejected: +0.0076 (t=+9.46) paired over 1,600 holdout
+        # episodes, 117 wins / 0 losses / 1,483 ties, every subgroup check passing
+        # with 0.0000 breadth -- failing only `minimum_effect` at 0.0076 vs 0.0100,
+        # which the carve-out may not waive. The ties are pairs where the collapsing
+        # branch is never reached; conditioning on the 117 that do reach it would give
+        # a large effect, but inventing that endpoint after seeing the result is the
+        # exact move the criteria doc warns against, so it is recorded and not used.
+        #
+        # This also governs whether the agent attaches `counter_price` to a live
+        # rejection, because the two cannot be separated: with the margin guarantee
+        # off, the agent's own counter price can land exactly on its reservation
+        # value, which is *worse* than the adapter's own_value*0.85 fallback. Shipping
+        # the counteroffer plumbing without the clip fix would be a regression.
+        self.guarantee_own_margin = guarantee_own_margin
         self.response_model = EmpiricalResponseModel.load(response_model_path or os.getenv("GLEE_RESPONSE_MODEL"))
         self.coverage_gate = CoverageGate.from_path(support_index_path or os.getenv("GLEE_SUPPORT_INDEX"))
 
@@ -455,6 +496,24 @@ class JordanStrategicAgent(CandidateAgent):
             "evidence": evidence,
             "beliefs": beliefs,
         }
+        if self.guarantee_own_margin and decision not in {
+            "AcceptOffer",
+            "SellToJhon",
+            "BuyFromJhon",
+            "WalkAway",
+            "DealWithJhon",
+        }:
+            # A live rejection is only legal with a counteroffer attached, so price one
+            # here rather than leaving the adapter to invent it. Without this the
+            # adapter fell back to own_value * 0.85 -- round-independent, opponent-blind,
+            # and the source of the identical 6800.0 counteroffer seen 98 times in game
+            # 9cf35978. The offline harness ignores the field; only live reads it.
+            counter = self._negotiation_offer_price(state, control)
+            empirical = self._negotiation_empirical_offer_price(state, control)
+            if empirical:
+                counter, structured["empirical_response_model"] = empirical
+            structured["counter_price"] = round(counter * order, 2)
+            structured["counter_normalized_price"] = counter
         return self._action(state, "decision", structured, accept_reject=decision, control=control)
 
     def _negotiation_beliefs(self, state: GameState) -> dict[str, float]:
@@ -502,6 +561,18 @@ class JordanStrategicAgent(CandidateAgent):
         elif opponent_prices:
             # Evidence bound, not a floor: their offers reveal which side of the
             # price their value must lie on.
+            #
+            # Deliberately a behavioural point estimate rather than a bound shrunk
+            # toward the prior. Shrinking looks more principled -- a buyer offering
+            # p only licenses buyer_value >= p -- but a lower bound can never make
+            # us more pessimistic, so it restores the optimistic floor removed
+            # earlier and makes a no-trade zone unbelievable in the 61% of real
+            # configs that have one. See test_a_hidden_no_trade_zone_is_now_believable.
+            #
+            # The open question it leaves is asymmetric and is *not* settled here:
+            # a seller's ask is an anchor above cost, so as a buyer this estimate is
+            # pessimistic by however much sellers mark up. Measured, not guessed,
+            # below -- see docs/HANDOVER.md.
             other_value = max(opponent_prices) if state.role == "seller" else min(opponent_prices)
         else:
             other_value = prior[other_key]
@@ -526,33 +597,82 @@ class JordanStrategicAgent(CandidateAgent):
             "E_sample": 1.0 + min(1.0, len(self._transcript(state)) / 8.0),
         }
 
+    def _negotiation_concession_factor(self, state: GameState) -> float:
+        """How much of the opening margin to still be holding, from 1.0 down to 0.
+
+        Time-dependent concession in the Boulware shape: hold most of the margin
+        early, give it up late. Convex is the right curve here because negotiation
+        has no discounting -- a deal struck in round 90 is worth exactly what the
+        same deal was worth in round 2 -- so there is no reason to pay for speed,
+        only a reason to avoid running out of rounds.
+
+        This exists because the offer rule was previously static outside EXPLOIT.
+        In a live game it produced a counteroffer of 6800.0 at rounds 1, 50, 97 and
+        98 -- identical, 98 times, never conceding -- and nothing closed.
+        """
+
+        horizon = self._horizon(state)
+        if horizon <= 1:
+            # A one-round game is all opening and no endgame, so hold the full
+            # margin: there is no future to trade away. Returning 0.0 here instead
+            # -- reading "no rounds left" as "concede everything" -- cost -0.0447 in
+            # the rounds=1|gains_from_trade regime on the first gate run, which is
+            # what turned this change into a net loss.
+            return 1.0
+        elapsed = min(1.0, max(0.0, (self._round(state) - 1) / float(horizon - 1)))
+        return max(0.0, 1.0 - elapsed ** self.concession_convexity)
+
     def _negotiation_offer_price(self, state: GameState, control: StrategicControl) -> float:
         seller_value = control.beliefs["seller_value"]
         buyer_value = control.beliefs["buyer_value"]
         remaining = self._remaining(state)
+        surplus = control.beliefs["surplus_room"]
         concession = 0.02 * max(0, self._round(state) - 1)
+        # The margin still being held, which decays toward our own valuation as the
+        # rounds run out. A floor keeps us from conceding to exactly our reservation
+        # value, where a deal is worth nothing to us anyway.
+        hold = self._negotiation_concession_factor(state) if self.use_time_concession else 1.0
+        floor = self.min_negotiation_margin
+
+        def _margin(target: float) -> float:
+            return max(floor, target * hold) if self.use_time_concession else target
+
         if state.role == "seller":
             if control.mode == StrategicMode.EXPLOIT:
                 price = buyer_value - 0.04 - min(0.06, concession)
             elif control.mode == StrategicMode.COMMIT:
-                price = seller_value + min(0.26, max(0.12, control.beliefs["surplus_room"] * 0.55))
+                price = seller_value + _margin(min(0.26, max(0.12, surplus * 0.55)))
             elif control.mode == StrategicMode.EXPLORE:
-                price = seller_value + min(0.34, max(0.18, control.beliefs["surplus_room"] * 0.70))
+                price = seller_value + _margin(min(0.34, max(0.18, surplus * 0.70)))
             else:
-                price = seller_value + min(0.20, max(0.08, control.beliefs["surplus_room"] * 0.45))
+                price = seller_value + _margin(min(0.20, max(0.08, surplus * 0.45)))
             if remaining <= 2:
-                price = min(price, seller_value + max(0.08, control.beliefs["surplus_room"] * 0.40))
-            return self._clip(price, seller_value, max(seller_value, buyer_value))
+                price = min(price, seller_value + max(floor, surplus * 0.40))
+            # Clip on our own profitability only: never ask less than cost plus a
+            # sliver. The believed buyer value is deliberately *not* a hard ceiling
+            # here -- it already enters through `surplus`, and as a hard bound it
+            # collapsed the window to [seller_value, seller_value] whenever the
+            # believed buyer value fell below our cost, making the only legal ask
+            # exactly our own cost: an offer worth zero to us even when accepted.
+            if not self.guarantee_own_margin:
+                return self._clip(price, seller_value, max(seller_value, buyer_value))
+            return max(price, seller_value + floor)
 
         if control.mode == StrategicMode.EXPLOIT:
             price = seller_value + 0.04 + min(0.06, concession)
         elif control.mode == StrategicMode.EXPLORE:
-            price = buyer_value - min(0.32, max(0.18, control.beliefs["surplus_room"] * 0.70))
+            price = buyer_value - _margin(min(0.32, max(0.18, surplus * 0.70)))
         else:
-            price = buyer_value - min(0.20, max(0.08, control.beliefs["surplus_room"] * 0.45))
+            price = buyer_value - _margin(min(0.20, max(0.08, surplus * 0.45)))
         if remaining <= 2:
-            price = max(price, buyer_value - max(0.08, control.beliefs["surplus_room"] * 0.40))
-        return self._clip(price, min(seller_value, buyer_value), buyer_value)
+            price = max(price, buyer_value - max(floor, surplus * 0.40))
+        # Mirror of the seller floor: never bid more than our value less a sliver.
+        # The believed seller cost is not a hard floor, for the same reason -- as
+        # one it forced a bid of exactly what the good is worth to us, which is the
+        # unchanging counteroffer seen in every round of game 9cf35978.
+        if not self.guarantee_own_margin:
+            return self._clip(price, min(seller_value, buyer_value), buyer_value)
+        return min(price, buyer_value - floor)
 
     def _negotiation_empirical_offer_price(self, state: GameState, control: StrategicControl) -> tuple[float, dict[str, Any]] | None:
         if not self.response_model:

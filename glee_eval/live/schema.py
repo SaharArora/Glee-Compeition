@@ -447,8 +447,15 @@ def _negotiation_action(game: dict[str, Any], action: Any) -> dict[str, Any]:
             me = str(state.get("current_player") or game.get("your_player") or "player_1")
             role = str(state.get(f"{me}_role") or "seller")
             own = _num(state.get(f"{me}_value"), scale) or scale
-            # Ask above our own value as a seller, below it as a buyer.
-            counter_absolute = own * (1.15 if role == "seller" else 0.85)
+            # Last resort only: the agent normally prices its own counteroffer. Ask
+            # above our own value as a seller, below it as a buyer -- but decay the
+            # margin as the rounds run out, because a fixed 15% repeated every round
+            # is what produced 98 identical counteroffers and no agreement.
+            margin = 0.15
+            if max_rounds is not None and max_rounds > 1:
+                elapsed = min(1.0, max(0.0, (round_number - 1) / float(max_rounds - 1)))
+                margin = max(0.01, 0.15 * (1.0 - elapsed ** 2.5))
+            counter_absolute = own * (1.0 + margin if role == "seller" else 1.0 - margin)
             payload["product_price"] = round(counter_absolute, 2)
         else:
             payload["product_price"] = _price_payload(float(counter), 1.0)
