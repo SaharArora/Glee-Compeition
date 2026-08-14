@@ -4,10 +4,212 @@ Written for someone picking this up cold, on a different machine, with no chat h
 State has been moving between sessions through docs in this directory, so this file is the
 map. It points at detail rather than repeating it.
 
-Current head at time of writing: `f40b630`. Test suite: **267 tests, all passing**
-(7 skip without `glee-sdk` installed; 2 skip without the ingested dataset).
+Current head at time of writing: `94ec99b`. Test suite: **309 tests, all passing**
+(7 skip without `glee-sdk` installed).
 
 **Competition closes 29 August 2026.**
+
+> **Read §0 first if you are resuming after 14 August 2026.** That session shipped three
+> fixes, built four changes the gate rejected, and — most importantly — caught one of its own
+> passing results as a false positive. The method matters more than the numbers.
+
+---
+
+## 0. Session of 14 August 2026 — what changed, and the one thing to actually learn from it
+
+This section is self-contained. If you read nothing else, read this.
+
+The session had one job: fix, autonomously, the defects found after the first five real live
+games. No live play was permitted and none was run. Every change went through the promotion
+gate (§2.6) at full strength.
+
+### 0.1 Shipped — on by default, in main
+
+| # | Change | Commit | Why it needed no gate |
+|---|---|---|---|
+| 1a | Recover the live persuasion buyer's own purchase history from the running payoff totals | `da36cbb`, `0644232` | Adds information the buyer previously did not have at all. Nothing to A/B against. |
+| 3a | `u` / `v` required in the live persuasion contract, judged on the shipped reader | `3931eaf` | Validation, not policy. |
+| 3b | Roll the unbounded-game horizon instead of pinning it at a fixed 99 sentinel | `efc8087` | Corrects a number this repo invented, not a strategy choice. |
+| — | Adapter's last-resort counteroffer fallback decays over rounds instead of repeating one price | `beff600` | A constant is strictly worse than a decaying one, and no agent flag gates it. |
+
+**On 3b, because it answers a question the last session left open.** The adapter used a fixed
+horizon of 99 to mean "no deadline". That is fine on round 1 and wrong by round 98: the round
+counter climbs while the sentinel stays put, so the agent's endgame branch — accept almost
+anything, or walk away — fired on an invented number. Live negotiation `9cf35978` ended exactly
+that way, a mutual walk-away at round 99 for 0.0/0.0. A deadline-free game now gets
+`round + 99`:
+
+```
+capped at 99   round 1 -> remaining 99 ... round 99 -> remaining   1  -> WalkAway
+unbounded      round 1 -> remaining 100 ... round 99 -> remaining 100  -> RejectOffer
+```
+
+A real cap still bites. And the two cases are now behaviourally distinguishable, so the
+round-99 walk-away can be **attributed** next time instead of guessed at — previously probes A
+and B produced byte-identical state, which is why the log was mute.
+
+### 0.2 Built, measured, and rejected by the gate — all off by default
+
+Every one of these is complete, tested, and behind a flag. None is a stub. They are off because
+the gate said no, and each carries the number that says why.
+
+| Flag | Change | Effect | t | W/L/T | Failed on |
+|---|---|---:|---:|---|---|
+| `persuasion_explore` | Buy at negative EV to break the persuasion cold start | +0.0051 | +3.36 | — | `minimum_effect`, concentration |
+| `use_time_concession` | Boulware time-dependent negotiation concession | +0.0003 | +2.11 | 6/76/1518 | `minimum_effect` |
+| `guarantee_own_margin` | Clip negotiation offers on our own profitability, and price our own live counteroffers | +0.0076 | +9.46 | 117/0/1483 | `minimum_effect` |
+| `debias_counterpart_value` | Correct the counterpart-value inference for the measured anchor gap | +0.0072 | +7.52 | 64/1/1535 | `minimum_effect`, concentration |
+| all three negotiation flags together | The counteroffer path as one change | **+0.0109** | +10.07 | 136/42/1422 | **nothing — passed** |
+| all three, confirmation run | Same candidate, independent sample | **+0.0094** | +12.49 | 233/94/2873 | `minimum_effect`, concentration |
+
+`minimum_effect` (≥ 0.0100 paired mean) is explicitly **not waivable** by the defect carve-out,
+which is why strong-looking changes with zero regressing subgroups still did not ship.
+
+`guarantee_own_margin` also governs whether the agent attaches `counter_price` to a live
+rejection. **The two cannot be separated**: with the margin guarantee off, the agent's own
+counter price can land exactly on its reservation value, which is *worse* than the adapter's
+`own_value * 0.85` fallback. Shipping the plumbing alone would have been a live regression
+dressed as a fix. A test enforces the coupling.
+
+### 0.3 The confirmation run — finished, acted on, not left pending
+
+**Status: complete.** It ran to completion, it failed, the change was rejected, and the
+rejection is recorded in `docs/PROMOTION_CRITERIA.md`. Nothing about it is outstanding, and
+there is no half-finished experiment to resume.
+
+The sequence matters more than the outcome:
+
+1. Three changes each measured +0.0072 to +0.0076 and each failed `minimum_effect` alone.
+2. That suggested the *grouping* was wrong. All three had been diagnosed together, as one chain
+   producing one live symptom, **before any of them was measured** — so the whole counteroffer
+   path is the honest unit of change.
+3. Gated as one change, it returned **+0.0109, t=+10.07, and passed every single check.**
+4. It was also the **fifth** gate run in this area, and it passed two checks by a hair:
+   `minimum_effect` at 0.0109 against 0.0100, and `subgroup_concentration[config_regime]` at
+   0.4985 against 0.5000. A skeptic would say the candidate was recombined until something
+   passed. That criticism would have been fair.
+5. So a confirmation run on an independent sample was **declared in advance** — different seed,
+   twice the games, shipping conditional on it holding.
+6. It did not hold: **+0.0094**, concentration back to 0.5539. Both marginal passes evaporated,
+   which is what a marginal pass on a multiply-tested candidate is expected to do.
+
+**Two things to carry forward.** Declaring the confirmation run *before* seeing its result is
+the only reason this rejection happened — taking the 0.0109 would have made a sub-threshold
+change a default and the gate decorative in exactly the way it was built to prevent. And a
+higher `t` does not rescue a smaller effect: the confirmation run was *more* significant and
+still failed, because `minimum_effect` asks whether an effect is worth the policy surface, not
+whether it is real. Both runs agree the effect is real. Neither shows it is big enough.
+
+### 0.4 Two claims I had to retract, and why that is the point
+
+Neither of these was a statistics mistake. Both were confident conclusions that real data
+contradicted, and finding them is worth more than any change that shipped.
+
+**The "guaranteed-zero-payoff" persuasion bug was an overclaim.** I described the frozen
+persuasion posterior as guaranteeing zero payoff. Measured across 13,506 real games: the frozen
+version buys in 67.0% of rounds against the informed version's 60.6%, the two agree on 80.1% of
+decisions, and the mean per-round EV forgone by being frozen is **+0.0286** — frozen is, on net,
+slightly *better*. If the live game had `v ≈ 1.25` and `p = 0.5`, informed EV is −0.0001 and
+declining all 20 rounds was approximately correct play. The bug was real; the severity was
+invented.
+
+**My first negotiation diagnosis was wrong about which defect mattered.** I attributed the
+unchanging 6800.0 counteroffer to a static offer rule and wrote a concession curve for it. The
+concession curve was **unreachable from live play**: the agent never attached a counter price at
+all, so the adapter's own fallback of `own_value * 0.85` produced every live counteroffer —
+and `8000 * 0.85 = 6800` exactly. A fix aimed at the wrong layer would have measured nothing
+and been reported as done.
+
+Also mid-change, in the same spirit: I tried shrinking the counterpart-value evidence bound
+toward the prior on the argument that a bound may only tighten an estimate. It broke
+`test_a_hidden_no_trade_zone_is_now_believable`, and **the test was right** — a lower bound can
+never make us more pessimistic, so shrinking restores an optimistic floor that was deliberately
+removed earlier and makes a no-trade zone unbelievable in the 61% of real configs that have
+one. Reverted rather than argued with.
+
+And the concession curve's own first gate run came back **−0.0054, t=−7.57**, driven by
+`rounds=1|gains_from_trade` at −0.0447. That was a bug in my change, not in the hypothesis: the
+factor returned `0.0` at horizon 1, reading "no rounds left" as "concede everything" when round
+1 of a one-round game is all opening and no endgame.
+
+### 0.5 One thing that is now measured rather than assumed
+
+The counterpart-value inference read an opening offer as a valuation. Over **96,214 real
+negotiation offers**, earliest offer per game per role:
+
+| Role | Information | n | median | mean | p10 | p90 |
+|---|---|---:|---:|---:|---:|---:|
+| seller | incomplete | 16,542 | **1.500** | 2.604 | 1.250 | 2.000 |
+| buyer | incomplete | 7,647 | **0.750** | 0.715 | 0.500 | 0.833 |
+| seller | complete | 17,085 | 1.200 | 1.244 | 1.000 | 1.500 |
+| buyer | complete | 8,714 | 0.800 | 0.796 | 0.667 | 0.900 |
+
+So reading the price as the value overestimates a seller's cost by ~50% and underestimates a
+buyer's value by ~25% — **both shrinking the believed trade zone**, which is how the agent talks
+itself out of deals that exist. The constants live in `glee_eval/theory/benchmarks.py` as
+`EMPIRICAL_SELLER_FIRST_ASK_MARKUP` and `EMPIRICAL_BUYER_FIRST_OFFER_SHADING`. Medians, not
+means: the seller mean of 2.604 is dragged by a long right tail of opening anchors. The
+measurement stands on its own and is reusable even though the change built on it was rejected.
+
+Separately, and settled: **the live seller's recommendation is highly informative.** Over
+88,910 real decisions, `P(high | rec=yes) = 0.7999` against `0.5434` unconditional, and
+`P(high | rec=no) = 0.0125`.
+
+### 0.6 Every new flag and its default
+
+All in `JordanStrategicAgent.__init__`, each with the rejection numbers in a comment beside it.
+
+| Flag | Default | Status |
+|---|---|---|
+| `use_theory_anchor` | `True` | **Passed the real gate** (+0.046, t=+6.60 vs fitted population) |
+| `message_mode` | `"shadow"` | Gate structurally cannot test message text; records what it would send |
+| `persuasion_explore` | `False` | Gate-rejected |
+| `use_time_concession` | `False` | Gate-rejected |
+| `guarantee_own_margin` | `False` | Gate-rejected; also gates the `counter_price` plumbing |
+| `debias_counterpart_value` | `False` | Gate-rejected |
+| `concession_convexity` | `2.5` | Tuning constant, inert while `use_time_concession` is off |
+| `min_negotiation_margin` | `0.02` | Tuning constant, inert while `guarantee_own_margin` is off |
+
+A test — `RejectedByTheGateTests.test_every_negotiation_flag_defaults_off` — asserts all three
+rejected negotiation flags are off, so none can be flipped on later without deleting an
+assertion that states why it is off.
+
+### 0.7 What to do first next session
+
+1. **Decide the `minimum_effect` question, before measuring anything else.** Four complete,
+   tested changes are sitting off because they land at +0.007 to +0.010 while 1,422 of 1,600
+   paired episodes are *ties* — the offline population barely exercises the code paths they
+   fix. Either (a) the threshold is right and these genuinely are not worth the surface, or
+   (b) `minimum_effect` needs a defined variant for defect fixes on rarely-exercised paths,
+   e.g. conditioning on pairs that reach the branch. **(b) is defensible but must be written
+   into `docs/PROMOTION_CRITERIA.md` first**, because choosing it after seeing these numbers is
+   the exact failure the gate exists to prevent. This is a human decision, not an autonomous
+   one.
+2. **`guarantee_own_margin` is the strongest candidate and deserves the decision first.** It is
+   provably defective by arithmetic rather than by A/B: the old clip collapses to a single point
+   once the believed counterpart value crosses our own, so the only legal offer is *exactly our
+   reservation value* — worth zero even when accepted. 117 wins, **0 losses**, 0.0000 subgroup
+   breadth. It fails only on effect size.
+3. **Then play live games.** Every live claim in this repo is still unvalidated by anyone but
+   the user's five games. Read `reports/live/observations.jsonl` for non-`ok` statuses and
+   `schema_violations` keys. Rated volume takes calendar time that cannot be recovered, and the
+   deadline is 29 August 2026.
+4. **Persuasion remains the weakest family** (§4.3). The two named leads are unchanged: the
+   deceptive-seller regression and the under-confident 0.5–0.8 calibration bins.
+5. **Decide the H6 percentile question** (§6.4). Reported, not corrected.
+
+### 0.8 Still open or uncertain after this session
+
+- **No real games were run or validated by me.** The `9cf35978` and `ea66da38` diagnoses come
+  from the user's logs, not from my own play.
+- **Live fixtures remain unverified against the real server.** Every live test asserts
+  self-consistency with `glee_eval/live/fixtures.py`, which I wrote from documentation.
+- **~18 games on the account predate this work** and may have been played by a different agent,
+  so account-level ratings are not attributable to this code.
+- **The round-99 walk-away is now explainable but not confirmed** — 3b makes the two cases
+  distinguishable going forward; it does not retroactively prove which happened.
+- Unchanged from before: whether the official metric clamps negative negotiation payoffs, and
+  the H6 shadow-percentile distortion (§6.4).
 
 ---
 
@@ -290,6 +492,14 @@ parseable, format-failure rate 0.0.
 - Response model helps modestly (+0.0066, t=+3.00) against fitted opponents. It is consulted
   in only **160 of 600** episodes, because the agent exits no-trade configs before pricing
 - Remaining-rounds conditioning was **rejected** by the gate and is not shipped
+- As of 14 August 2026, **four further negotiation changes are built and rejected** — see §0.2.
+  Three of them address one real chain of defects that cost a live game 99 rounds and 0.0/0.0,
+  and the combined change passed the gate on one sample and failed on an independent
+  confirmation run. Read §0.3 before touching this family; the flags are deliberately off, and
+  §0.7 item 1 is the decision that unblocks them
+- The live counteroffer path itself **is** fixed regardless of those flags: the adapter's
+  last-resort fallback now decays over rounds instead of resending one price forever, and an
+  unbounded game no longer presents as a game about to end (§0.1)
 
 ### Persuasion — weakest, and the active frontier
 
@@ -460,6 +670,11 @@ remaining-rounds variant.
 ---
 
 ## Immediate next steps, in order
+
+> **Superseded by §0.7 for anyone resuming after 14 August 2026.** The list below is the
+> pre-session ordering and is kept for continuity. The one change: an API key now exists and
+> five real games have been played, so item 1 is partly done — but no games have been played or
+> validated by the agent author, and none were run in the 14 August session by instruction.
 
 1. **Get an API key and play five real games.** Then read
    `reports/live/observations.jsonl` for non-`ok` statuses and `schema_violations` keys. Nothing
