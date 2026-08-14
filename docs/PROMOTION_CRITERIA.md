@@ -102,6 +102,25 @@ distribution — `deceptive` −0.025, `rational` −0.011, `level_2` −0.009 �
 learned from a short history over-trusts a seller who lies at a rate the early sample
 underestimates. Filed as the next persuasion work item.
 
+## Shadow mode
+
+Some changes cannot be gated at all, and the honest response is to say so rather than
+lower the bar quietly.
+
+The persuasion message composer is the first. Nothing in the simulator reads message text --
+replacing every template with `"."` moves persuasion payoff by 0.000000 -- so an
+in-simulator A/B of a language change measures exactly nothing. Building a message-consuming
+opponent calibrated on the same step-3 effects we would be testing would be circular.
+
+So it ships in **shadow**: it decides what it would send and records that alongside what was
+actually sent, both with their feature vectors, while the transmitted message stays the
+existing template. Real logged games accumulate the only non-circular evidence, and the
+change can be gated properly once there are enough of them.
+
+Every shadow record carries `gate_status: "not_gate_passed_pending_real_data"`, so it can
+never be mistaken in a log or a report for a change that cleared the real gate the way the
+bargaining theory anchor did.
+
 ## Applying it
 
 ```bash

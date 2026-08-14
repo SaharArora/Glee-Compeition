@@ -13,6 +13,7 @@ from glee_eval.data.schemas import AgentAction, GameState, compact_id
 from glee_eval.data.transcripts import transcript_item_decision, transcript_item_quality
 from glee_eval.response_models.runtime import EmpiricalResponseModel, ResponseEstimate
 from glee_eval.simulate.coverage_gate import CoverageGate
+from my_agents.message_composer import PersuasionMessageComposer, shadow_record
 from glee_eval.theory.benchmarks import (
     EMPIRICAL_BUYER_VALUE_MEAN,
     EMPIRICAL_DELTA_MEAN,
@@ -86,6 +87,7 @@ class JordanStrategicAgent(CandidateAgent):
         support_index_path: str | None = None,
         coverage_uncertainty_weight: float = 0.15,
         use_theory_anchor: bool = True,
+        message_mode: str = "shadow",
     ):
         self.rng = random.Random(seed)
         self.exploit_evidence_threshold = exploit_evidence_threshold
@@ -112,6 +114,19 @@ class JordanStrategicAgent(CandidateAgent):
         # reported in the action's beliefs, so time preference stays legible in the
         # ledger even with this off.
         self.use_theory_anchor = use_theory_anchor
+        # "shadow": compose a candidate persuasion message, record it, but keep
+        # sending the existing template. "live": actually send the composed one.
+        #
+        # Shadow by default because the promotion gate cannot run on message text.
+        # Nothing in the simulator reads messages -- replacing every template with
+        # "." moves persuasion payoff by 0.000000 -- so an in-simulator A/B of a
+        # language change measures nothing, and calibrating a message-reading
+        # opponent on the same step-3 numbers we would be testing would be
+        # circular. Real logged games are the only non-circular evidence, and
+        # shadow mode is how they accumulate without risking rated games on a
+        # change no gate has passed.
+        self.message_mode = message_mode
+        self.message_composer = PersuasionMessageComposer()
         self.response_model = EmpiricalResponseModel.load(response_model_path or os.getenv("GLEE_RESPONSE_MODEL"))
         self.coverage_gate = CoverageGate.from_path(support_index_path or os.getenv("GLEE_SUPPORT_INDEX"))
 
@@ -646,9 +661,20 @@ class JordanStrategicAgent(CandidateAgent):
             if quality is None:
                 quality = "high-quality" if beliefs.get("base_quality_prob", 0.5) >= 0.5 else "low-quality"
             decision = self._persuasion_recommendation(state, control, quality)
+            shadow = shadow_record(
+                self.message_composer,
+                decision == "yes",
+                market_sold=int(beliefs.get("market_products_sold") or 0),
+                market_high_quality=int(beliefs.get("market_high_quality_sold") or 0),
+            )
+            message = self._persuasion_message(control, decision, quality)
+            if self.message_mode == "live":
+                shadow["mode"] = "live"
+                message = shadow["would_send"]["text"]
             structured = {
                 "decision": decision,
-                "message": self._persuasion_message(control, decision, quality),
+                "message": message,
+                "message_experiment": shadow,
                 "strategic_mode": control.mode.value,
                 "submode": control.submode,
                 "evidence": evidence,
