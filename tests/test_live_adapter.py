@@ -401,3 +401,18 @@ class MarketStatisticsRecoveryTests(unittest.TestCase):
         self.assertEqual(frozen["market_products_sold"], 0.0)
         self.assertEqual(informed["market_products_sold"], 8.0)
         self.assertGreater(informed["posterior_quality_given_yes"], frozen["posterior_quality_given_yes"])
+
+    def test_a_zero_price_yields_no_statistics(self) -> None:
+        """The caller coerces price with `or 1.0`, so this must guard the raw value.
+
+        Regression: it did not, and a 40000 payoff total with price 0 produced
+        products_sold = 40000.
+        """
+
+        self.assertIsNone(self._stats(product_price=0, seller_total_payoff=40000, buyer_total_payoff=0))
+
+    def test_totals_implying_more_sales_than_rounds_are_rejected(self) -> None:
+        stats = self._stats(product_price=10000, v=12500, u=0, total_rounds=20,
+                            seller_total_payoff=10000 * 500, buyer_total_payoff=0)
+
+        self.assertIsNone(stats)

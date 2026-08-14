@@ -251,14 +251,27 @@ def _persuasion_market_statistics(
     price, no distinct v/u, or nothing sold yet.
     """
 
-    if price <= 0 or high is None or low is None or high == low:
+    # Guard on the *raw* price, not the caller's coerced one. `_persuasion_state`
+    # resolves price with `or 1.0`, so a zero or missing price arrives here as 1.0
+    # and every guard on it silently passes -- which produced a products_sold of
+    # 40000 from a 40000 payoff total.
+    raw_price = _num(state.get("product_price"))
+    if raw_price is None or raw_price <= 0 or price <= 0 or high is None or low is None or high == low:
         return None
     seller_total = _num(state.get("seller_total_payoff"))
     buyer_total = _num(state.get("buyer_total_payoff"))
     if seller_total is None or buyer_total is None:
         return None
 
-    sold = int(round(seller_total / price))
+    sold = int(round(seller_total / raw_price))
+    # A buyer cannot have bought more units than the game has rounds. Anything
+    # beyond that means the totals and the price disagree, so report nothing rather
+    # than a fabricated history. Deliberately bounded by total_rounds and not by
+    # rounds elapsed: the round field is the *current* round and off-by-one
+    # reasoning there would reject legitimate histories.
+    total_rounds = int(_num(state.get("total_rounds"), 0) or 0)
+    if total_rounds and sold > total_rounds:
+        return None
     if sold <= 0:
         # Nothing bought yet, so there is genuinely nothing to report. Emitting a
         # zero row would be honest but useless; omitting it keeps the agent on its
