@@ -289,17 +289,31 @@ def _persuasion_market_statistics(
     }
 
 
+def persuasion_unit_values(game: dict[str, Any]) -> tuple[float | None, float | None]:
+    """The buyer's high and low unit values, exactly as production reads them.
+
+    Live `v` and `u` are absolute currency values for a high / low quality unit;
+    the agent works in multiples of the price, which is also how the offline
+    `v` / `c` config fields are expressed. `u` is the live spelling of offline `c`.
+
+    Public, and imported by `glee_eval/contracts.py`, so the contract validates the
+    read this module actually ships rather than a copy of it that can drift out of
+    step with it. Without these two the agent has no idea what a unit is worth and
+    silently falls back to defaults, which is exactly the failure the contracts
+    exist to make loud.
+    """
+
+    state = _as_dict(game.get("game_state")) or _as_dict(game)
+    return _num(state.get("v")), _num(state.get("u"))
+
+
 def _persuasion_state(game: dict[str, Any]) -> GameState:
     state = _as_dict(game.get("game_state"))
     action_type = action_type_of(game)
     role = "buyer" if action_type == "buyer_decision" else "seller"
     price = _num(state.get("product_price"), 1.0) or 1.0
 
-    # Live `v` and `u` are absolute currency values for a high / low unit; the
-    # agent works in multiples of the price, which is also how the offline `v`/`c`
-    # config fields are expressed.
-    high = _num(state.get("v"))
-    low = _num(state.get("u"))
+    high, low = persuasion_unit_values(game)
     config: dict[str, Any] = {
         "product_price": price,
         "p": _num(state.get("p"), 0.5),

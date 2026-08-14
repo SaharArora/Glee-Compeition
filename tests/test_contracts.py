@@ -206,5 +206,62 @@ class LiveBoundaryTests(unittest.TestCase):
         self.assertIn("schema", strategy.summary())
 
 
+#: Sentinel for "remove this key", so a test can distinguish a dropped field from
+#: one explicitly set to None -- the two are different violations.
+_DROP = object()
+
+
+class LivePersuasionUnitValueTests(unittest.TestCase):
+    """`u` and `v` are what a unit is worth. Without them the agent is guessing.
+
+    These were `required=False`, so the contract stayed silent about the one
+    persuasion failure it most needed to catch: `_persuasion_state` guards both
+    with `is not None`, so a missing or renamed value field does not raise -- it
+    omits `v`/`c` from the config and the agent prices the game off defaults.
+    """
+
+    def _game(self, **changes: object) -> dict:
+        from glee_eval.live import fixtures
+
+        game = fixtures.persuasion_buyer_decision()
+        for key, value in changes.items():
+            if value is _DROP:
+                game["game_state"].pop(key, None)
+            else:
+                game["game_state"][key] = value
+        return game
+
+    def _violations(self, game: dict) -> list[str]:
+        from glee_eval.contracts import LIVE_PERSUASION, ContractReport, Mode, enforce
+
+        found = enforce(game, LIVE_PERSUASION, mode=Mode.OBSERVE, report=ContractReport(), context="test")
+        return [v.field for v in found]
+
+    def test_a_zero_low_value_is_legitimate_and_stays_clean(self):
+        """u=0 is the common case: a worthless low-quality unit. Not a missing field."""
+
+        self.assertEqual(self._violations(self._game(u=0)), [])
+
+    def test_a_missing_unit_value_is_caught(self):
+        self.assertIn("u", self._violations(self._game(u=_DROP)))
+        self.assertIn("v", self._violations(self._game(v=_DROP)))
+
+    def test_a_null_unit_value_is_caught(self):
+        self.assertIn("u", self._violations(self._game(u=None)))
+
+    def test_the_offline_spelling_is_caught_rather_than_absorbed(self):
+        """If the server ever switched `u` to our own `c`, we must hear about it."""
+
+        self.assertIn("u", self._violations(self._game(u=_DROP, c=0)))
+        self.assertIn("v", self._violations(self._game(v=_DROP, high_value=12500)))
+
+    def test_the_contract_reads_through_the_shipped_function(self):
+        """Not a copy of the read -- the same function `_persuasion_state` calls."""
+
+        from glee_eval.live.schema import persuasion_unit_values
+
+        self.assertEqual(persuasion_unit_values(self._game()), (12500.0, 0.0))
+
+
 if __name__ == "__main__":
     unittest.main()

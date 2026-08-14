@@ -351,6 +351,18 @@ LIVE_NEGOTIATION = Contract(
     ),
 )
 
+def _live_persuasion_high_reader(row: dict[str, Any]) -> Any:
+    from glee_eval.live.schema import persuasion_unit_values
+
+    return persuasion_unit_values(row)[0]
+
+
+def _live_persuasion_low_reader(row: dict[str, Any]) -> Any:
+    from glee_eval.live.schema import persuasion_unit_values
+
+    return persuasion_unit_values(row)[1]
+
+
 LIVE_PERSUASION = Contract(
     name="live.persuasion",
     fields=(
@@ -361,8 +373,18 @@ LIVE_PERSUASION = Contract(
         Field("total_rounds", aliases=("max_rounds",), kind=(int, float)),
         # `u` is the live name for what we call `c`. Listing `c` as the alias means
         # a server that switched to our spelling would be caught, not absorbed.
-        Field("u", aliases=("c", "low_value"), required=False, kind=(int, float)),
-        Field("v", aliases=("high_value",), required=False, kind=(int, float)),
+        #
+        # Required, and judged on the shipped reader. These were `required=False`,
+        # which made the contract silent about the one persuasion failure it most
+        # needed to catch: `_persuasion_state` guards both with `is not None`, so a
+        # missing or renamed value field does not raise -- it quietly omits `v`/`c`
+        # from the config and the agent prices the whole game off defaults. That is
+        # a buyer with no idea what a unit is worth, and it looks like clean data.
+        # No `kind`: it is not checked once a reader is set, and declaring one would
+        # imply a type check that never runs. The reader coerces, so a numeric string
+        # is genuinely harmless here -- what matters is that it comes back non-None.
+        Field("u", aliases=("c", "low_value"), reader=_live_persuasion_low_reader),
+        Field("v", aliases=("high_value",), reader=_live_persuasion_high_reader),
     ),
 )
 
