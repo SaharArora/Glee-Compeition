@@ -107,6 +107,48 @@ def _bool_label(value: Any) -> str:
     return "true" if bool(value) else "false"
 
 
+def _remaining_bin(round_number: int, horizon: int | None) -> str:
+    """How much game is left. Retained, but OFF by default -- it did not help.
+
+    The hypothesis was sound and the marginal statistics confirmed it: on real
+    negotiation decisions, acceptance roughly triples between the early game and
+    the final round at the *same* responder gain.
+
+        gain      early    final
+        zero      0.240    0.468
+        small     0.225    0.699
+        large     0.327    0.912
+
+    So the pooled p=0.34-at-zero-gain figure really is a blend of 0.24 and 0.47.
+    But that turned out to be a true statement about a bucket the model rarely
+    uses, not a diagnosis of the model. The specific key levels already carry
+    `round_bin`, whose "late" bucket captures most of this wherever there is enough
+    data to reach them; the pooled level only takes over when there is not.
+
+    Adding the conditioning therefore changed nothing worth having. On 41,601
+    held-out real decisions from LLM families never seen in training:
+
+        variant                       log loss    Brier      ECE
+        pooled                         0.29400   0.08334   0.02640
+        conditioned on remaining       0.29426   0.08349   0.02608
+
+    and the paired payoff A/B on holdout failed the gate outright (+0.0002,
+    t=0.81). Kept behind `include_remaining` so the experiment is one flag from
+    being rerun if the key ladder changes, rather than deleted and rediscovered.
+    """
+
+    if not horizon or horizon <= 0:
+        return "unknown"
+    remaining = int(horizon) - int(round_number)
+    if remaining <= 0:
+        return "final"
+    if remaining == 1:
+        return "penultimate"
+    if remaining <= 4:
+        return "mid"
+    return "early"
+
+
 def _config(event_or_state: Any) -> dict[str, Any]:
     if isinstance(event_or_state, dict):
         return _as_dict(event_or_state.get("configuration") or event_or_state.get("public_parameters"))
@@ -155,6 +197,7 @@ def negotiation_keys(
     responder_role: str,
     normalized_price: float,
     responder_value: float | None = None,
+    include_remaining: bool = False,
 ) -> list[str]:
     """Bucket keys for "will this responder accept this price?".
 
@@ -193,6 +236,8 @@ def negotiation_keys(
     if responder_value is not None:
         gain = normalized_price - responder_value if responder_role == "seller" else responder_value - normalized_price
 
+    remaining_bin = _remaining_bin(_round(event_or_state), _horizon(event_or_state))
+
     keys: list[str] = []
     if gain is not None:
         # Symmetric around zero: negative gain means the price is worse than the
@@ -201,10 +246,18 @@ def negotiation_keys(
         keys += [
             f"role={responder_role}|round={round_bin}|gain={gain_bin}|surplus={surplus_bin}|source={source}",
             f"role={responder_role}|round={round_bin}|gain={gain_bin}|surplus={surplus_bin}",
-            f"role={responder_role}|round={round_bin}|gain={gain_bin}",
-            f"role={responder_role}|gain={gain_bin}",
-            f"gain={gain_bin}",
         ]
+        if include_remaining:
+            keys += [
+                f"role={responder_role}|rem={remaining_bin}|gain={gain_bin}|surplus={surplus_bin}",
+                f"role={responder_role}|rem={remaining_bin}|gain={gain_bin}",
+            ]
+        keys.append(f"role={responder_role}|gain={gain_bin}")
+        if include_remaining:
+            # Remaining rounds is kept in the pooled fallback too. Dropping it here
+            # is what produced the blended estimate in the first place.
+            keys.append(f"rem={remaining_bin}|gain={gain_bin}")
+        keys.append(f"gain={gain_bin}")
     keys += [
         f"role={responder_role}|round={round_bin}|price={price_bin}|surplus={surplus_bin}|source={source}",
         f"role={responder_role}|round={round_bin}|price={price_bin}|surplus={surplus_bin}",

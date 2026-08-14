@@ -121,6 +121,39 @@ Every shadow record carries `gate_status: "not_gate_passed_pending_real_data"`, 
 never be mistaken in a log or a report for a change that cleared the real gate the way the
 bargaining theory anchor did.
 
+## Changes the gate has rejected
+
+Recording these matters as much as recording the passes. Every change before this one
+shipped, which makes a gate look decorative until something is actually turned away by it.
+
+**Negotiation acceptance conditioned on remaining rounds.** The debug report suspected the
+`p=0.34` acceptance-at-zero-gain figure of pooling genuine acceptances with end-of-game
+closing ones, and the marginal statistics confirmed exactly that: at the same responder gain,
+real acceptance runs 0.240 early against 0.468 in the final round, and roughly triples for
+small gains.
+
+It was still rejected, on both endpoints:
+
+- **Payoff.** Paired over 1,600 holdout negotiation episodes: +0.0002, t=0.81. Failed
+  `significance` outright, which the defect carve-out explicitly may not waive. Almost every
+  subgroup showed exactly 0.0000, because the agent consults the response model in only 160
+  of 600 episodes — 61.7% of real configs are no-trade zones where it walks away before ever
+  pricing.
+- **Predictive accuracy**, the endpoint that actually suits a predictor rather than a policy.
+  Trained on the fit slice and scored on 41,601 decisions from LLM families never seen in
+  training: log loss 0.29400 → 0.29426, Brier 0.08334 → 0.08349. No improvement; marginally
+  worse on both proper scoring rules.
+
+The lesson is narrower and more useful than "the hypothesis was wrong". The hypothesis was
+right *about the pooled bucket* and wrong *about the model*: the specific key levels already
+carry `round_bin`, whose "late" bucket captures most of the effect wherever there is enough
+data to reach them. The pooled level only takes over when there is not — so fixing it changed
+almost nothing. A true statement about a statistic is not automatically a diagnosis of the
+system that computes it.
+
+Kept behind an `include_remaining` flag, defaulted off, so the experiment can be rerun in one
+line if the key ladder changes rather than being deleted and rediscovered.
+
 ## Applying it
 
 ```bash

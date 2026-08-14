@@ -219,3 +219,46 @@ class NegotiationKeyDeconfoundingTests(unittest.TestCase):
             next(key for key in cheap if key.startswith("gain=")),
             next(key for key in dear if key.startswith("gain=")),
         )
+
+
+class RemainingRoundsConditioningTests(unittest.TestCase):
+    """Kept but off: it measured no better on held-out real data.
+
+    The marginal effect is real -- acceptance roughly triples from early game to
+    final round at the same responder gain -- but the specific key levels already
+    carry `round_bin`, so conditioning the pooled fallback changed nothing. Log
+    loss 0.29400 -> 0.29426 on 41,601 held-out decisions, and the paired payoff
+    A/B failed the gate at t=0.81.
+    """
+
+    def _state(self, round_number, horizon):
+        return SimpleNamespace(
+            round=round_number,
+            horizon=horizon,
+            public_parameters={"seller_value": 0.8, "buyer_value": 1.2, "product_price_order": 1.0},
+            metadata={},
+        )
+
+    def test_remaining_keys_are_off_by_default(self) -> None:
+        keys = negotiation_keys(self._state(2, 10), "buyer", 1.0)
+
+        self.assertFalse(any("rem=" in key for key in keys))
+
+    def test_remaining_keys_appear_when_explicitly_enabled(self) -> None:
+        keys = negotiation_keys(self._state(2, 10), "buyer", 1.0, include_remaining=True)
+
+        self.assertTrue(any("rem=" in key for key in keys))
+
+    def test_the_remaining_bin_distinguishes_endgame_from_early(self) -> None:
+        from glee_eval.response_models.runtime import _remaining_bin
+
+        self.assertEqual(_remaining_bin(10, 10), "final")
+        self.assertEqual(_remaining_bin(9, 10), "penultimate")
+        self.assertEqual(_remaining_bin(7, 10), "mid")
+        self.assertEqual(_remaining_bin(1, 10), "early")
+        self.assertEqual(_remaining_bin(1, 0), "unknown")
+
+    def test_the_same_round_means_different_things_at_different_horizons(self) -> None:
+        from glee_eval.response_models.runtime import _remaining_bin
+
+        self.assertNotEqual(_remaining_bin(10, 10), _remaining_bin(10, 30))
