@@ -102,6 +102,28 @@ distribution — `deceptive` −0.025, `rational` −0.011, `level_2` −0.009 �
 learned from a short history over-trusts a seller who lies at a rate the early sample
 underestimates. Filed as the next persuasion work item.
 
+**Persuasion cold-start exploration.** Buying at negative expected value to learn whether
+this seller's recommendation is informative. Rejected across three formulations, and the
+sequence is worth recording because the gate did real work each time:
+
+1. *Unconditional exploration.* Failed `subgroup_concentration[config_regime]` (0.649) and
+   `subgroup_breadth` (0.625). The pattern was diagnostic rather than noisy: +0.0413 and
+   +0.0387 in the two `myopic|*|low_prior` regimes, −0.0018 to −0.0003 across every
+   `persistent` regime. A cold start only exists where the buyer has no history.
+2. *Narrowed to zero total evidence.* Over-corrected — it caps exploration at a single
+   purchase, which cannot move a Laplace-smoothed posterior, and the effect collapsed to
+   +0.0032.
+3. *Narrowed to "no transcript channel"*, the principled precondition: a persistent buyer
+   learns for free by reading history, a myopic or live buyer can only learn by buying.
+   **+0.0051, t=+3.36 — real but below the 0.0100 minimum effect**, and still 0.627
+   concentration with half the regimes regressing.
+
+`minimum_effect` may not be waived by the carve-out, so it is off by default. Kept behind a
+flag because the case it addresses is live-only and the simulator reproduces it only for
+myopic buyers: a live buyer in a high-break-even configuration declines every round forever,
+because its posterior cannot move until it has bought at least once. The gate cannot test
+that argument, so the flag and the reasoning stay rather than being deleted.
+
 ## Shadow mode
 
 Some changes cannot be gated at all, and the honest response is to say so rather than

@@ -248,3 +248,83 @@ class TranscriptShapeTests(unittest.TestCase):
 
         self.assertLess(beliefs["seller_honesty"], naive["seller_honesty"])
         self.assertLess(beliefs["posterior_quality_given_yes"], naive["posterior_quality_given_yes"])
+
+
+class ColdStartExplorationTests(unittest.TestCase):
+    """Rejected by the gate at +0.0051 against a 0.0100 minimum, so off by default."""
+
+    def _state(self, transcript, sold=0, high=0, p=0.5, v=1.25, rounds=20, round_number=2):
+        return SimpleNamespace(
+            role="buyer", round=round_number, horizon=rounds, game_family="persuasion",
+            public_parameters={"p": p, "v": v, "c": 0.0, "product_price": 100, "total_rounds": rounds},
+            private_parameters={}, valid_action_schema={"kind": "buy_decision"},
+            visible_transcript=transcript, metadata={}, game_id="g", scenario_id="s",
+        )
+
+    def _yes_only(self):
+        return [{"round": 2, "role": "seller", "action_type": "recommendation", "buy_no_buy": "yes"}]
+
+    def test_exploration_is_off_by_default(self) -> None:
+        self.assertFalse(MyAgent(seed=1).persuasion_explore)
+
+    def test_disabled_agent_declines_a_high_break_even_config(self) -> None:
+        agent = MyAgent(seed=1, persuasion_explore=False)
+        state = self._state(self._yes_only())
+        beliefs = agent._persuasion_beliefs(state)
+        control = agent._control(state, beliefs, agent._persuasion_evidence(state, beliefs), "persuasion")
+
+        self.assertEqual(agent._persuasion_buy_decision(state, control), "no")
+
+    def test_enabled_agent_explores_when_there_is_no_transcript_channel(self) -> None:
+        agent = MyAgent(seed=1, persuasion_explore=True)
+        state = self._state(self._yes_only())
+        beliefs = agent._persuasion_beliefs(state)
+        control = agent._control(state, beliefs, agent._persuasion_evidence(state, beliefs), "persuasion")
+
+        self.assertEqual(beliefs["transcript_observations"], 0.0)
+        self.assertEqual(agent._persuasion_buy_decision(state, control), "yes")
+
+    def test_it_does_not_explore_when_history_is_available_for_free(self) -> None:
+        """A persistent buyer learns by reading; paying to learn is pure cost there."""
+
+        transcript = self._yes_only() + [
+            {"round": 1, "role": "nature", "action_type": "nature_quality", "quality": "low-quality"},
+            {"round": 1, "role": "seller", "action_type": "recommendation", "buy_no_buy": "yes"},
+        ]
+        agent = MyAgent(seed=1, persuasion_explore=True)
+        state = self._state(transcript)
+        beliefs = agent._persuasion_beliefs(state)
+        control = agent._control(state, beliefs, agent._persuasion_evidence(state, beliefs), "persuasion")
+
+        self.assertGreater(beliefs["transcript_observations"], 0.0)
+        self.assertIsNone(agent._persuasion_explore_buy(state, control))
+
+    def test_it_stops_once_the_budget_is_spent(self) -> None:
+        transcript = self._yes_only() + [
+            {"round": 1, "role": "market", "action_type": "market_statistics",
+             "products_sold": 9, "high_quality_sold": 4},
+        ]
+        agent = MyAgent(seed=1, persuasion_explore=True)
+        state = self._state(transcript)
+        beliefs = agent._persuasion_beliefs(state)
+        control = agent._control(state, beliefs, agent._persuasion_evidence(state, beliefs), "persuasion")
+
+        self.assertIsNone(agent._persuasion_explore_buy(state, control))
+
+    def test_it_does_not_explore_in_the_back_half_of_a_game(self) -> None:
+        agent = MyAgent(seed=1, persuasion_explore=True)
+        state = self._state(self._yes_only(), round_number=18)
+        beliefs = agent._persuasion_beliefs(state)
+        control = agent._control(state, beliefs, agent._persuasion_evidence(state, beliefs), "persuasion")
+
+        self.assertIsNone(agent._persuasion_explore_buy(state, control))
+
+    def test_it_refuses_when_a_single_buy_is_too_expensive(self) -> None:
+        """v barely above 1 makes a blind buy nearly a total loss."""
+
+        agent = MyAgent(seed=1, persuasion_explore=True, max_exploration_loss=0.10)
+        state = self._state(self._yes_only(), v=1.01)
+        beliefs = agent._persuasion_beliefs(state)
+        control = agent._control(state, beliefs, agent._persuasion_evidence(state, beliefs), "persuasion")
+
+        self.assertIsNone(agent._persuasion_explore_buy(state, control))

@@ -88,6 +88,8 @@ class JordanStrategicAgent(CandidateAgent):
         coverage_uncertainty_weight: float = 0.15,
         use_theory_anchor: bool = True,
         message_mode: str = "shadow",
+        persuasion_explore: bool = False,
+        max_exploration_loss: float = 0.45,
     ):
         self.rng = random.Random(seed)
         self.exploit_evidence_threshold = exploit_evidence_threshold
@@ -127,6 +129,23 @@ class JordanStrategicAgent(CandidateAgent):
         # change no gate has passed.
         self.message_mode = message_mode
         self.message_composer = PersuasionMessageComposer()
+        # Buy occasionally despite negative EV to break the persuasion cold start.
+        #
+        # OFF by default: it was rejected by the promotion gate. Paired over 1,600
+        # holdout persuasion episodes it measured +0.0051 (t=+3.36) -- real, but
+        # below the 0.0100 minimum effect, and `minimum_effect` is one of the checks
+        # the defect carve-out may not waive. It also stayed concentrated in the
+        # config regimes where a cold start exists (0.627 concentration, 0.500 of
+        # regimes regressing).
+        #
+        # Kept because the case it addresses is live-only and the simulator only
+        # half-reproduces it: a live buyer in a high-break-even config declines every
+        # round forever, since its posterior cannot move until it buys once. That
+        # argument is not something the gate can test, so the flag stays available
+        # and off rather than the reasoning being deleted.
+        self.persuasion_explore = persuasion_explore
+        # Never explore when a single buy would cost more than this in price units.
+        self.max_exploration_loss = max_exploration_loss
         self.response_model = EmpiricalResponseModel.load(response_model_path or os.getenv("GLEE_RESPONSE_MODEL"))
         self.coverage_gate = CoverageGate.from_path(support_index_path or os.getenv("GLEE_SUPPORT_INDEX"))
 
@@ -685,6 +704,7 @@ class JordanStrategicAgent(CandidateAgent):
         decision = self._persuasion_buy_decision(state, control)
         structured = {
             "decision": decision,
+            "exploration": getattr(self, "_last_exploration", None),
             "strategic_mode": control.mode.value,
             "submode": control.submode,
             "evidence": evidence,
@@ -760,6 +780,13 @@ class JordanStrategicAgent(CandidateAgent):
             "posterior_quality_given_yes": self._clip(posterior_quality_given_yes, 0.0, 1.0),
             "receiver_obedience": obedience,
             "receiver_skepticism": 1.0 - obedience,
+            # Kept separate on purpose. `transcript_observations` is the channel a
+            # persistent buyer learns through without spending anything; when it is
+            # zero the only way to learn is to buy. That distinction is what defines
+            # a cold start, and conflating the two either over- or under-triggers
+            # exploration.
+            "transcript_observations": float(truth_total),
+            "evidence_observations": float(truth_total + market_sold),
             "market_products_sold": float(market_sold),
             "market_high_quality_sold": float(market_high),
             "myopic_buyer": 1.0 if stats is not None else 0.0,
@@ -806,6 +833,67 @@ class JordanStrategicAgent(CandidateAgent):
         no_probability = no.probability if no else 0.0
         return yes.probability - no_probability >= 0.25
 
+    def _persuasion_explore_buy(self, state: GameState, control: StrategicControl) -> dict[str, Any] | None:
+        """Should we buy despite negative expected value, in order to learn?
+
+        There is a cold start in this family. The buyer's posterior only moves once
+        it has bought something, so in any configuration whose break-even sits above
+        the prior-only posterior of `2p/(1+p)` it declines forever, generates no
+        observations, and never discovers whether this particular seller is
+        informative. Real sellers are: `P(high | rec=yes)` is 0.7999 across 88,910
+        real decisions against 0.5434 unconditional.
+
+        Deliberately stateless. The agent instance is reused across every live game,
+        so an exploration counter held on `self` would leak between games; the count
+        of purchases so far is read from the recovered market statistics instead.
+
+        Three conditions, all of which have to hold:
+
+        * evidence is still thin -- fewer purchases than the budget;
+        * enough of the game remains to exploit what is learned;
+        * a single exploratory buy is not catastrophic in this configuration.
+        """
+
+        if not self.persuasion_explore:
+            return None
+        beliefs = control.beliefs
+        # A cold start means there is no free channel to learn through. A persistent
+        # buyer reads the transcript and learns without spending anything, so paying
+        # negative EV there is pure cost -- measured at -0.0018 to -0.0003 across
+        # every persistent regime, against +0.039 to +0.041 where the cold start is
+        # real. A myopic or live buyer has no transcript at all and can only learn by
+        # buying. Gating on the transcript channel specifically, rather than on total
+        # evidence, is what separates the two: gating on total evidence caps
+        # exploration at a single purchase, which cannot move a smoothed posterior.
+        if int(self._float(beliefs.get("transcript_observations"), 0) or 0) > 0:
+            return None
+        sold = int(self._float(beliefs.get("market_products_sold"), 0) or 0)
+        horizon = self._horizon(state)
+        round_number = self._round(state)
+        # Small and horizon-scaled: two observations in a 20-round game.
+        budget = max(1, min(3, horizon // 7))
+        if sold >= budget:
+            return None
+        # Half the game must remain, or there is nothing left to exploit with.
+        if round_number > max(1, horizon // 2):
+            return None
+
+        high_value = self._float(beliefs.get("high_value"), 1.0) or 1.0
+        low_value = self._float(beliefs.get("low_value"), 0.0) or 0.0
+        prior = self._float(beliefs.get("base_quality_prob"), 0.5) or 0.5
+        blind_ev = prior * (high_value - 1.0) + (1.0 - prior) * (low_value - 1.0)
+        if blind_ev < -self.max_exploration_loss:
+            # One buy would cost more than the exploration is worth risking.
+            return None
+
+        return {
+            "reason": "cold_start_information_gathering",
+            "observations_so_far": sold,
+            "budget": budget,
+            "blind_buy_ev": blind_ev,
+            "note": "posterior cannot move until at least one purchase is observed",
+        }
+
     def _persuasion_buy_decision(self, state: GameState, control: StrategicControl) -> str:
         # Search back for the seller's action in this round rather than taking the
         # last transcript row. With allow_buyer_message enabled the buyer's own
@@ -834,7 +922,14 @@ class JordanStrategicAgent(CandidateAgent):
         sample = control.evidence.get("E_sample", 1.0)
         safety_margin = 0.04 if sample < 1.5 else 0.02
         ev = posterior_quality * (high_value - 1.0) + (1.0 - posterior_quality) * (low_value - 1.0)
-        return "yes" if posterior_quality >= break_even_quality + safety_margin and ev >= 0.02 else "no"
+        if posterior_quality >= break_even_quality + safety_margin and ev >= 0.02:
+            return "yes"
+        explore = self._persuasion_explore_buy(state, control)
+        if explore is not None:
+            self._last_exploration = explore
+            return "yes"
+        self._last_exploration = None
+        return "no"
 
     def _persuasion_message(self, control: StrategicControl, decision: str, quality: str) -> str:
         if decision == "yes":
