@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from glee_eval.config import DEFAULT_DATA_DIR
+from glee_eval.population.splits import DEFAULT_HOLDOUT_FRACTION, add_split_arguments, keeps, split_provenance
 from glee_eval.storage.trajectories import ensure_dir, iter_jsonl, write_json
 
 
@@ -99,6 +100,10 @@ def _game_args(game: dict[str, Any]) -> dict[str, Any]:
 def build_config_catalogue(
     data_dir: str | Path = DEFAULT_DATA_DIR,
     output_dir: str | Path = "models/config_catalogue",
+    *,
+    split_mode: str = "none",
+    split: str | None = None,
+    holdout_fraction: float = DEFAULT_HOLDOUT_FRACTION,
 ) -> dict[str, Any]:
     games_path = Path(data_dir) / "processed" / "games.jsonl"
     if not games_path.exists():
@@ -107,7 +112,11 @@ def build_config_catalogue(
     counters: dict[str, Counter] = {family: Counter() for family in FAMILIES}
     scanned = 0
     skipped = 0
+    skipped_by_split = 0
     for game in iter_jsonl(games_path):
+        if not keeps(game, mode=split_mode, split=split, holdout_fraction=holdout_fraction):
+            skipped_by_split += 1
+            continue
         scanned += 1
         family = str(game.get("game_family") or "")
         if family not in counters:
@@ -144,6 +153,8 @@ def build_config_catalogue(
         "data_dir": str(data_dir),
         "games_scanned": scanned,
         "games_skipped": skipped,
+        "games_skipped_by_split": skipped_by_split,
+        "provenance": split_provenance(split_mode, split, holdout_fraction),
         "families": families,
         "notes": [
             "Whole observed configurations are sampled, weighted by how often they appear, "
@@ -200,13 +211,22 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Catalogue the real GLEE game configurations.")
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
     parser.add_argument("--output-dir", default="models/config_catalogue")
+    add_split_arguments(parser)
     args = parser.parse_args(argv)
-    payload = build_config_catalogue(args.data_dir, args.output_dir)
+    payload = build_config_catalogue(
+        args.data_dir,
+        args.output_dir,
+        split_mode=args.split_mode,
+        split=args.split,
+        holdout_fraction=args.holdout_fraction,
+    )
     print(
         json.dumps(
             {
                 "games_scanned": payload["games_scanned"],
                 "games_skipped": payload["games_skipped"],
+                "games_skipped_by_split": payload["games_skipped_by_split"],
+                "provenance": payload["provenance"],
                 "distinct_configs": {family: block["distinct_configs"] for family, block in payload["families"].items()},
             },
             indent=2,

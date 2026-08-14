@@ -8,6 +8,7 @@ from glee_eval.data.ingest import main as ingest_main
 from glee_eval.data.stats import main as stats_main
 from glee_eval.data.validation import main as validate_main
 from glee_eval.diagnostics.negotiation import main as negotiation_diagnostic_main
+from glee_eval.experiments.ab import main as promotion_check_main
 from glee_eval.experiments.run import main as experiment_main
 from glee_eval.population.calibration import main as calibrate_main
 from glee_eval.population.config_catalogue import main as config_catalogue_main
@@ -35,6 +36,7 @@ def main(argv: list[str] | None = None) -> None:
         "calibrate-population",
         "fit-opponents",
         "config-catalogue",
+        "promotion-check",
         "search-failures",
         "shadow-score",
         "negotiation-diagnostic",
@@ -65,6 +67,8 @@ def main(argv: list[str] | None = None) -> None:
         fit_opponents_main(rest)
     elif args.command == "config-catalogue":
         config_catalogue_main(rest)
+    elif args.command == "promotion-check":
+        promotion_check_main(rest)
     elif args.command == "search-failures":
         search_main(rest)
     elif args.command == "shadow-score":

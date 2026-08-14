@@ -38,6 +38,7 @@ from glee_eval.data.transcripts import (
     persuasion_round_quality,
     same_round_transcript_item,
 )
+from glee_eval.population.splits import DEFAULT_HOLDOUT_FRACTION, add_split_arguments, keeps, split_provenance
 from glee_eval.storage.trajectories import ensure_dir, iter_jsonl, write_json
 
 
@@ -109,6 +110,10 @@ def _threshold_crossing(curve: dict[float, list[int]], *, ascending: bool = True
 def fit_opponent_population(
     data_dir: str | Path = DEFAULT_DATA_DIR,
     output_dir: str | Path = "models/opponent_population",
+    *,
+    split_mode: str = "none",
+    split: str | None = None,
+    holdout_fraction: float = DEFAULT_HOLDOUT_FRACTION,
 ) -> dict[str, Any]:
     events_path = Path(data_dir) / "processed" / "events.jsonl"
     if not events_path.exists():
@@ -128,7 +133,11 @@ def fit_opponent_population(
     last_price: dict[tuple[str, str], float] = {}
     scanned = 0
 
+    skipped_by_split = 0
     for event in iter_jsonl(events_path):
+        if not keeps(event, mode=split_mode, split=split, holdout_fraction=holdout_fraction):
+            skipped_by_split += 1
+            continue
         scanned += 1
         family = str(event.get("game_family") or "")
         role = str(event.get("role") or "")
@@ -237,6 +246,8 @@ def fit_opponent_population(
         "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "data_dir": str(data_dir),
         "events_scanned": scanned,
+        "events_skipped_by_split": skipped_by_split,
+        "provenance": split_provenance(split_mode, split, holdout_fraction),
         "min_segment_observations": _MIN_BUCKET,
         "archetype_bands": {name: list(band) for name, band in ARCHETYPE_BANDS.items()},
         "inverted_parameters": sorted(INVERTED_PARAMETERS),
@@ -317,10 +328,19 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Fit synthetic-opponent parameters to real GLEE behavior.")
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
     parser.add_argument("--output-dir", default="models/opponent_population")
+    add_split_arguments(parser)
     args = parser.parse_args(argv)
-    payload = fit_opponent_population(args.data_dir, args.output_dir)
+    payload = fit_opponent_population(
+        args.data_dir,
+        args.output_dir,
+        split_mode=args.split_mode,
+        split=args.split,
+        holdout_fraction=args.holdout_fraction,
+    )
     summary = {
         "events_scanned": payload["events_scanned"],
+        "events_skipped_by_split": payload["events_skipped_by_split"],
+        "provenance": payload["provenance"],
         "observations": payload["observations"],
         "unfitted_parameters": payload.get("unfitted_parameters", []),
     }
