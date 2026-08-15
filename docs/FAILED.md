@@ -32,6 +32,25 @@ append a correction and update `docs/REGISTRY.md` instead.
 - Declined-round quality is not observable, so these logs prove a parsing defect but do not
   prove that every missed positive message was truthful or quantify counterfactual payoff.
 
+## Promoting the first conservative text-stance parser — rejected by the normal gate
+
+- The prospectively frozen 420-turn replay passed: all 180 directional text messages were
+  classified with zero polarity errors (101 positive/79 negative), every raw message was
+  preserved, all 240 binary actions were unchanged, and 84 text actions reached the candidate.
+- The live-contract simulator gate used seed 314159, n=1600, a model-held-out opponent
+  population and config-held-out catalogue. It measured +0.1390 mean payoff (t=13.04),
+  241 wins, 12 losses and 1,347 ties; all 16 opponent archetypes were nonnegative.
+- It nevertheless failed the mandatory config-regime concentration check: the largest regime
+  supplied 0.5437 of positive gain, above the 0.50 ceiling. The default therefore remains off,
+  no confirmation is declared, and no post-fix rated batch is permitted for this candidate.
+- The first sandboxed execution completed simulation but could not create the artifact
+  directory and exposed no verdict. The recorded result is the identical seed/sample rerun
+  with output permission; it is not a statistical retry.
+- A materially new retry must be declared before evaluation and explain why the change is not
+  merely concentrated in high-prior text regimes. Re-gating the unchanged parser, changing
+  subgroup definitions after seeing this result, or invoking the construction-defect
+  minimum-effect amendment is not allowed: minimum effect passed and concentration failed.
+
 ## Treating SDK `max_games` as a strict total-game cap — rejected assumption
 
 - The authorized confirmation invoked `--max-games 12`, but the SDK stopped after 15 games

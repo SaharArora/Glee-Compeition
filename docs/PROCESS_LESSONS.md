@@ -1,5 +1,14 @@
 # Process lessons
 
+## A real parser defect can still fail a payoff promotion gate
+
+The live text persuasion failure was deterministic—free text carried no structured stance, so
+the buyer declined every text round—and the candidate parser passed a frozen production replay.
+That did not waive the policy gate because interpreting language changes actions. Its first
+payoff run passed effect, significance, downside, holdout and breadth, but failed config-regime
+concentration. Keep schema correctness evidence and payoff promotion evidence separate; do not
+turn a diagnosed input defect into permission to ship a concentrated acting policy.
+
 Transferable process guidance only. Game-specific mathematical and empirical claims belong in
 `docs/REGISTRY.md` and `docs/FAILED.md`.
 

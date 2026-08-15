@@ -620,6 +620,16 @@ large bargaining/persuasion shortfalls did not replicate at volume; both offline
 inside normal-approximation live intervals. Do not promote a policy change from the original
 31-game discrepancy.
 
+**Live text-persuasion diagnosis and rejected candidate, 15 August 2026.** Across the complete
+confirmation and strict-volume logs, every one of 180 text-mode buyer turns defaulted to no.
+The server supplied 101 unequivocally positive and 79 negative messages, but unlike the
+simulator it supplied no hidden structured stance beside the text. A conservative default-off
+parser passed the frozen 420-turn replay with zero polarity errors and zero binary changes.
+Its prospectively declared structural-holdout payoff gate measured **+0.1390**, t=13.04,
+n=1600, but failed config-regime concentration at **0.5437 > 0.50**. It remains a candidate;
+the default is off and no post-fix live batch is authorized for it. See REGISTRY/FAILED for the
+exact gate and no-retry constraint.
+
 ### Bargaining — strongest
 
 - Tournament payoff **+0.4850**, 95% CI [+0.4794, +0.4906], n=69, median +0.5000
