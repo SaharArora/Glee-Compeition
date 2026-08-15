@@ -1381,3 +1381,10 @@ class JordanStrategicAgent(CandidateAgent):
 class MyAgent(JordanStrategicAgent):
     """Alias so `my_agents.jordan_strategic:MyAgent` works like other examples."""
     pass
+
+
+class PersuasionPlattCandidate(JordanStrategicAgent):
+    """Default-off candidate entry point for paired offline promotion runs."""
+
+    def __init__(self, seed: int = 0, **kwargs: Any):
+        super().__init__(seed=seed, use_persuasion_platt=True, **kwargs)

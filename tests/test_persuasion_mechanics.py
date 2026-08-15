@@ -9,7 +9,7 @@ from glee_eval.data.transcripts import transcript_item_decision, transcript_item
 from glee_eval.population.config_catalogue import ConfigCatalogue
 from glee_eval.population.sampler import sample_scenario
 from glee_eval.tournament.runner import run_episode
-from my_agents.jordan_strategic import MyAgent
+from my_agents.jordan_strategic import MyAgent, PersuasionPlattCandidate
 
 
 def _scenario(role: str, *, myopic: bool, rounds: int = 8, **overrides):
@@ -352,6 +352,7 @@ class PersuasionPlattCandidateTests(unittest.TestCase):
 
     def test_candidate_is_off_by_default(self) -> None:
         self.assertFalse(MyAgent(seed=1).use_persuasion_platt)
+        self.assertTrue(PersuasionPlattCandidate(seed=1).use_persuasion_platt)
 
     def test_raw_posterior_is_retained_when_candidate_is_enabled(self) -> None:
         state = self._state()
