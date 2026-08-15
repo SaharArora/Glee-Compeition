@@ -516,7 +516,10 @@ def shadow_score_markdown(summary: dict[str, Any]) -> str:
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Estimate an official-style GLEE leaderboard score from local episodes.")
+    parser = argparse.ArgumentParser(
+        prog="python3 -m glee_eval shadow-score",
+        description="Estimate an official-style GLEE leaderboard score from local episodes.",
+    )
     parser.add_argument("--run-dir", help="Experiment run directory containing datasets/episode_summary.jsonl.")
     parser.add_argument("--episodes", help="Explicit episode_summary.jsonl path.")
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))

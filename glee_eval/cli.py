@@ -51,7 +51,10 @@ def main(argv: list[str] | None = None) -> None:
         "language-analysis",
         "schema-check",
     ]:
-        sub.add_parser(name)
+        # Command-specific parsers own their help. Disabling the placeholder
+        # parser's help keeps `--help` in `rest` so it reaches that parser rather
+        # than printing an option-less wrapper page.
+        sub.add_parser(name, add_help=False)
     args, rest = parser.parse_known_args(argv)
     if args.command == "audit":
         audit_main(rest)

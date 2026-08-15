@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from statistics import mean, median
 from typing import Any
@@ -139,15 +139,49 @@ def stats_from_processed(data_dir: str | Path = DEFAULT_DATA_DIR) -> dict[str, A
     return stats
 
 
+def stats_from_live_observations(observations_path: str | Path) -> dict[str, Any]:
+    """Summarize the adapter's append-only live turn log without needing ingest."""
+
+    path = Path(observations_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Live observations not found: {path}")
+    rows = read_records(path)
+    statuses = Counter(str(row.get("status") or "missing") for row in rows)
+    families = Counter(str(row.get("game_family") or "missing") for row in rows)
+    phases = Counter(str(row.get("phase") or "missing") for row in rows)
+    action_types = Counter(str(row.get("action_type") or "missing") for row in rows)
+    violation_rows = [row for row in rows if row.get("schema_violations")]
+    fallbacks = sum(count for status, count in statuses.items() if status.startswith("fallback"))
+    return {
+        "observation_log": str(path),
+        "turns": len(rows),
+        "statuses": dict(sorted(statuses.items())),
+        "families": dict(sorted(families.items())),
+        "phases": dict(sorted(phases.items())),
+        "action_types": dict(sorted(action_types.items())),
+        "fallbacks": fallbacks,
+        "fallback_rate": fallbacks / len(rows) if rows else None,
+        "schema_violation_turns": len(violation_rows),
+        "schema_violations": sum(len(row.get("schema_violations") or []) for row in violation_rows),
+    }
+
+
 def main(argv: list[str] | None = None) -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Compute empirical behavior statistics from processed GLEE data.")
+    parser = argparse.ArgumentParser(
+        prog="python3 -m glee_eval stats",
+        description="Compute empirical behavior statistics from processed GLEE data.",
+    )
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
+    parser.add_argument(
+        "--observations",
+        help="Summarize a live adapter observations.jsonl directly instead of processed GLEE data.",
+    )
     args = parser.parse_args(argv)
-    print(json.dumps(stats_from_processed(args.data_dir), indent=2, sort_keys=True))
+    result = stats_from_live_observations(args.observations) if args.observations else stats_from_processed(args.data_dir)
+    print(json.dumps(result, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":
     main()
-
