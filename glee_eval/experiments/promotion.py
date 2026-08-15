@@ -60,6 +60,10 @@ class Observation:
     baseline: float
     candidate: float
     subgroups: dict[str, str] = field(default_factory=dict)
+    # Immutable predicates evaluated from the baseline's pre-decision state.
+    # They are carried on both paired arms and may never depend on actions,
+    # outcomes, differences, or whether the arms diverged.
+    branch_predicates: dict[str, bool] = field(default_factory=dict)
 
     @property
     def difference(self) -> float:
@@ -254,6 +258,74 @@ def evaluate_promotion(
         },
         "checks": checks,
         "subgroups": subgroups,
+    }
+
+
+def evaluate_construction_defect(
+    observations: Iterable[Observation],
+    *,
+    predicate_name: str,
+    change: str,
+    evaluated_on_holdout: bool,
+    holdout_description: str | None = None,
+    subgroup_dimensions: Sequence[str] = ("opponent_archetype", "config_regime"),
+) -> dict[str, Any]:
+    """Apply the prospectively amended gate to a proved construction defect."""
+
+    rows = list(observations)
+    ordinary = evaluate_promotion(
+        rows,
+        change=change,
+        evaluated_on_holdout=evaluated_on_holdout,
+        holdout_description=holdout_description,
+        subgroup_dimensions=subgroup_dimensions,
+    )
+    conditional = [row for row in rows if row.branch_predicates.get(predicate_name) is True]
+    differences = [row.difference for row in conditional]
+    effect = _mean(differences)
+    sd = _stdev(differences)
+    se = sd / math.sqrt(len(differences)) if len(differences) > 1 and sd > 0 else 0.0
+    t_stat = effect / se if se > 0 else (math.inf if effect > 0 else (-math.inf if effect < 0 else 0.0))
+    losses = sum(value < -1e-9 for value in differences)
+    subgroup_reports = [_subgroup_report(conditional, dimension) for dimension in subgroup_dimensions]
+    regressing = sum(
+        row["mean_effect"] < 0
+        for report in subgroup_reports
+        for row in report.get("rows", [])
+    )
+    checks = [
+        _check("conditional_sample_size", len(conditional) >= 30, len(conditional), 30, "Pre-state branch-reaching pairs."),
+        _check("conditional_minimum_effect", effect >= 0.01, effect, 0.01, "Conditional paired mean payoff."),
+        _check("conditional_significance", t_stat >= 1.96, t_stat, 1.96, "Conditional paired t statistic."),
+        _check("conditional_losses", losses == 0, losses, 0, "Candidate losses in the conditional sample."),
+        _check(
+            "conditional_regressing_subgroups",
+            regressing == 0,
+            regressing,
+            0,
+            "Observed archetype/config subgroups with negative conditional mean.",
+        ),
+    ]
+    allowed_ordinary_failure = ordinary["failed_checks"] == ["minimum_effect"]
+    return {
+        "schema_version": 1,
+        "change": change,
+        "predicate_name": predicate_name,
+        "ordinary": ordinary,
+        "conditional_summary": {
+            "paired_n": len(conditional),
+            "mean_effect": effect,
+            "stdev": sd,
+            "standard_error": se,
+            "t_statistic": t_stat,
+            "wins": sum(value > 1e-9 for value in differences),
+            "losses": losses,
+            "ties": sum(abs(value) <= 1e-9 for value in differences),
+        },
+        "conditional_checks": checks,
+        "conditional_subgroups": subgroup_reports,
+        "ordinary_eligible": allowed_ordinary_failure,
+        "gate_passed": allowed_ordinary_failure and all(check["passed"] for check in checks),
     }
 
 

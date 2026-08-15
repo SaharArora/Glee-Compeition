@@ -18,6 +18,7 @@ from typing import Any, Callable
 from glee_eval.adapters.candidate_agent import CandidateAgent
 from glee_eval.config import DEFAULT_DATA_DIR
 from glee_eval.data.ingest import as_float
+from glee_eval.data.schemas import GameState
 from glee_eval.experiments.promotion import Observation, PromotionCriteria, evaluate_promotion, verdict_markdown
 from glee_eval.population.config_catalogue import ConfigCatalogue
 from glee_eval.population.opponent_fit import OpponentPopulation
@@ -57,6 +58,25 @@ def config_regime(family: str, config: dict[str, Any]) -> str:
     return "unknown"
 
 
+def negotiation_collapsed_margin_window(state: GameState, baseline: CandidateAgent) -> bool:
+    """Whether the baseline is about to construct a zero-margin-only offer.
+
+    This reads only the baseline pre-offer state. With buyer_value <=
+    seller_value, the old seller clip is [seller, seller] and the old buyer clip
+    is [buyer, buyer], so either role can construct only its reservation value.
+    """
+
+    if state.game_family != "negotiation" or state.valid_action_schema.get("kind") != "offer":
+        return False
+    beliefs_fn = getattr(baseline, "_negotiation_beliefs", None)
+    if not callable(beliefs_fn):
+        return False
+    beliefs = beliefs_fn(state)
+    seller = as_float(beliefs.get("seller_value"))
+    buyer = as_float(beliefs.get("buyer_value"))
+    return seller is not None and buyer is not None and buyer <= seller
+
+
 def run_paired_ab(
     baseline_factory: Callable[[], CandidateAgent],
     candidate_factory: Callable[[], CandidateAgent],
@@ -66,6 +86,7 @@ def run_paired_ab(
     seed: int = 4242,
     population: OpponentPopulation | None = None,
     catalogue: ConfigCatalogue | None = None,
+    baseline_state_predicates: dict[str, Callable[[GameState, CandidateAgent], bool]] | None = None,
 ) -> list[Observation]:
     """Play both arms over the same scenarios and return paired outcomes."""
 
@@ -77,6 +98,12 @@ def run_paired_ab(
         scenario = sample_scenario(family, seed=seed + index, population=population, catalogue=catalogue)
         base_episode = run_episode(scenario, baseline)
         cand_episode = run_episode(scenario, candidate)
+        predicate_results: dict[str, bool] = {}
+        for name, predicate in (baseline_state_predicates or {}).items():
+            predicate_results[name] = any(
+                predicate(GameState(**record.visible_state), baseline)
+                for record in base_episode.decision_records
+            )
         observations.append(
             Observation(
                 key=f"{family}:{scenario.scenario_id}:{scenario.candidate_role}",
@@ -88,6 +115,7 @@ def run_paired_ab(
                     "config_regime": config_regime(family, scenario.public_parameters),
                     "candidate_role": scenario.candidate_role,
                 },
+                branch_predicates=predicate_results,
             )
         )
     return observations
@@ -113,7 +141,14 @@ def gate_observations(
     write_jsonl(
         out / "promotion_observations.jsonl",
         [
-            {"key": o.key, "baseline": o.baseline, "candidate": o.candidate, "difference": o.difference, **o.subgroups}
+            {
+                "key": o.key,
+                "baseline": o.baseline,
+                "candidate": o.candidate,
+                "difference": o.difference,
+                **o.subgroups,
+                "branch_predicates": o.branch_predicates,
+            }
             for o in observations
         ],
     )
@@ -150,7 +185,12 @@ def main(argv: list[str] | None = None) -> None:
                 key=row["key"],
                 baseline=float(row["baseline"]),
                 candidate=float(row["candidate"]),
-                subgroups={k: v for k, v in row.items() if k not in {"key", "baseline", "candidate", "difference"}},
+                subgroups={
+                    k: v
+                    for k, v in row.items()
+                    if k not in {"key", "baseline", "candidate", "difference", "branch_predicates"}
+                },
+                branch_predicates={str(k): bool(v) for k, v in (row.get("branch_predicates") or {}).items()},
             )
             for row in rows
         ]

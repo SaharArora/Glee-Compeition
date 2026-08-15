@@ -3,7 +3,13 @@ from __future__ import annotations
 import unittest
 
 from glee_eval.experiments.ab import config_regime
-from glee_eval.experiments.promotion import Observation, PromotionCriteria, evaluate_promotion, verdict_markdown
+from glee_eval.experiments.promotion import (
+    Observation,
+    PromotionCriteria,
+    evaluate_construction_defect,
+    evaluate_promotion,
+    verdict_markdown,
+)
 from glee_eval.population.splits import FIT, HOLDOUT, is_holdout_key, keeps, partition_of
 
 
@@ -131,6 +137,57 @@ class PromotionGateTests(unittest.TestCase):
             self.assertIn("observed", check)
             self.assertIn("threshold", check)
             self.assertTrue(check["detail"])
+
+    def test_construction_defect_replaces_only_minimum_effect(self) -> None:
+        rows = _observations(n=400, effect=0.005)
+        for index, row in enumerate(rows):
+            row.branch_predicates["proved_branch"] = index < 80
+            if index < 80:
+                row.candidate = row.baseline + 0.025 + 0.001 * ((index % 5) - 2)
+
+        verdict = evaluate_construction_defect(
+            rows,
+            predicate_name="proved_branch",
+            change="proved construction defect",
+            evaluated_on_holdout=True,
+        )
+
+        self.assertEqual(verdict["ordinary"]["failed_checks"], ["minimum_effect"])
+        self.assertTrue(verdict["gate_passed"], verdict["conditional_checks"])
+
+    def test_construction_defect_rejects_one_conditional_loss(self) -> None:
+        rows = _observations(n=400, effect=0.005)
+        for index, row in enumerate(rows):
+            row.branch_predicates["proved_branch"] = index < 80
+            if index < 80:
+                row.candidate = row.baseline + 0.025
+        rows[0].candidate = rows[0].baseline - 0.001
+
+        verdict = evaluate_construction_defect(
+            rows,
+            predicate_name="proved_branch",
+            change="one-loss candidate",
+            evaluated_on_holdout=True,
+        )
+
+        loss_check = next(check for check in verdict["conditional_checks"] if check["name"] == "conditional_losses")
+        self.assertFalse(loss_check["passed"])
+        self.assertFalse(verdict["gate_passed"])
+
+    def test_non_effect_ordinary_failure_cannot_be_replaced(self) -> None:
+        rows = _observations(n=400, effect=0.005, negative_fraction=0.5)
+        for row in rows:
+            row.branch_predicates["proved_branch"] = True
+
+        verdict = evaluate_construction_defect(
+            rows,
+            predicate_name="proved_branch",
+            change="ineligible candidate",
+            evaluated_on_holdout=True,
+        )
+
+        self.assertFalse(verdict["ordinary_eligible"])
+        self.assertFalse(verdict["gate_passed"])
 
 
 class SplitTests(unittest.TestCase):
