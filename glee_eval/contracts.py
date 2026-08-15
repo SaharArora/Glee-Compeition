@@ -99,6 +99,10 @@ class Field:
     #: legitimately answers no -- and becomes "can the code we ship find it",
     #: which is the question that matters and the one that was silently failing.
     reader: Callable[[dict[str, Any]], Any] | None = None
+    #: Some facts are required only when the actor is entitled to see them.  This
+    #: is evaluated on the raw payload; it must never be used to make a genuinely
+    #: missing production input optional merely because translation lost it.
+    required_if: Callable[[dict[str, Any]], bool] | None = None
 
 
 @dataclass(frozen=True)
@@ -142,6 +146,7 @@ def check(payload: Any, contract: Contract) -> list[Violation]:
 
     violations: list[Violation] = []
     for spec in contract.fields:
+        required = spec.required and (spec.required_if(payload) if spec.required_if is not None else True)
         require_value = spec.reader is not None
         found, value, where = _lookup(payload, spec.name, spec.containers, require_value=require_value)
         alias_hits = [
@@ -171,7 +176,7 @@ def check(payload: Any, contract: Contract) -> list[Violation]:
                             f"present at {', '.join(located)} but the production reader returned None",
                         )
                     )
-                elif spec.required:
+                elif required:
                     violations.append(Violation(spec.name, Problem.MISSING, f"looked for {[spec.name, *spec.aliases]}"))
             continue
 
@@ -185,13 +190,13 @@ def check(payload: Any, contract: Contract) -> list[Violation]:
                         f"name alone would silently see nothing",
                     )
                 )
-            elif spec.required:
+            elif required:
                 looked = [spec.name, *spec.aliases]
                 violations.append(Violation(spec.name, Problem.MISSING, f"looked for {looked}"))
             continue
 
         if value is None and not spec.nullable:
-            if spec.required:
+            if required:
                 violations.append(Violation(spec.name, Problem.NULL, f"found at {where} but null"))
             continue
         if spec.kind is not None and value is not None and not isinstance(value, spec.kind):
@@ -365,6 +370,21 @@ def _live_persuasion_low_reader(row: dict[str, Any]) -> Any:
     return persuasion_unit_values(row)[1]
 
 
+def _live_persuasion_values_required(row: dict[str, Any]) -> bool:
+    """Whether this live actor is entitled to know the buyer's unit values.
+
+    The real server withholds both values from a seller when
+    ``is_seller_know_cv`` is false.  Buyer decisions still require them: they are
+    the buyer's own payoffs, regardless of what the seller knows.
+    """
+
+    state = row.get("game_state") if isinstance(row.get("game_state"), dict) else row
+    valid = row.get("valid_actions") if isinstance(row.get("valid_actions"), dict) else {}
+    action_type = str(valid.get("type") or row.get("phase") or state.get("phase") or "")
+    is_seller_turn = action_type in {"seller_message", "seller_recommendation"}
+    return not (is_seller_turn and state.get("is_seller_know_cv") is False)
+
+
 LIVE_PERSUASION = Contract(
     name="live.persuasion",
     fields=(
@@ -387,8 +407,14 @@ LIVE_PERSUASION = Contract(
         # No `kind`: it is not checked once a reader is set, and declaring one would
         # imply a type check that never runs. The reader coerces, so a numeric string
         # is genuinely harmless here -- what matters is that it comes back non-None.
-        Field("u", aliases=("c", "low_value"), reader=_live_persuasion_low_reader),
-        Field("v", aliases=("high_value",), reader=_live_persuasion_high_reader),
+        Field(
+            "u", aliases=("c", "low_value"), reader=_live_persuasion_low_reader,
+            required_if=_live_persuasion_values_required,
+        ),
+        Field(
+            "v", aliases=("high_value",), reader=_live_persuasion_high_reader,
+            required_if=_live_persuasion_values_required,
+        ),
     ),
 )
 

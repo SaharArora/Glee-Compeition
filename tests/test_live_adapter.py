@@ -71,6 +71,17 @@ class TranslationTests(unittest.TestCase):
         self.assertAlmostEqual(state.public_parameters["v"], 1.25)
         self.assertAlmostEqual(state.public_parameters["c"], 0.25)
 
+    def test_uninformed_seller_values_are_absent_not_defaulted_by_translation(self) -> None:
+        game = fixtures.persuasion_seller_recommendation(is_seller_know_cv=False)
+        game["game_state"].pop("u")
+        game["game_state"].pop("v")
+
+        state = to_game_state(game)
+
+        self.assertNotIn("v", state.public_parameters)
+        self.assertNotIn("c", state.public_parameters)
+        self.assertFalse(state.public_parameters["is_seller_know_cv"])
+
     def test_persuasion_quality_high_maps_to_high_quality(self) -> None:
         seller = to_game_state(fixtures.persuasion_seller_recommendation(current_quality="high"))
         low = to_game_state(fixtures.persuasion_seller_recommendation(current_quality="low"))

@@ -257,6 +257,29 @@ class LivePersuasionUnitValueTests(unittest.TestCase):
         self.assertIn("u", self._violations(self._game(u=_DROP)))
         self.assertIn("v", self._violations(self._game(v=_DROP)))
 
+    def test_values_are_legitimately_absent_for_an_uninformed_seller(self):
+        from glee_eval.live import fixtures
+
+        game = fixtures.persuasion_seller_recommendation(is_seller_know_cv=False)
+        game["game_state"].pop("u")
+        game["game_state"].pop("v")
+
+        self.assertEqual(self._violations(game), [])
+
+    def test_values_remain_required_for_the_buyer_even_if_seller_is_uninformed(self):
+        game = self._game(is_seller_know_cv=False, u=_DROP, v=_DROP)
+
+        self.assertCountEqual(self._violations(game), ["u", "v"])
+
+    def test_values_remain_required_for_an_informed_seller(self):
+        from glee_eval.live import fixtures
+
+        game = fixtures.persuasion_seller_recommendation(is_seller_know_cv=True)
+        game["game_state"].pop("u")
+        game["game_state"].pop("v")
+
+        self.assertCountEqual(self._violations(game), ["u", "v"])
+
     def test_a_null_unit_value_is_caught(self):
         self.assertIn("u", self._violations(self._game(u=None)))
 
