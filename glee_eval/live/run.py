@@ -10,6 +10,7 @@ documented shapes, which is what the observation log is for.
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import os
 import sys
@@ -25,6 +26,36 @@ from glee_eval.storage.trajectories import ensure_dir, write_json
 ClientT = TypeVar("ClientT")
 
 
+def _path_setting(name: str) -> dict[str, Any]:
+    raw = os.getenv(name)
+    if not raw:
+        return {"configured": False}
+    path = Path(raw).expanduser().resolve()
+    result: dict[str, Any] = {"configured": True, "path": str(path), "exists": path.is_file()}
+    if path.is_file():
+        result["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return result
+
+
+def _launch_manifest(agent_spec: str, families: list[str] | None, concurrency: int,
+                     max_games: int | None, max_time: float | None) -> dict[str, Any]:
+    """Record non-secret run inputs needed to reproduce which policy paths were active."""
+
+    return {
+        "schema_version": 1,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "agent": agent_spec,
+        "families": families,
+        "concurrency": concurrency,
+        "max_games": max_games,
+        "max_time": max_time,
+        "environment": {
+            name: _path_setting(name)
+            for name in ("GLEE_SUPPORT_INDEX", "GLEE_RESPONSE_MODEL", "GLEE_OPPONENT_POPULATION", "GLEE_CONFIG_CATALOGUE")
+        },
+    }
+
+
 def capturing_client_class(base: type[ClientT]) -> type[ClientT]:
     """Add best-effort JSONL capture around a client's real ``move`` call.
 
@@ -38,7 +69,12 @@ def capturing_client_class(base: type[ClientT]) -> type[ClientT]:
             super().__init__(*args, **kwargs)
             self.move_result_log = Path(move_result_log) if move_result_log else None
             self._move_result_lock = threading.Lock()
-            self.move_result_counters = {"moves": 0, "terminal_results": 0, "log_errors": 0}
+            self._seen_game_ids: set[str] = set()
+            self._terminal_game_ids: set[str] = set()
+            self.move_result_counters = {
+                "moves": 0, "terminal_results": 0, "backfill_attempts": 0,
+                "backfill_terminal_results": 0, "backfill_errors": 0, "log_errors": 0,
+            }
             if self.move_result_log:
                 try:
                     self.move_result_log.parent.mkdir(parents=True, exist_ok=True)
@@ -59,8 +95,10 @@ def capturing_client_class(base: type[ClientT]) -> type[ClientT]:
             }
             with self._move_result_lock:
                 self.move_result_counters["moves"] += 1
+                self._seen_game_ids.add(game_id)
                 if record["game_over"]:
                     self.move_result_counters["terminal_results"] += 1
+                    self._terminal_game_ids.add(game_id)
                 if self.move_result_log:
                     try:
                         with self.move_result_log.open("a", encoding="utf-8") as handle:
@@ -71,6 +109,33 @@ def capturing_client_class(base: type[ClientT]) -> type[ClientT]:
                             "Could not append move result for game %s", game_id
                         )
             return response
+
+        def backfill_terminal_results(self) -> None:
+            """Capture the final GET payload for games that ended after an opponent move."""
+
+            for game_id in sorted(self._seen_game_ids - self._terminal_game_ids):
+                self.move_result_counters["backfill_attempts"] += 1
+                try:
+                    response = self.game_state(game_id)
+                    record = {
+                        "captured_at": datetime.now(timezone.utc).isoformat(),
+                        "game_id": game_id,
+                        "source": "game_state_backfill",
+                        "game_over": response.get("game_over") if isinstance(response, dict) else None,
+                        "result": response.get("result") if isinstance(response, dict) else None,
+                        "move_result": response,
+                    }
+                    if record["game_over"] or record["result"] is not None:
+                        self.move_result_counters["backfill_terminal_results"] += 1
+                        self._terminal_game_ids.add(game_id)
+                    if self.move_result_log:
+                        with self._move_result_lock, self.move_result_log.open("a", encoding="utf-8") as handle:
+                            handle.write(json.dumps(record, default=str, sort_keys=True) + "\n")
+                except Exception:  # noqa: BLE001 - backfill is evidence capture, never gameplay
+                    self.move_result_counters["backfill_errors"] += 1
+                    logging.getLogger("glee_eval.live").exception(
+                        "Could not backfill terminal result for game %s", game_id
+                    )
 
     MoveResultCapturingClient.__name__ = f"MoveResultCapturing{base.__name__}"
     return MoveResultCapturingClient
@@ -126,6 +191,7 @@ def play(
         )
 
     out = ensure_dir(output_dir)
+    write_json(out / "launch_manifest.json", _launch_manifest(agent_spec, families, concurrency, max_games, max_time))
     strategy = build_strategy(agent_spec, observation_log=out / "observations.jsonl")
     CapturingClient = capturing_client_class(client_class)
     client = CapturingClient(api_key=api_key, move_result_log=out / "move_results.jsonl")
@@ -142,6 +208,7 @@ def play(
         )
     finally:
         # Written even on Ctrl+C, since that is a normal way to stop a long run.
+        client.backfill_terminal_results()
         summary = strategy.summary()
         try:
             summary["stats"] = client.stats()
@@ -149,8 +216,8 @@ def play(
             summary["stats_error"] = str(exc)
         summary["move_result_capture"] = dict(client.move_result_counters)
         summary["move_result_coverage_note"] = (
-            "Captures terminal results returned by moves we submit. Games that end on an "
-            "opponent move do not cross this boundary and still require GET/backfill."
+            "Captures every submitted-move response, then GET-backfills games without a "
+            "terminal move response. Inspect capture counters; never assume complete coverage."
         )
         write_json(out / "run_summary.json", summary)
         print(json.dumps(summary, indent=2, sort_keys=True))

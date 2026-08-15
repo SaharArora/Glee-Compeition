@@ -14,8 +14,20 @@ append a correction and update `docs/REGISTRY.md` instead.
   makes that subset non-comparable to the unconditional offline means in HANDOVER section 4.
   Coercing indeterminate games to zero is also rejected.
 - Fix: `live-episodes` emits explicit reconstructed/indeterminate audit rows, and future runs
-  capture SDK move responses. Exact historical comparison still requires an authoritative
-  terminal-result GET/export, especially for games ending on an opponent move.
+  capture SDK move responses and GET-backfill opponent-ended games. Exact historical comparison
+  still requires an authoritative terminal-result export for this already completed batch.
+
+## Missing persuasion values coerced to zero coverage bins — rejected keying
+
+- `_coarse_config` used `as_float(value) or 0.0`, so an uninformed seller with hidden `v/c`
+  could alias a real configuration whose values were numerically zero.
+- Whether this affected the 109-game batch is inconclusive: the batch has no launch manifest,
+  `run_summary.json` records no environment, and current or shell-history state cannot prove the
+  completed process's `GLEE_SUPPORT_INDEX` setting.
+- Fix: optional persuasion values retain a distinct missing value in coarse keys. A regression
+  test proves that hidden values fall back to the family/role/round support bucket rather than
+  resolving a populated real-zero coarse bucket. Future launches record support-index presence,
+  resolved path, existence, and SHA-256 in `launch_manifest.json`.
 
 ## Unconditional live persuasion `u/v` requirement — rejected contract
 

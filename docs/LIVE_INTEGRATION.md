@@ -170,8 +170,8 @@ the time. Replaying raw payloads against the current contract is a separate vali
 
 ### Terminal-result coverage
 
-The first observation file contains 1,423 turns from 109 game IDs, not a self-contained
-50-game terminal batch. It has no authoritative terminal-result or payoff fields. Conservative
+The first observation file contains 1,423 turns from 109 game IDs, consistent with the roughly
+30-games-per-family batch. It has no authoritative terminal-result or payoff fields. Conservative
 reconstruction finds bargaining 15 reconstructed / 21 indeterminate, negotiation 13 / 23,
 and persuasion 19 / 18; seven reconstructed negotiation acceptances also lack the normalization
 order. Consequently no unbiased family payoff mean, HANDOVER section 4 divergence, or
@@ -179,8 +179,10 @@ official-style shadow rating can be computed from this file. Averaging only reco
 games would select on which player made the terminal move.
 
 Future live runs capture every SDK `move` response in `reports/live/move_results.jsonl`, including
-the complete terminal result when our submitted move ends the game. Games ending on an opponent
-move still require an authoritative server GET/export backfill. This capture is prospective and
+the complete terminal result when our submitted move ends the game. After the run, games without
+such a response are read-only GET-backfilled into the same file. `run_summary.json` reports the
+direct/backfilled/error counts, and `launch_manifest.json` records whether the support index and
+other non-secret model paths were configured, plus file hashes. This capture is prospective and
 does not recover the existing observation file. It does not authorize a live run.
 
 ### Real-server value visibility correction (50-game batch)
@@ -195,6 +197,12 @@ ignore `v/c`, but an optional `GLEE_SUPPORT_INDEX` coverage lookup includes them
 key and can change strategic mode. The observation log does not record whether that index was
 active, so this batch proves no harm from validation/fallback behavior but does not prove full
 action equivalence or a zero rating effect through coverage.
+
+The 109-game run predates `launch_manifest.json`. Its saved summary does not record environment
+settings, and shell history records no `GLEE_SUPPORT_INDEX` assignment. The variable is unset in
+the current shell, but that is not evidence of its earlier value; activation for this batch is
+therefore **inconclusive**, not assumed false. Independently, missing hidden persuasion `v/c`
+values now remain missing in coarse coverage keys rather than aliasing genuine numeric-zero bins.
 
 Do not run further live games merely to verify this correction. Live/rated re-verification
 still requires explicit user authorization for that individual run.
