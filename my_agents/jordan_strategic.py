@@ -1516,3 +1516,11 @@ class UnknownHorizonCounterFallbackCandidate(JordanStrategicAgent):
             debias_counterpart_value=False,
             **kwargs,
         )
+
+
+class BargainingTheoryOffBaseline(JordanStrategicAgent):
+    """Isolated baseline for corrected-simulator theory-anchor evidence audits."""
+
+    def __init__(self, seed: int = 0, **kwargs: Any):
+        kwargs.pop("use_theory_anchor", None)
+        super().__init__(seed=seed, use_theory_anchor=False, **kwargs)

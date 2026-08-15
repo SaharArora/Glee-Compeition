@@ -32,9 +32,11 @@ class BargainingPolicy(OpponentPolicy):
         threshold = float(params.get("accept_threshold", max(0.35, 1 - target_share - 0.05)))
         noise = float(params.get("action_noise", 0.0))
         if state.valid_action_schema.get("kind") == "offer":
-            share = target_share - concession_rate * max(state.round - 1, 0)
-            if self.spec.archetype in {"conceding", "soft"}:
-                share -= 0.05 * state.round
+            # The fitted concession is the change between this player's
+            # successive offers. A player offers every other global round, so
+            # applying it to `round - 1` doubled the fitted temporal slope.
+            own_offer_index = max(0, (state.round - 1) // 2)
+            share = target_share - concession_rate * own_offer_index
             if self.spec.archetype in {"boulware", "late_conceding"} and state.round < state.horizon * 0.75:
                 share = target_share
             share += rng.uniform(-noise, noise)
@@ -213,4 +215,3 @@ class PolicyFactory:
         if game_family == "persuasion":
             return PersuasionPolicy(spec)
         raise ValueError(f"Unsupported game family: {game_family}")
-

@@ -62,3 +62,6 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
   volume and diagnose conditional cells first.
 - When a live adapter can replace or reinterpret an agent action, reproduce that boundary in
   the gate. A policy-only simulator can make the actually reached production path invisible.
+- Preserve units between fitting and simulation: a rate measured per same-player action cannot
+  be multiplied by global turns. Also measure realized branch reach before attributing an
+  aggregate live gap to a broad latent curve difference.

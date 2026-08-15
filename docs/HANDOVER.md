@@ -664,6 +664,34 @@ live-contract fallback candidate nevertheless measured only **+0.000307**, t=1.9
 1596T at n=1600 and failed minimum effect plus config concentration (.5980). It remains off;
 none of the older negotiation flags was revived.
 
+**Live bargaining root-cause audit, 15 August 2026.** The three terminal-complete batches
+contain 61 games, all agreements, with mean normalized payoff .407409. The candidate's gross
+agreed share was .54511; waiting/discounting removed .13770 on average. The 97 logged unique
+bargaining games use the released delta grid and nearly match historical horizon, information,
+and message marginals. Pot=100 is overweight (43.3% live versus 32.6% historical), but payoff
+normalization removes a mechanical scale effect. In 42 incomplete-information games the
+opponent delta is correctly hidden, and unbounded live games expose no numeric `max_rounds`;
+neither was imputed.
+
+The exact fitted-simulator defect was temporal units. Fitting records `concession_rate` between
+successive offers by the same player; runtime multiplied it by global `round-1`, applying two
+fitted transitions by that player's second offer, and separately accelerated `conceding`
+opponents by an unfitted `.05*round`. Runtime now uses own-offer index `(round-1)//2` and removes
+that acceleration. Under the corrected model, unchanged theory-on versus isolated theory-off
+passed seed-112358 n=1600 at **+.0551, t=10.95**, then its prospectively declared seed-2718281
+n=3200 confirmation at **+.0601, t=16.77**; every ordinary gate check passed twice. The theory
+anchor remains shipped.
+
+This corrects the evidence model, not the live agent. Live action replay matched 475/475
+callbacks, and a theory-off immediate-accept diagnostic was mixed (+.00484 per 61 games; four
+improve, seven regress). A low-delta/stagnation rule was killed by two opposite-sign examples
+and a matched reversal. The deeper design limitation is that the fitted population samples
+target share, acceptance threshold, and concession independently within stipulated archetype
+bands, losing real player-level joint behavior; live opponents also concede much less smoothly
+(successive-offer mean .00657, median 0). That is genuine model risk, but not a diagnosed
+production-visible policy repair. Because no production candidate changed, the user's
+conditional one-batch live authorization was not triggered or consumed; no live game ran.
+
 ### Bargaining — strongest
 
 - Tournament payoff **+0.4850**, 95% CI [+0.4794, +0.4906], n=69, median +0.5000

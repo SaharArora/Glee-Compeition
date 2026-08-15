@@ -21,6 +21,34 @@ append a correction and update `docs/REGISTRY.md` instead.
   .382355 (n=12) and player-2 .386329 (n=13). The large earlier split did not replicate, which
   strengthens the rejection rather than opening a new role-policy family.
 
+## Turning off bargaining theory or adding a stagnation acceptance override — rejected
+
+- Across 61 authoritative bargaining games, theory-on and the old flat policy disagree on 100
+  of 237 candidate decisions. Taking only the first theory-reject/flat-accept opportunity per
+  game, immediate acceptance would add .294986 total, only **+.004836 per 61 games**; four
+  games improve and seven regress. This one-step hindsight diagnostic is below the ordinary
+  effect floor and is not trajectory-causal.
+- The narrowed production-visible proposal, `own_delta=.8` plus two opponent offers whose
+  retained share stagnates or hardens, reaches only two games. Their immediate-accept-minus-
+  actual-terminal effects are −.0842 and +.0862. A matched non-stagnating game reverses the
+  proposed direction, and allowing one point of concession yields four games averaging −.0325.
+- Therefore neither a global theory-off change nor a low-delta stagnation override has a stable
+  real mechanism. A materially new retry needs prospectively supported reach and sign across
+  matched delta/round/horizon/role/config cells under the corrected opponent simulator.
+
+## Attributing the full bargaining gap to the opponent timing-unit defect — rejected
+
+- The defect is exact: fitting measures concession between successive offers by the same role,
+  while the old runtime multiplied it by global `round-1`, doubling the rate by that role's
+  second offer and adding an unfitted `.05*round` acceleration for conceding opponents.
+- It is not the whole live explanation. The two clearest patient/stagnant games account for
+  about .0152 of the .0776 pooled live/offline gap, roughly 20%. A separate non-gate n=100
+  holdout diagnostic reached no timing-divergent realized trajectory and left the theory effect
+  unchanged at +.06897.
+- The simulator correction was nevertheless required for evidence fidelity and subsequently
+  passed both its preregistered gate and independent confirmation. Do not convert a corrected
+  evaluation model into a claim that production policy caused, or now fixes, the full live gap.
+
 ## Assuming live text persuasion carried the simulator's structured stance — rejected
 
 - Across the complete confirmation and strict-volume logs, the candidate was buyer for 180
