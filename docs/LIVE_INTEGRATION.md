@@ -132,6 +132,39 @@ for line in open('reports/live/observations.jsonl'):
 Anything other than `ok` in that `status` column on an expressly authorized real game is a
 schema mismatch to fix before scaling up. This documentation does not authorize such a game.
 
+### Reading the observation log
+
+Summarize the adapter log directly with:
+
+```bash
+python3 -m glee_eval stats --observations reports/live/observations.jsonl
+```
+
+`shadow-score` deliberately does not accept this turn log. Official-style percentiles require
+terminal candidate payoff, scenario/configuration, and reference episodes; the observation log
+contains pre-action turn payloads and omits terminal outcomes. Use an episode summary instead:
+
+```bash
+python3 -m glee_eval shadow-score \
+  --episodes RUN/datasets/episode_summary.jsonl \
+  --data-dir data
+```
+
+Both `python3 -m glee_eval stats --help` and
+`python3 -m glee_eval shadow-score --help` now show their command-specific options.
+
+### Real-server value visibility correction (50-game batch)
+
+The first 50-game batch confirmed that persuasion `u/v` have no alternate live spelling. They
+are absent only when our role is seller and `is_seller_know_cv=false`: six games, all 20 rounds,
+for 120 affected turns. Buyer turns and informed-seller turns carry `u/v` normally. The contract
+now models that information boundary, and all 1,423 captured payloads replay with zero
+violations. No fallback or action change occurred, so this was a false-positive validation
+alert rather than a broken policy read path.
+
+Do not run further live games merely to verify this correction. Live/rated re-verification
+still requires explicit user authorization for that individual run.
+
 ## Volume, once it works
 
 - Rating is discounted by `g/(g+30)`, so early games count for little and volume is needed

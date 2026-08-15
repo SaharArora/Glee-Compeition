@@ -3,6 +3,25 @@
 Append-only record. Do not delete old entries when later evidence changes the interpretation;
 append a correction and update `docs/REGISTRY.md` instead.
 
+## Unconditional live persuasion `u/v` requirement — rejected contract
+
+- The docs-derived contract required buyer utility values on every persuasion turn. Fifty real
+  games produced 120 alerts (240 missing-field reports), initially suggesting renamed server
+  fields.
+- Raw payload inspection contradicted that diagnosis. The alerts are exactly six games x 20
+  seller turns, every one with `is_seller_know_cv=false`; no alternate key or nested location
+  exists. The server intentionally withholds the buyer's `u/v` from an uninformed seller.
+- The policy received normalized defaults (`v=1.2`, `c=0.0`) in its internal beliefs because
+  those values were unknowable. Seller recommendation decisions do not consult either value:
+  control uses recommendation history/receiver obedience and the action rule uses quality,
+  remaining rounds, response-model evidence, and control mode. All 120 statuses were `ok`, with
+  no fallback or timeout. The contract fix changes validation only, so attributable rating harm
+  from this defect is effectively zero; exact terminal ratings are not reconstructible from the
+  turn log.
+- Fix: conditional visibility is now part of the contract. `u/v` remain mandatory for buyers
+  and informed sellers, but are optional for uninformed seller-message/recommendation turns.
+  Replaying all 1,423 captured payloads now yields zero violations.
+
 ## Persuasion cold-start exploration — rejected
 
 - Tried: unconditional exploration; exploration only at zero evidence; exploration only when
