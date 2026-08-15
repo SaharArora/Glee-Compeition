@@ -99,6 +99,7 @@ class JordanStrategicAgent(CandidateAgent):
         message_mode: str = "shadow",
         persuasion_explore: bool = False,
         use_persuasion_platt: bool = False,
+        use_deceptive_seller_guard: bool = False,
         max_exploration_loss: float = 0.45,
         use_time_concession: bool = False,
         concession_convexity: float = 2.5,
@@ -164,6 +165,11 @@ class JordanStrategicAgent(CandidateAgent):
         # independently declared confirmation both clear; predictive calibration
         # success alone cannot flip a policy default.
         self.use_persuasion_platt = use_persuasion_platt
+        # Persistent-buyer uncertainty guard after an observed yes-on-low lie.
+        # Default-off pending the preregistered payoff gate and confirmation.
+        # It is deliberately separate from the rejected global Platt map and
+        # cold-start exploration; the explicit gate candidate enables only this.
+        self.use_deceptive_seller_guard = use_deceptive_seller_guard
         # Never explore when a single buy would cost more than this in price units.
         self.max_exploration_loss = max_exploration_loss
         # Concede over time in negotiation instead of repeating one price forever.
@@ -922,6 +928,14 @@ class JordanStrategicAgent(CandidateAgent):
                 posterior_quality_given_yes = (market_high + prior_weight * p) / (market_sold + prior_weight)
         base_ev = p * (v - 1.0) + (1.0 - p) * (c - 1.0)
         raw_posterior = self._clip(posterior_quality_given_yes, 0.0, 1.0)
+        visible_yes_observations = yes_on_high + yes_on_low
+        guarded_posterior = raw_posterior
+        if stats is None and yes_on_low >= 1:
+            guarded_posterior = max(
+                0.0,
+                raw_posterior
+                - math.sqrt(raw_posterior * (1.0 - raw_posterior) / (visible_yes_observations + 4.0)),
+            )
         return {
             "base_quality_prob": self._clip(p, 0.0, 1.0),
             "high_value": v,
@@ -936,6 +950,10 @@ class JordanStrategicAgent(CandidateAgent):
             "posterior_quality_given_yes": raw_posterior,
             "posterior_quality_given_yes_raw": raw_posterior,
             "posterior_quality_given_yes_platt": self._persuasion_platt_probability(raw_posterior),
+            "posterior_quality_given_yes_deceptive_guard": guarded_posterior,
+            "prior_visible_yes_on_high": float(yes_on_high),
+            "prior_visible_yes_on_low": float(yes_on_low),
+            "prior_visible_yes_quality_observations": float(visible_yes_observations),
             "receiver_obedience": obedience,
             "receiver_skepticism": 1.0 - obedience,
             # Kept separate on purpose. `transcript_observations` is the channel a
@@ -1075,13 +1093,20 @@ class JordanStrategicAgent(CandidateAgent):
         if posterior_quality is None:
             posterior_quality = 0.66 if control.beliefs.get("seller_honesty", 0.5) >= 0.60 else control.beliefs.get("base_quality_prob", 0.5)
         raw_posterior = self._clip(posterior_quality, 0.0, 1.0)
-        posterior_quality = (
-            self._persuasion_platt_probability(raw_posterior)
-            if self.use_persuasion_platt
-            else raw_posterior
+        guard_applies = (
+            self.use_deceptive_seller_guard
+            and control.beliefs.get("myopic_buyer", 0.0) == 0.0
+            and control.beliefs.get("prior_visible_yes_on_low", 0.0) >= 1.0
         )
+        if guard_applies:
+            posterior_quality = control.beliefs["posterior_quality_given_yes_deceptive_guard"]
+        elif self.use_persuasion_platt:
+            posterior_quality = self._persuasion_platt_probability(raw_posterior)
+        else:
+            posterior_quality = raw_posterior
         control.beliefs["posterior_quality_used_for_buy"] = posterior_quality
-        control.beliefs["persuasion_platt_applied"] = 1.0 if self.use_persuasion_platt else 0.0
+        control.beliefs["persuasion_platt_applied"] = 1.0 if self.use_persuasion_platt and not guard_applies else 0.0
+        control.beliefs["deceptive_seller_guard_applied"] = 1.0 if guard_applies else 0.0
         if high_value <= low_value:
             return "no"
         break_even_quality = self._clip((1.0 - low_value) / (high_value - low_value), 0.0, 1.0)
@@ -1388,3 +1413,19 @@ class PersuasionPlattCandidate(JordanStrategicAgent):
 
     def __init__(self, seed: int = 0, **kwargs: Any):
         super().__init__(seed=seed, use_persuasion_platt=True, **kwargs)
+
+
+class PersuasionDeceptiveSellerGuardCandidate(JordanStrategicAgent):
+    """Isolated default-off entry point for the preregistered payoff gate."""
+
+    def __init__(self, seed: int = 0, **kwargs: Any):
+        kwargs.pop("use_deceptive_seller_guard", None)
+        kwargs.pop("use_persuasion_platt", None)
+        kwargs.pop("persuasion_explore", None)
+        super().__init__(
+            seed=seed,
+            use_deceptive_seller_guard=True,
+            use_persuasion_platt=False,
+            persuasion_explore=False,
+            **kwargs,
+        )
