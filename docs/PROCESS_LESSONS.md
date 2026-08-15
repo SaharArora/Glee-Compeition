@@ -30,3 +30,5 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
   interchangeable.
 - Compute diagnostics from the current run; historical constants are evidence, not a runtime
   warning.
+- When comparing primary and diagnostic metrics, hold the fallback ladder and conditioning
+  dimensions fixed so the reported delta isolates only the intended stratification.
