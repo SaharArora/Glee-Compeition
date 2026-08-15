@@ -4,6 +4,8 @@ import unittest
 
 from glee_eval.diagnostics.persuasion import (
     _calibration_slice,
+    _evaluate_platt_axis,
+    _game_cluster_bootstrap,
     _grouped_calibration,
     _purchase_channel_stats,
 )
@@ -70,6 +72,55 @@ class EvidenceChannelAuditTests(unittest.TestCase):
         self.assertEqual(grouped["market_statistics"]["n"], 1)
         self.assertEqual(grouped["transcript_history"]["n"], 2)
         self.assertAlmostEqual(_calibration_slice(rows, (0.0, 0.5, 1.0))["brier_score"], 0.23)
+
+
+class PlattEvaluationTests(unittest.TestCase):
+    @staticmethod
+    def _rows():
+        rows = []
+        for partition in ("fit", "holdout"):
+            # Raw 0.2 is under-confident for a 0.4 event; raw 0.8 is
+            # under-confident for a 0.9 event.  The same fixed construction in
+            # fit and holdout gives the preregistered map signal to recover.
+            for raw, positives, total in ((0.2, 4, 10), (0.8, 9, 10)):
+                for index in range(total):
+                    rows.append(
+                        {
+                            "predicted": raw,
+                            "was_high_quality": int(index < positives),
+                            "game_id": f"{partition}-{raw}-{index}",
+                            "model_partition": partition,
+                            "config_partition": partition,
+                        }
+                    )
+        return rows
+
+    def test_platt_candidate_reports_both_declared_endpoints(self) -> None:
+        result = _evaluate_platt_axis(
+            self._rows(), "model", bootstrap_seed=7, bootstrap_replicates=200
+        )
+
+        self.assertEqual(result["fit_n"], 20)
+        self.assertEqual(result["holdout_n"], 20)
+        self.assertLess(result["brier_delta"]["mean"], 0.0)
+        self.assertLess(result["log_loss_delta"]["mean"], 0.0)
+        # Twenty one-row clusters are deliberately too few for the confidence
+        # bound to clear zero even though both point estimates improve.
+        self.assertFalse(result["success"])
+
+    def test_game_cluster_bootstrap_is_deterministic(self) -> None:
+        games = {
+            "a": (2, -0.2, -0.4),
+            "b": (1, -0.05, -0.1),
+            "c": (3, -0.3, -0.6),
+        }
+
+        first = _game_cluster_bootstrap(games, seed=11, replicates=50)
+        second = _game_cluster_bootstrap(games, seed=11, replicates=50)
+
+        self.assertEqual(first, second)
+        self.assertLess(first["brier"][1], 0.0)
+        self.assertLess(first["log_loss"][1], 0.0)
 
 
 if __name__ == "__main__":

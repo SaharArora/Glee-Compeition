@@ -35,3 +35,5 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
 - Keep a confirmed symptom separate from a rejected mechanism: evidence may preserve the
   calibration gap while showing that the initially suspected channel mismatch is too rare to
   explain it.
+- Predictive calibration evidence and policy-payoff evidence are different gates; improving
+  Brier and log loss does not authorize changing an acting threshold or default.

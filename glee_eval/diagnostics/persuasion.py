@@ -23,6 +23,8 @@ placed in the state the agent sees.
 from __future__ import annotations
 
 import json
+import math
+import random
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +43,9 @@ from glee_eval.probes.extract import state_from_event
 from glee_eval.storage.trajectories import ensure_dir, iter_jsonl, write_json
 
 DEFAULT_BINS = (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
+PLATT_EPSILON = 1e-6
+PLATT_BOOTSTRAP_SEED = 20260815
+PLATT_BOOTSTRAP_REPLICATES = 2000
 
 
 def _bin_label(value: float, edges: tuple[float, ...]) -> str:
@@ -160,6 +165,165 @@ def _grouped_calibration(
     }
 
 
+def _clip_probability(value: float) -> float:
+    return min(max(float(value), PLATT_EPSILON), 1.0 - PLATT_EPSILON)
+
+
+def _sigmoid(value: float) -> float:
+    if value >= 0:
+        z = math.exp(-value)
+        return 1.0 / (1.0 + z)
+    z = math.exp(value)
+    return z / (1.0 + z)
+
+
+def _fit_platt(rows: list[dict[str, Any]]) -> tuple[float, float]:
+    """Maximum-likelihood two-parameter Platt map, fitted without dependencies."""
+
+    if not rows:
+        raise ValueError("Cannot fit Platt calibration without rows")
+    a, b = 0.0, 1.0
+    for _ in range(100):
+        g_a = g_b = h_aa = h_ab = h_bb = 0.0
+        for row in rows:
+            p = _clip_probability(row["predicted"])
+            x = math.log(p / (1.0 - p))
+            y = float(row["was_high_quality"])
+            q = _sigmoid(a + b * x)
+            residual = q - y
+            weight = max(q * (1.0 - q), 1e-12)
+            g_a += residual
+            g_b += residual * x
+            h_aa += weight
+            h_ab += weight * x
+            h_bb += weight * x * x
+        determinant = h_aa * h_bb - h_ab * h_ab
+        if determinant <= 1e-18:
+            raise ValueError("Platt calibration Hessian is singular")
+        step_a = (h_bb * g_a - h_ab * g_b) / determinant
+        step_b = (-h_ab * g_a + h_aa * g_b) / determinant
+        a -= step_a
+        b -= step_b
+        if max(abs(step_a), abs(step_b)) < 1e-10:
+            break
+    return a, b
+
+
+def _platt_probability(raw: float, a: float, b: float) -> float:
+    p = _clip_probability(raw)
+    return _clip_probability(_sigmoid(a + b * math.log(p / (1.0 - p))))
+
+
+def _log_loss(probability: float, outcome: float) -> float:
+    p = _clip_probability(probability)
+    return -(outcome * math.log(p) + (1.0 - outcome) * math.log(1.0 - p))
+
+
+def _percentile(values: list[float], fraction: float) -> float:
+    ordered = sorted(values)
+    position = fraction * (len(ordered) - 1)
+    low = int(math.floor(position))
+    high = int(math.ceil(position))
+    if low == high:
+        return ordered[low]
+    return ordered[low] + (ordered[high] - ordered[low]) * (position - low)
+
+
+def _game_cluster_bootstrap(
+    per_game: dict[str, tuple[int, float, float]],
+    *,
+    seed: int = PLATT_BOOTSTRAP_SEED,
+    replicates: int = PLATT_BOOTSTRAP_REPLICATES,
+) -> dict[str, list[float]]:
+    """Paired bootstrap of whole games; repeated rows never split across samples."""
+
+    game_ids = sorted(per_game)
+    if not game_ids or replicates <= 0:
+        raise ValueError("Bootstrap requires games and positive replicates")
+    rng = random.Random(seed)
+    brier: list[float] = []
+    log_loss: list[float] = []
+    for _ in range(replicates):
+        count = brier_sum = log_loss_sum = 0.0
+        for _ in game_ids:
+            n, game_brier, game_log_loss = per_game[game_ids[rng.randrange(len(game_ids))]]
+            count += n
+            brier_sum += game_brier
+            log_loss_sum += game_log_loss
+        brier.append(brier_sum / count)
+        log_loss.append(log_loss_sum / count)
+    return {
+        "brier": [_percentile(brier, 0.025), _percentile(brier, 0.975)],
+        "log_loss": [_percentile(log_loss, 0.025), _percentile(log_loss, 0.975)],
+    }
+
+
+def _named_bin_gap(rows: list[dict[str, Any]], prediction_key: str) -> dict[str, Any]:
+    selected = [row for row in rows if 0.5 <= row[prediction_key] < 0.8]
+    if not selected:
+        return {"n": 0, "mean_predicted": None, "observed_frequency": None, "gap": None}
+    predicted = sum(row[prediction_key] for row in selected) / len(selected)
+    observed = sum(row["was_high_quality"] for row in selected) / len(selected)
+    return {"n": len(selected), "mean_predicted": predicted, "observed_frequency": observed, "gap": predicted - observed}
+
+
+def _evaluate_platt_axis(
+    rows: list[dict[str, Any]],
+    axis: str,
+    bins: tuple[float, ...] = DEFAULT_BINS,
+    *,
+    bootstrap_seed: int = PLATT_BOOTSTRAP_SEED,
+    bootstrap_replicates: int = PLATT_BOOTSTRAP_REPLICATES,
+) -> dict[str, Any]:
+    partition_key = f"{axis}_partition"
+    fit_rows = [row for row in rows if row[partition_key] == "fit"]
+    holdout = [dict(row) for row in rows if row[partition_key] == "holdout"]
+    if not holdout:
+        raise ValueError(f"Cannot evaluate Platt calibration without {axis} holdout rows")
+    a, b = _fit_platt(fit_rows)
+    per_game: dict[str, tuple[int, float, float]] = {}
+    brier_delta = log_loss_delta = 0.0
+    for row in holdout:
+        raw = _clip_probability(row["predicted"])
+        calibrated = _platt_probability(raw, a, b)
+        outcome = float(row["was_high_quality"])
+        row["calibrated"] = calibrated
+        row_brier = (calibrated - outcome) ** 2 - (raw - outcome) ** 2
+        row_log_loss = _log_loss(calibrated, outcome) - _log_loss(raw, outcome)
+        brier_delta += row_brier
+        log_loss_delta += row_log_loss
+        game_id = str(row["game_id"])
+        n, game_brier, game_log_loss = per_game.get(game_id, (0, 0.0, 0.0))
+        per_game[game_id] = (n + 1, game_brier + row_brier, game_log_loss + row_log_loss)
+    intervals = _game_cluster_bootstrap(
+        per_game, seed=bootstrap_seed, replicates=bootstrap_replicates
+    )
+    calibrated_rows = [{**row, "predicted": row["calibrated"]} for row in holdout]
+    return {
+        "axis": axis,
+        "fit_n": len(fit_rows),
+        "holdout_n": len(holdout),
+        "holdout_games": len(per_game),
+        "parameters": {"a": a, "b": b},
+        "bootstrap": {"seed": bootstrap_seed, "replicates": bootstrap_replicates, "cluster": "game_id"},
+        "brier_delta": {"mean": brier_delta / len(holdout), "ci95": intervals["brier"]},
+        "log_loss_delta": {"mean": log_loss_delta / len(holdout), "ci95": intervals["log_loss"]},
+        "raw": {
+            "ece": _calibration_slice(holdout, bins)["expected_calibration_error"],
+            "gap_0.5_0.8": _named_bin_gap(holdout, "predicted"),
+        },
+        "calibrated": {
+            "ece": _calibration_slice(calibrated_rows, bins)["expected_calibration_error"],
+            "gap_0.5_0.8": _named_bin_gap(holdout, "calibrated"),
+        },
+        "success": (
+            brier_delta / len(holdout) < 0.0
+            and intervals["brier"][1] < 0.0
+            and intervals["log_loss"][1] <= 0.0
+        ),
+    }
+
+
 def persuasion_calibration(
     data_dir: str | Path = DEFAULT_DATA_DIR,
     output_dir: str | Path = "reports/persuasion_calibration",
@@ -270,6 +434,10 @@ def persuasion_calibration(
                 "Market-statistics states estimate quality among purchased products; this equals "
                 "quality conditional on a yes recommendation only for all_after_yes histories."
             ),
+        },
+        "predictive_platt_evaluation": {
+            axis: _evaluate_platt_axis(on_yes, axis, bins)
+            for axis in ("model", "config")
         },
         "decision_quality": {
             "agent_purchase_rate": len(agent_buys) / len(rows) if rows else None,
