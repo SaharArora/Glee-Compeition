@@ -51,6 +51,40 @@ append a correction and update `docs/REGISTRY.md` instead.
   subgroup definitions after seeing this result, or invoking the construction-defect
   minimum-effect amendment is not allowed: minimum effect passed and concentration failed.
 
+## Attributing the live negotiation shortfall to a known rejected flag — rejected
+
+- The complete terminal-capture scope is 35 games: 20 provable gains-from-trade games averaged
+  .147313, one provable no-trade/equality game scored .037752, and 14 incomplete-information
+  zero-payoff games have an unrecoverable hidden counterpart value.
+- Because those 14 games include all nine candidate walkaways and five horizon no-deals, the
+  true no-trade outside-option rate is not point-identified. Calling all 14 no-trade gives a
+  9/15=60% sensitivity case, not an estimate comparable to offline 86% or real-population 88%.
+- `guarantee_own_margin` has no realized harm signature: 20/20 candidate opening offers and
+  21/21 accepted candidate outcomes retained positive margin. All 85 reached rejection
+  counterprices came from the adapter fallback, but every fallback also retained positive
+  margin. The missing plumbing is real; a payoff benefit is not established.
+- The unbounded 50-callback 6800 repetition is reproduced, while capped games show the repaired
+  adapter fallback conceding over time. This proves the old unknown-horizon static path remains
+  reachable, not that the rejected `use_time_concession` flag would improve it. Counterpart
+  de-biasing is truth-checkable in only one complete-information seller case, which matches the
+  existing 1.50 markup prior.
+- Therefore none of the three flags or their rejected combination gets a new gate, retry or
+  status change from this batch. A materially new candidate requires the hidden true-zone
+  problem to be resolved or a directly observed harmful action mechanism.
+
+## Treating four live boundary responses as a new zero-gain acceptance rate — rejected
+
+- The released-data calculation reproduces the load-bearing statistic: exact zero gain accepts
+  2,130/6,849=.3110; the response-model [0,.05) boundary bucket accepts
+  2,794/8,471=.3298, consistent with the documented approximately .34.
+- Complete live logs contain only four observable boundary responses across three games:
+  zero accepts, two reject/counter actions and two outside-option walkaways. Its interval is
+  wide enough to contain .34; 147/319 live responses cannot be binned because the responder's
+  private value is legitimately hidden.
+- The 0/4 point estimate is therefore underpowered evidence, not a replacement constant or a
+  diagnosed policy mechanism. Outside-option actions remain failures in the denominator, as
+  they were in the fitted response model.
+
 ## Treating SDK `max_games` as a strict total-game cap — rejected assumption
 
 - The authorized confirmation invoked `--max-games 12`, but the SDK stopped after 15 games

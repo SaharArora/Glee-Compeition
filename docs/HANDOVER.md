@@ -630,6 +630,17 @@ n=1600, but failed config-regime concentration at **0.5437 > 0.50**. It remains 
 the default is off and no post-fix live batch is authorized for it. See REGISTRY/FAILED for the
 exact gate and no-retry constraint.
 
+**Live negotiation attribution audit, 15 August 2026.** Across 35 authoritative complete
+games, 20 provable gains-from-trade cells averaged .147313, one known no-trade/equality cell
+scored .037752, and 14 zero-payoff incomplete-information cells have hidden counterpart values,
+so their true zone cannot be recovered. Those 14 contain every walkaway/no-deal; consequently
+the live no-trade outside-option rate cannot be compared honestly with 86%/88%. The prior
+zero-responder-gain acceptance estimate reproduces offline at .3298, while live has only 0/4
+observable boundary accepts and 147/319 responses whose gain is hidden. The known rejected
+flags show reach (85 adapter-fallback counterprices and one old unbounded static sequence), but
+no observed zero-margin harm or identifiable counterfactual payoff benefit. No new negotiation
+candidate or gate was opened.
+
 ### Bargaining — strongest
 
 - Tournament payoff **+0.4850**, 95% CI [+0.4794, +0.4906], n=69, median +0.5000
