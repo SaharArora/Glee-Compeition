@@ -641,6 +641,14 @@ n=1600, but failed config-regime concentration at **0.5437 > 0.50**. It remains 
 the default is off and no post-fix live batch is authorized for it. See REGISTRY/FAILED for the
 exact gate and no-retry constraint.
 
+The completed three-batch audit narrows this further. Across 60 persuasion games, binary
+buyers purchased 164/320=.5125 versus .4994 offline and obeyed 164/209=.7847 positive
+recommendations versus the fitted .78. Text buyers purchased 0/300. Binary buyer payoff
+(.590) exceeded binary seller payoff (.480), so neither the purchase-rate gap nor the pooled
+role asymmetry survives message-mode conditioning. All 620 live buyer histories were persistent
+and no payload exposed a myopic flag. This adds evidence to the rejected text-parser diagnosis;
+it does not create a materially new buyer policy or permit its unchanged candidate to rerun.
+
 **Live negotiation attribution audit, 15 August 2026.** Across 60 authoritative complete
 games, 37 identifiable gains-from-trade cells averaged .127264, two known no-trade/equality
 cells averaged .031414, and 21 zero-payoff incomplete-information cells have hidden counterpart

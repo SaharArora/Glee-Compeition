@@ -141,6 +141,23 @@ append a correction and update `docs/REGISTRY.md` instead.
   capture SDK move responses and GET-backfill opponent-ended games. Exact historical comparison
   still requires an authoritative terminal-result export for this already completed batch.
 
+## Attributing the remaining live persuasion buyer shortfall to a non-parser policy — rejected
+
+- Across all 60 terminal-complete persuasion games, buyers purchased 164/620 rounds overall.
+  The aggregate is entirely message-channel composition: binary buyers purchased
+  164/320=.5125, matching offline .4994, while text buyers purchased 0/300 on the already-known
+  missing-stance path.
+- Binary yes-obedience was 164/209=.7847, matching the fitted population's .78; every one of
+  111 binary `no` recommendations was declined. Binary buyer payoff was .590 versus binary
+  seller .480, so the aggregate seller/buyer deficit reverses once message mode is held fixed.
+- Apparent informedness/honesty differences collapse within exact `p/v` cells. `c` is always
+  zero in these buyer games, every live history grows persistently from 0 through 19, and no
+  production-visible `is_myopic` field exists. There is no supported myopic or role-specific
+  acting branch to repair.
+- Do not open a new buyer-policy family from 164/620 or the pooled role means. Materially new
+  work requires a residual within matched binary `p/v`/history cells, or a parser mechanism
+  that prospectively addresses the prior candidate's config-concentration failure.
+
 ## Missing persuasion values coerced to zero coverage bins — rejected keying
 
 - `_coarse_config` used `as_float(value) or 0.0`, so an uninformed seller with hidden `v/c`
