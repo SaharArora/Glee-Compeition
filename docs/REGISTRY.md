@@ -36,6 +36,17 @@ Durable status for policy, scoring, and evidence work. Statuses follow
 - `h6_percentile`: inconclusive against live observations because the log and reproducible run
   artifacts are absent. Code evidence narrows pooling to fallback/coarse cases rather than all
   exact buckets and exposes the dead warning path. No close prior FAILED entry.
+- Fresh persuasion pass: the live observation log remains absent, so the live kill-check is
+  inconclusive. Released logged decisions support seller-specific honesty tracking only for
+  persistent buyers; the broad myopic version is killed. Separating seller informedness from
+  observed dishonesty survives both structural axes. The blanket guard is killed by trajectory
+  replay because it blocked 309 profitable purchases and only 92 loss-making purchases.
+- Seller archetype targeting: killed as a direct-policy hypothesis. No fitted archetype label is
+  available in production state, while the seller already adapts to observable within-game
+  receiver obedience. Stipulated archetype trust differences are not an actionable live signal.
+- Live adapter: official documentation contradicts the fixtures about `history` and persuasion
+  `current_player`. Dry action-shape checks pass, but server compatibility remains unverified;
+  no live game was used to resolve it.
 
 ## Confirmation declarations
 

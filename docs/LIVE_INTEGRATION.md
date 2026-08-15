@@ -89,13 +89,27 @@ like the endgame and collapse the agent's accept floor.
 
 ## What is *not* verified
 
-The fixtures in `glee_eval/live/fixtures.py` are built by hand from the glee-sdk 0.0.5 README
-tables. They are a statement of what we believe the server sends, not a capture of a real
-game, because no API key exists yet. Two consequences:
+The fixtures in `glee_eval/live/fixtures.py` are built by hand from glee-sdk documentation.
+They are a statement of what we believe the server sends, not a capture of a real game. A
+2026-08-15 re-verification against the current official glee-sdk 0.0.5 documentation found
+that action vocabularies and scalar mappings agree, but the input fixtures are incomplete:
 
-- The adapter is tested end-to-end through the SDK's real `_handle_game`, but against our
-  fixtures. A field the docs describe differently from the live server would pass every test
-  and still be wrong.
+- Current docs say every `game_state` contains `history`; all seven fixtures omit it and the
+  adapter reconstructs only from `last_offer` or persuasion totals.
+- Documented history rows differ by family: bargaining has proposer/offer/decision;
+  negotiation has offer/decision/optional counteroffer/decider; persuasion has seller message,
+  buyer decision, purchase, optional quality, and both payoffs.
+- Persuasion fixtures omit documented `current_player`.
+- The current interpreter has no installed `glee_sdk`, so SDK integration tests skip.
+- Older claims that live persuasion has no per-round history, or that buyer knowledge of `p`
+  is optional, are stale under the current documentation.
+
+The adapter is therefore only **partially docs-verified** and remains unverified against the
+server. Two consequences:
+
+- The adapter can be tested through the SDK's real `_handle_game` only when the SDK is installed,
+  and still only against our fixtures. A field the live server describes differently would pass
+  every dry test and still be wrong.
 - `reports/live/observations.jsonl` exists precisely for this. **The first few real games are
   the cheapest chance to catch a mistranslation**, so check that log after the first run
   rather than after a hundred games.
@@ -112,8 +126,8 @@ for line in open('reports/live/observations.jsonl'):
 "
 ```
 
-Anything other than `ok` in that `status` column on a real game is a schema mismatch to fix
-before scaling up.
+Anything other than `ok` in that `status` column on an expressly authorized real game is a
+schema mismatch to fix before scaling up. This documentation does not authorize such a game.
 
 ## Volume, once it works
 

@@ -43,6 +43,39 @@ append a correction and update `docs/REGISTRY.md` instead.
   and simulated trajectory payoff, rather than tuning the confidence multiplier or rerunning a
   new seed. The same blocking mechanism is not eligible for another gate.
 
+### Diagnostic correction: why the guard was net negative
+
+- A fresh replay of the exact seed-161803 gate found 401 changed buyer decisions, all
+  baseline-buy to guard-decline. Of those, 309 were high-quality purchases with positive
+  realized surplus and only 92 were low-quality purchases with negative surplus; mean blocked
+  surplus was +0.4121.
+- The persistent posterior already estimates this seller's `P(yes|high)` and `P(yes|low)` from
+  visible within-game history. The lower-confidence penalty reused that lie evidence and
+  double-penalized the posterior, systematically rejecting valuable trades.
+- The loss is not a hidden myopic subgroup: myopic games were unchanged and every persistent
+  message/prior regime was negative. A materially new retry must estimate informedness and
+  honesty separately and make a calibrated state-dependent decision.
+
+## Broad per-game persuasion honesty tracking — narrowed
+
+- Persistent buyers benefit from seller-specific visible history on both structural holdouts,
+  but myopic buyers observe purchased-product aggregates rather than recommendation truth.
+- Against a cross-fit population baseline, the shipped per-game estimate improves Brier by
+  0.02968/0.03510 for persistent buyers (model/config holdouts) but worsens it by
+  0.01144/0.00828 for myopic buyers.
+- The broad hypothesis is rejected. Future work may retain seller-specific honesty state only
+  where truth is observable and must shrink myopic recommendation weight toward a fit-only
+  population/config prior.
+
+## Direct seller archetype targeting — rejected
+
+- The production state does not expose the fitted opponent archetype label. The current seller
+  already adapts to observable within-game receiver obedience through its evidence/control
+  logic.
+- Fitted archetypes differ in stipulated trust priors, but unavailable labels do not establish
+  an implementable targeting mechanism. Do not add a policy family until a production-visible
+  signal predicts a stable holdout response difference beyond the existing obedience estimate.
+
 ## Negotiation time concession — rejected
 
 - Tried: Boulware time-dependent concession in place of the mostly round-independent offer.
