@@ -9,7 +9,8 @@ rather than inferred:
 
     concept                     offline                    live
     bargaining offer            self_gain / other_gain     alice_gain / bob_gain
-    bargaining history          transcript rows            game_state["last_offer"]
+    bargaining history          transcript rows            game_state["history"],
+                                                           plus last_offer
     bargaining exit             (none)                     decision "walkaway"
     bargaining horizon          max_rounds always present  absent when unbounded,
                                                            flagged by horizon_known
@@ -132,15 +133,32 @@ def _bargaining_state(game: dict[str, Any]) -> GameState:
             config[f"delta_{index}"] = value
             private[f"delta_{index}"] = value
 
-    last_offer = _as_dict(state.get("last_offer"))
     transcript: list[dict[str, Any]] = []
+    history = state.get("history") if isinstance(state.get("history"), list) else []
+    for historical in history:
+        if not isinstance(historical, dict):
+            continue
+        offer = _as_dict(historical.get("offer"))
+        proposer = str(historical.get("proposer") or offer.get("proposer") or "")
+        p1 = _num(offer.get("player_1_gain"))
+        p2 = _num(offer.get("player_2_gain"))
+        if proposer and p1 is not None and p2 is not None:
+            proposer_gain, other_gain = (p1, p2) if proposer == "player_1" else (p2, p1)
+            transcript.append({
+                "round": int(_num(historical.get("round"), 1) or 1),
+                "role": proposer, "action_type": "offer", "numeric_action": proposer_gain,
+                "self_gain": proposer_gain, "other_gain": other_gain,
+                "structured": {"self_gain": proposer_gain, "other_gain": other_gain},
+                "free_text_message": offer.get("message"),
+            })
+
+    last_offer = _as_dict(state.get("last_offer"))
     if last_offer:
         proposer = str(last_offer.get("proposer") or "")
         p1 = _num(last_offer.get("player_1_gain"), 0.0) or 0.0
         p2 = _num(last_offer.get("player_2_gain"), 0.0) or 0.0
         proposer_gain, other_gain = (p1, p2) if proposer == "player_1" else (p2, p1)
-        transcript.append(
-            {
+        candidate = {
                 "round": int(_num(last_offer.get("round"), state.get("round")) or 1),
                 "role": proposer or ("player_1" if me == "player_2" else "player_2"),
                 "action_type": "offer",
@@ -150,7 +168,9 @@ def _bargaining_state(game: dict[str, Any]) -> GameState:
                 "structured": {"self_gain": proposer_gain, "other_gain": other_gain},
                 "free_text_message": last_offer.get("message"),
             }
-        )
+        if not any(item.get("round") == candidate["round"] and item.get("role") == candidate["role"]
+                   and item.get("self_gain") == candidate["self_gain"] for item in transcript):
+            transcript.append(candidate)
 
     return GameState(
         scenario_id=str(game.get("game_id") or "live"),
@@ -216,15 +236,30 @@ def _negotiation_state(game: dict[str, Any]) -> GameState:
         config[f"{other_role}_value"] = other_value / scale
         config[f"{role}_value"] = own_value / scale if own_value is not None else None
 
-    last_offer = _as_dict(state.get("last_offer"))
     transcript: list[dict[str, Any]] = []
+    history = state.get("history") if isinstance(state.get("history"), list) else []
+    for historical in history:
+        if not isinstance(historical, dict):
+            continue
+        round_number = int(_num(historical.get("round"), 1) or 1)
+        for name in ("offer", "counteroffer"):
+            offer = _as_dict(historical.get(name))
+            price = _num(offer.get("price"))
+            from_player = str(offer.get("from_player") or "")
+            if price is None or not from_player:
+                continue
+            from_role = str(state.get(f"{from_player}_role") or ("seller" if from_player == "player_1" else "buyer"))
+            transcript.append({"round": round_number, "role": from_role, "action_type": "offer",
+                               "numeric_action": price / scale, "structured": {"product_price": price / scale},
+                               "free_text_message": offer.get("message")})
+
+    last_offer = _as_dict(state.get("last_offer"))
     if last_offer:
         price = _num(last_offer.get("price"))
         from_player = str(last_offer.get("from_player") or other)
         from_role = str(state.get(f"{from_player}_role") or other_role)
         if price is not None:
-            transcript.append(
-                {
+            candidate = {
                     "round": int(_num(last_offer.get("round"), state.get("round")) or 1),
                     "role": from_role,
                     "action_type": "offer",
@@ -232,7 +267,9 @@ def _negotiation_state(game: dict[str, Any]) -> GameState:
                     "structured": {"product_price": price / scale},
                     "free_text_message": last_offer.get("message"),
                 }
-            )
+            if not any(item.get("round") == candidate["round"] and item.get("role") == candidate["role"]
+                       and item.get("numeric_action") == candidate["numeric_action"] for item in transcript):
+                transcript.append(candidate)
 
     return GameState(
         scenario_id=str(game.get("game_id") or "live"),
@@ -257,11 +294,8 @@ def _persuasion_market_statistics(
 ) -> dict[str, Any] | None:
     """Recover the buyer's own purchase history from the running payoff totals.
 
-    The live payload carries no per-round history -- only `seller_total_payoff` and
-    `buyer_total_payoff`. Without this the buyer's belief update has nothing to
-    read, so its posterior stays pinned at the prior for the whole game and it can
-    never adapt to *this* seller. That is worse than any fixed estimate, because a
-    truthful seller and a liar are indistinguishable to it.
+    Compatibility fallback for older payloads that carry running totals but no
+    documented per-round `history`.
 
     Persuasion is one buyer across all rounds and the seller is paid the price on
     every sale, so both counts are exactly recoverable:
@@ -360,9 +394,31 @@ def _persuasion_state(game: dict[str, Any]) -> GameState:
 
     transcript: list[dict[str, Any]] = []
     if role == "buyer":
-        stats = _persuasion_market_statistics(state, price, high, low)
-        if stats is not None:
-            transcript.append(stats)
+        history = state.get("history") if isinstance(state.get("history"), list) else []
+        for historical in history:
+            if not isinstance(historical, dict):
+                continue
+            round_number = int(_num(historical.get("round"), 1) or 1)
+            historical_message = historical.get("seller_message")
+            if historical_message is not None:
+                text = str(historical_message)
+                lowered = text.strip().lower()
+                decision = "yes" if lowered.startswith("y") else "no" if lowered.startswith("n") else None
+                quality = historical.get("quality")
+                transcript.append({"round": round_number, "role": "seller",
+                                   "action_type": "recommendation" if decision else "message",
+                                   "buy_no_buy": decision, "structured": {"decision": decision} if decision else {},
+                                   "free_text_message": text,
+                                   "quality": f"{quality}-quality" if quality in {"high", "low"} else None})
+            historical_decision = historical.get("buyer_decision")
+            if historical_decision is not None:
+                decision = "yes" if str(historical_decision).strip().lower().startswith("y") else "no"
+                transcript.append({"round": round_number, "role": "buyer", "action_type": "buy_decision",
+                                   "buy_no_buy": decision, "structured": {"decision": decision}})
+        if not history:
+            stats = _persuasion_market_statistics(state, price, high, low)
+            if stats is not None:
+                transcript.append(stats)
 
     seller_message = state.get("seller_message")
     if seller_message is not None and role == "buyer":

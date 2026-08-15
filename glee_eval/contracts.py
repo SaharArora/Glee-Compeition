@@ -336,6 +336,7 @@ LIVE_BARGAINING = Contract(
         Field("horizon_known", required=False, kind=bool),
         Field("max_rounds", required=False, kind=(int, float)),
         Field("last_offer", required=False, nullable=True, kind=dict),
+        Field("history", kind=list),
     ),
 )
 
@@ -348,6 +349,7 @@ LIVE_NEGOTIATION = Contract(
         Field("player_1_role", aliases=("role", "seller_role"), kind=str),
         Field("player_2_role", aliases=("role", "buyer_role"), kind=str),
         Field("last_offer", required=False, nullable=True, kind=dict),
+        Field("history", kind=list),
     ),
 )
 
@@ -371,6 +373,8 @@ LIVE_PERSUASION = Contract(
         Field("p", kind=(int, float)),
         Field("round", kind=(int, float)),
         Field("total_rounds", aliases=("max_rounds",), kind=(int, float)),
+        Field("current_player", aliases=("your_player",), kind=str),
+        Field("history", kind=list),
         # `u` is the live name for what we call `c`. Listing `c` as the alias means
         # a server that switched to our spelling would be caught, not absorbed.
         #

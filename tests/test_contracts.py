@@ -5,6 +5,7 @@ import unittest
 from glee_eval.contracts import (
     INGESTED_EVENT,
     LIVE_PERSUASION,
+    LIVE_NEGOTIATION,
     TRANSCRIPT_DECISION_ROW,
     TRANSCRIPT_MESSAGE_ROW,
     TRANSCRIPT_QUALITY_ROW,
@@ -18,6 +19,7 @@ from glee_eval.contracts import (
     enforce,
     live_contract,
 )
+from glee_eval.live import fixtures
 
 
 def _problems(violations) -> set[str]:
@@ -25,6 +27,14 @@ def _problems(violations) -> set[str]:
 
 
 class HistoricalBugRegressionTests(unittest.TestCase):
+    def test_live_contracts_require_documented_history(self) -> None:
+        game = fixtures.negotiation_offer()
+        del game["game_state"]["history"]
+
+        violations = check(game, LIVE_NEGOTIATION)
+
+        self.assertIn(Problem.MISSING.value, _problems(violations))
+
     """The two shape bugs that actually happened, encoded as tests.
 
     Both produced confidently-wrong behaviour with nothing raising anywhere. If a
@@ -70,7 +80,8 @@ class HistoricalBugRegressionTests(unittest.TestCase):
             "game_id": "g",
             "game_family": "persuasion",
             "valid_actions": {"type": "buyer_decision"},
-            "game_state": {"product_price": 10000, "p": 0.5, "round": 1, "total_rounds": 20, "u": 0, "v": 12500},
+            "game_state": {"product_price": 10000, "p": 0.5, "round": 1, "total_rounds": 20,
+                           "current_player": "player_2", "history": [], "u": 0, "v": 12500},
         }
         reading_only_c = Contract(
             "broken.low_value",

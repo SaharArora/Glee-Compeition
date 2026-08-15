@@ -150,7 +150,8 @@ class LiveStrategy:
                 return payload
         except BaseException:  # noqa: BLE001
             logger.exception("fallback_action failed for game %s", game.get("game_id"))
-        # Last resort: legal in every decision phase of every family.
+        # Last resort only. This shape is legal for persuasion decisions; callers
+        # should normally obtain a family-specific legal action above.
         return {"decision": "no"}
 
     # ------------------------------------------------------------------

@@ -209,7 +209,7 @@ class NoTradeZoneClipTests(unittest.TestCase):
         [seller_value, seller_value], so the only legal ask was exactly our cost.
         """
 
-        game = fixtures.negotiation_decision(round=40, max_rounds=99, complete_information=False)
+        game = fixtures.negotiation_decision(round=40, max_rounds=99, complete_information=False, history=[])
         state_dict = game["game_state"]
         # Flip to the seller seat: we hold a cost, the buyer has lowballed us.
         state_dict.pop("player_2_value", None)
