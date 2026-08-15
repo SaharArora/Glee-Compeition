@@ -118,7 +118,52 @@ def _persuasion(last: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
-def reconstruct_live_episodes(observations: str | Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _negotiation_order(state: dict[str, Any], player: str) -> float | None:
+    explicit = _number(state.get("product_price_order"))
+    if explicit:
+        return explicit
+    own = _number(state.get(f"{player}_value"))
+    if own is None:
+        return None
+    candidates = [order for order in (100.0, 10_000.0, 1_000_000.0)
+                  if any(abs(own / order - value) < 1e-9 for value in (0.8, 1.0, 1.2, 1.5))]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _authoritative(last: dict[str, Any], terminal: dict[str, Any]) -> dict[str, Any]:
+    row = _base(last)
+    result = terminal.get("result") or {}
+    player = str(last.get("your_player") or "")
+    raw = _number(result.get(f"{player}_payoff"))
+    state = last.get("game_state") or {}
+    family = str(last.get("game_family") or "")
+    if raw is None:
+        row.update(basis="terminal_result_missing_player_payoff", missing_fields=[f"{player}_payoff"])
+        return row
+    if family == "bargaining":
+        denominator = _number(state.get("money_to_divide"))
+        basis = "server_result_money_normalized"
+    elif family == "persuasion":
+        price, rounds = _number(state.get("product_price")), _number(state.get("total_rounds"))
+        denominator = price * rounds if price and rounds else None
+        basis = "server_result_price_round_normalized"
+    elif family == "negotiation":
+        denominator = 1.0 if raw == 0 else _negotiation_order(state, player)
+        basis = "server_result_no_deal_zero" if raw == 0 else "server_result_discrete_order_normalized"
+    else:
+        denominator = None
+        basis = "unknown_family"
+    if not denominator:
+        row.update(basis="terminal_result_missing_normalizer", raw_payoff=raw,
+                   missing_fields=["payoff_normalizer"])
+        return row
+    value = raw / denominator
+    row.update(terminal_status="server_exact", basis=basis, raw_payoff=raw,
+               normalized_payoff=value, payoff_bounds=[value, value], missing_fields=[])
+    return row
+
+
+def reconstruct_live_episodes(observations: str | Path, move_results: str | Path | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     path = Path(observations)
     games: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -129,12 +174,20 @@ def reconstruct_live_episodes(observations: str | Path) -> tuple[list[dict[str, 
         if not game_id:
             raise ValueError(f"Observation line {line_no} has no game_id")
         games[str(game_id)].append(record)
+    terminal: dict[str, dict[str, Any]] = {}
+    if move_results is not None and Path(move_results).exists():
+        for line in Path(move_results).read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                record = json.loads(line)
+                if record.get("game_over") or record.get("result") is not None:
+                    terminal[str(record.get("game_id"))] = record
     handlers = {"bargaining": _bargaining, "negotiation": _negotiation, "persuasion": _persuasion}
     episodes = []
     for records in games.values():
         last = records[-1]
         handler = handlers.get(str(last.get("game_family")))
-        episodes.append(handler(last) if handler else _base(last))
+        episodes.append(_authoritative(last, terminal[str(last.get("game_id"))])
+                        if str(last.get("game_id")) in terminal else handler(last) if handler else _base(last))
     episodes.sort(key=lambda row: str(row["game_id"]))
 
     summary: dict[str, Any] = {"games": len(episodes), "families": {}}
@@ -161,9 +214,10 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python3 -m glee_eval live-episodes",
                                      description="Reconstruct auditable terminal episodes from offline live observations.")
     parser.add_argument("--observations", required=True)
+    parser.add_argument("--move-results", default=None)
     parser.add_argument("--output-dir", required=True)
     args = parser.parse_args(argv)
-    episodes, summary = reconstruct_live_episodes(args.observations)
+    episodes, summary = reconstruct_live_episodes(args.observations, args.move_results)
     output = Path(args.output_dir)
     output.mkdir(parents=True, exist_ok=True)
     (output / "episodes.jsonl").write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in episodes), encoding="utf-8")

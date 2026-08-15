@@ -77,6 +77,37 @@ class LiveEpisodeTests(unittest.TestCase):
         self.assertEqual(episodes[0]["missing_fields"], ["product_price_order"])
         self.assertEqual(summary["comparable_payoff_status"], "unavailable")
 
+    def test_authoritative_move_result_makes_opponent_ended_game_exact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            observations, results = Path(tmp) / "observations.jsonl", Path(tmp) / "move_results.jsonl"
+            observations.write_text(json.dumps(_row(
+                "b-terminal", "bargaining", "player_2", "offer",
+                {"round": 3, "money_to_divide": 100}, {"player_1_gain": 50, "player_2_gain": 50},
+            )) + "\n")
+            results.write_text(json.dumps({
+                "game_id": "b-terminal", "source": "game_state_backfill", "game_over": True,
+                "result": {"player_1_payoff": 60, "player_2_payoff": 40},
+            }) + "\n")
+            episodes, summary = reconstruct_live_episodes(observations, results)
+        self.assertEqual(episodes[0]["terminal_status"], "server_exact")
+        self.assertEqual(episodes[0]["normalized_payoff"], 0.4)
+        self.assertEqual(summary["comparable_payoff_status"], "available")
+
+    def test_authoritative_negotiation_result_uses_unique_discrete_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            observations, results = Path(tmp) / "observations.jsonl", Path(tmp) / "move_results.jsonl"
+            observations.write_text(json.dumps(_row(
+                "n-terminal", "negotiation", "player_1", "offer",
+                {"round": 1, "player_1_value": 12000}, {"product_price": 13000},
+            )) + "\n")
+            results.write_text(json.dumps({
+                "game_id": "n-terminal", "game_over": True,
+                "result": {"player_1_payoff": 1000, "player_2_payoff": 2000},
+            }) + "\n")
+            episodes, _ = reconstruct_live_episodes(observations, results)
+        self.assertEqual(episodes[0]["basis"], "server_result_discrete_order_normalized")
+        self.assertEqual(episodes[0]["normalized_payoff"], 0.1)
+
 
 if __name__ == "__main__":
     unittest.main()

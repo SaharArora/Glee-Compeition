@@ -3,6 +3,16 @@
 Append-only record. Do not delete old entries when later evidence changes the interpretation;
 append a correction and update `docs/REGISTRY.md` instead.
 
+## Treating SDK `max_games` as a strict total-game cap — rejected assumption
+
+- The authorized confirmation invoked `--max-games 12`, but the SDK stopped after 15 games
+  ending on our submitted move and the terminal capture found 31 distinct completed games.
+- The SDK counter does not count games ending on an opponent move, and concurrency can overshoot
+  even its own terminal-move count. Therefore `max_games` is not a safe expression of a strict
+  user-authorized total-game limit.
+- No further live games are authorized. Before any future run, the wrapper needs a strict cap
+  whose accounting includes opponent-ended games; merely reducing `max_games` is not a proof.
+
 ## Deriving complete live payoff from pre-action observations — rejected measurement
 
 - `reports/live/observations.jsonl` records strategy callbacks before our action. It contains

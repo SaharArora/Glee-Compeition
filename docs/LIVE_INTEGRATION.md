@@ -148,6 +148,7 @@ without inventing outcomes with:
 ```bash
 python3 -m glee_eval live-episodes \
   --observations reports/live/observations.jsonl \
+  --move-results reports/live/move_results.jsonl \
   --output-dir reports/live/episode_audit
 ```
 
@@ -184,6 +185,15 @@ such a response are read-only GET-backfilled into the same file. `run_summary.js
 direct/backfilled/error counts, and `launch_manifest.json` records whether the support index and
 other non-secret model paths were configured, plus file hashes. This capture is prospective and
 does not recover the existing observation file. It does not authorize a live run.
+
+The authorized confirmation run in `reports/live/confirmation_20260815` captured 31 distinct
+games: 15 terminal move responses and 16 successful GET backfills, with zero errors. All 31
+have authoritative terminal payoffs (100% reconstruction). Normalized family means were
+bargaining 0.383075 (n=11), negotiation 0.116996 (n=10), and persuasion 0.235000 (n=10), versus
+the section-4 offline predictions 0.4850, 0.0927, and 0.3993 respectively. The launch manifest
+records `GLEE_SUPPORT_INDEX` as not configured. The SDK/account counter advanced by 30 rated
+games (11/10/9), although 31 terminal game records were captured; preserve that discrepancy
+rather than silently dropping a terminal record.
 
 ### Real-server value visibility correction (50-game batch)
 

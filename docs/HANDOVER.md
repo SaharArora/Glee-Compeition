@@ -602,6 +602,15 @@ All from `runs/step5_final` (200 games, real configs, calibrated opponents) unle
 Overall shadow rating **1401.9**; agreement/sale rate **0.79**; probes **1000/1000** legal and
 parseable, format-failure rate 0.0.
 
+**Live confirmation, 15 August 2026.** An authorized terminal-capture run produced 31 complete
+game records (15 direct terminal move results plus 16 GET backfills; 100% terminal payoff
+coverage). The comparable normalized means were bargaining **0.383075** (n=11, −0.101925 vs
+offline), negotiation **0.116996** (n=10, +0.024296), and persuasion **0.235000** (n=10,
+−0.164300). These small live cells reflect live matchmaking rather than the fitted-population
+sampling target, so the differences are measurements, not causal policy regressions. The
+account counter advanced by 30 rated games while capture recorded 31 terminal games. Ending
+ratings were bargaining 1063.52, negotiation 1028.02, and persuasion 1072.86.
+
 ### Bargaining — strongest
 
 - Tournament payoff **+0.4850**, 95% CI [+0.4794, +0.4906], n=69, median +0.5000
