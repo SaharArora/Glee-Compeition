@@ -89,6 +89,63 @@ verdict is recorded as failing rather than quietly re-run until it passes:
    blocks the change outright, defect or not.
 3. The mechanism behind the regressing subgroups is identified and filed as follow-up work.
 
+## Amendment: branch-conditional minimum effect for construction defects
+
+Adopted 15 August 2026, before applying it to any pending candidate. This amendment changes
+only how `minimum_effect` is evaluated for a narrowly eligible construction defect. It does
+not weaken the ordinary gate for policy choices, empirically diagnosed patterns, predictors,
+calibration changes, or changes whose justification is merely that many paired episodes tie.
+
+### Eligibility
+
+A candidate is eligible only when all of these are written in `docs/REGISTRY.md` before the
+conditional evaluation runs:
+
+1. The baseline defect has an arithmetic or logical proof from the implementation itself: for
+   a stated pre-change input, the old construction violates an explicit invariant regardless
+   of sampled opponent behavior. An observed statistical pattern, live symptom, regression,
+   calibration gap, or fitted empirical constant is not sufficient.
+2. The branch predicate is defined entirely from the baseline's pre-decision state and is
+   evaluated identically for both paired arms. It may not depend on the candidate action,
+   terminal payoff, paired difference, or whether the two arms happened to diverge. Filtering
+   to nonzero differences is expressly forbidden.
+3. The fix is the smallest change that restores the proved invariant. A bundle containing
+   unrelated policy choices is ineligible even when one member qualifies.
+4. The ordinary paired evaluation used a structural holdout and passed `significance`,
+   `downside_p5`, subgroup concentration, and subgroup breadth. Only an ordinary
+   `minimum_effect` failure may be replaced by the conditional check.
+
+### Conditional checks
+
+The full-population verdict remains recorded as a failure. On the prospectively defined
+branch-conditional pairs, every check below must pass:
+
+| Check | Threshold |
+|---|---:|
+| `conditional_sample_size` | at least 30 paired branch-reaching episodes |
+| `conditional_minimum_effect` | paired mean payoff at least +0.0100 |
+| `conditional_significance` | paired t at least +1.96 |
+| `conditional_losses` | exactly 0 candidate losses |
+| `conditional_regressing_subgroups` | exactly 0 across opponent-archetype and config-regime subgroups with conditional observations |
+
+"Effectively zero losses" therefore means zero in the declared conditional sample, not a
+rounded rate or confidence-bound interpretation. A subgroup regresses if its conditional mean
+paired difference is below zero; empty subgroups are reported as unobserved and do not count as
+passing evidence. The ordinary downside and structural-holdout checks continue to apply.
+
+### Promotion status and confirmation
+
+Clearing the conditional checks changes the candidate from `candidate` to `gate-passed`; it
+does not ship it. The independent-sample confirmation rule in `docs/HANDOVER.md` §0.9 still
+applies. Before confirmation, record a different seed, sample size, the same immutable branch
+predicate, and the shipping condition in `docs/REGISTRY.md`. The confirmation must clear both
+the ordinary non-effect checks and every conditional check above. Only then may the candidate
+become `confirmed` and have its default flipped in a separate shipping commit.
+
+If either run has one conditional loss, one regressing conditional subgroup, an insufficient
+conditional sample, or a conditional effect below +0.0100, the candidate remains rejected.
+The predicate and thresholds may not be narrowed after seeing the result.
+
 ### Invoked once so far
 
 **Persuasion transcript-accessor fix.** The buy rule read the round quality from a key that
