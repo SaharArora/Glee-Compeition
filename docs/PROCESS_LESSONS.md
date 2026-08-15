@@ -42,3 +42,6 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
 - Adversarially match or stratify observational cohorts before attributing an aggregate gap to
   a mechanism; include a constructed Simpson-reversal test so config mix cannot silently set
   the sign.
+- Even a matched one-step observational association can reverse under trajectory simulation;
+  changing an action changes later information and behavior, so only the paired episode gate
+  can establish policy value.

@@ -27,6 +27,22 @@ append a correction and update `docs/REGISTRY.md` instead.
   regressions. Do not rerun this global map with another seed, and do not treat predictive
   calibration success as payoff promotion evidence.
 
+## Deceptive-seller lower-confidence guard — rejected
+
+- Tried: for persistent buyers after at least one visible prior yes-on-low lie, replace the raw
+  purchase posterior with a one-standard-deviation lower bound. The rule was default-off,
+  isolated from Platt recalibration and exploration, and declared before its payoff run.
+- Pre-gate evidence: exact-stratum observational contrasts on both structural holdouts showed
+  overconfidence and worse one-step realized purchase surplus after prior lies, with 18.9-19.4%
+  conservative effective reach. This established a measurable association, not a trajectory
+  effect.
+- Exact payoff failure: seed 161803, paired structural holdout n=1600, effect -0.0052,
+  t=-5.40, 9W/61L/1530T. It failed `minimum_effect`, significance, archetype breadth 0.9375,
+  and config breadth 0.5000. Every persistent regime lost; myopic regimes were unchanged.
+- Materially new retry: must explain the reversal between one-step observational association
+  and simulated trajectory payoff, rather than tuning the confidence multiplier or rerunning a
+  new seed. The same blocking mechanism is not eligible for another gate.
+
 ## Negotiation time concession — rejected
 
 - Tried: Boulware time-dependent concession in place of the mostly round-independent offer.
