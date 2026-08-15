@@ -104,8 +104,11 @@ that action vocabularies and scalar mappings agree, but the input fixtures are i
 - Older claims that live persuasion has no per-round history, or that buyer knowledge of `p`
   is optional, are stale under the current documentation.
 
-The adapter is therefore only **partially docs-verified** and remains unverified against the
-server. Two consequences:
+The mismatch was repaired immediately after the audit: all seven fixtures now carry documented
+history, persuasion fixtures carry `current_player`, contracts validate both, and the adapter
+consumes family-specific history while retaining `last_offer`/totals compatibility fallbacks.
+The adapter is now **docs-verified** but remains unverified against the real server. Two
+consequences:
 
 - The adapter can be tested through the SDK's real `_handle_game` only when the SDK is installed,
   and still only against our fixtures. A field the live server describes differently would pass
