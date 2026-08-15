@@ -129,6 +129,11 @@ for line in open('reports/live/observations.jsonl'):
 "
 ```
 
+Repository `--max-games` is a strict count of unique game IDs. It uses bounded matchmaking
+waves (at most one queued game per selected family), drains every accepted game, and does not
+use the upstream SDK's terminal-move-only counter. With all three families, a multiple of three
+gives an exactly balanced batch. Do not bypass this wrapper with `GleeClient.run(max_games=...)`.
+
 Anything other than `ok` in that `status` column on an expressly authorized real game is a
 schema mismatch to fix before scaling up. This documentation does not authorize such a game.
 

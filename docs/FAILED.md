@@ -12,6 +12,9 @@ append a correction and update `docs/REGISTRY.md` instead.
   user-authorized total-game limit.
 - No further live games are authorized. Before any future run, the wrapper needs a strict cap
   whose accounting includes opponent-ended games; merely reducing `max_games` is not a proof.
+- Correction: the repository wrapper now uses bounded one-game-per-family waves, counts unique
+  IDs, and drains each wave before queueing the next. A focused test proves an eight-game cap
+  queues exactly eight balanced/rotating games. The upstream SDK assumption remains rejected.
 
 ## Deriving complete live payoff from pre-action observations — rejected measurement
 

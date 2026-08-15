@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from glee_eval.live.run import capturing_client_class, play
+from glee_eval.live.run import _run_strict, capturing_client_class, play
 
 
 class _FakeClient:
@@ -30,6 +30,12 @@ class _FakeClient:
 
     def game_state(self, game_id: str):
         return self.states.get(game_id, {"game_over": False})
+
+    def _leave_queue_quietly(self):
+        return None
+
+    def queue(self, family):
+        return {"status": "queued", "game_family": family}
 
 
 class MoveResultCaptureTests(unittest.TestCase):
@@ -66,7 +72,7 @@ class MoveResultCaptureTests(unittest.TestCase):
                 output_dir=tmp,
                 client_class=_FakeClient,
                 api_key="test-key",
-                max_games=1,
+                max_time=1,
             )
 
             rows = [json.loads(line) for line in (Path(tmp) / "move_results.jsonl").read_text().splitlines()]
@@ -85,7 +91,7 @@ class MoveResultCaptureTests(unittest.TestCase):
             _FakeClient.responses = [{"valid": True, "game_over": True, "result": {"payoff": 0.5}}]
             with patch.dict(os.environ, {"GLEE_SUPPORT_INDEX": str(support)}, clear=False):
                 play("my_agents.jordan_strategic:MyAgent", output_dir=tmp,
-                     client_class=_FakeClient, api_key="test-key", max_games=1)
+                     client_class=_FakeClient, api_key="test-key", max_time=1)
             setting = json.loads((Path(tmp) / "launch_manifest.json").read_text())["environment"]["GLEE_SUPPORT_INDEX"]
             self.assertTrue(setting["configured"])
             self.assertTrue(setting["exists"])
@@ -100,7 +106,7 @@ class MoveResultCaptureTests(unittest.TestCase):
                     return {"game_over": True, "result": {"payoff": 0.75}}
 
             summary = play("my_agents.jordan_strategic:MyAgent", output_dir=tmp,
-                           client_class=OpponentEndedClient, api_key="test-key", max_games=1)
+                           client_class=OpponentEndedClient, api_key="test-key", max_time=1)
             rows = [json.loads(line) for line in (Path(tmp) / "move_results.jsonl").read_text().splitlines()]
             self.assertEqual(rows[-1]["source"], "game_state_backfill")
             self.assertEqual(rows[-1]["result"]["payoff"], 0.75)
@@ -113,6 +119,41 @@ class MoveResultCaptureTests(unittest.TestCase):
         )
 
         self.assertEqual(client.move("g", {}), {"valid": True, "game_over": False})
+
+    def test_strict_runner_queues_exact_balanced_unique_game_count(self) -> None:
+        class StrictFake:
+            def __init__(self):
+                self._seen_game_ids = set()
+                self.queued = []
+                self.pending = []
+                self.next_id = 0
+
+            def _leave_queue_quietly(self):
+                return None
+
+            def queue(self, family):
+                self.next_id += 1
+                game = {"game_id": f"g{self.next_id}", "game_family": family}
+                self.pending.append(game)
+                self.queued.append(family)
+
+            def pending_games(self):
+                games, self.pending = self.pending, []
+                return games
+
+            def _handle_game(self, strategy, game):
+                self._seen_game_ids.add(game["game_id"])
+                return True
+
+            def stats(self):
+                return {"active_games": 0}
+
+        client = StrictFake()
+        _run_strict(client, lambda game: {}, families=["bargaining", "negotiation", "persuasion"],
+                    max_games=8, poll_interval=0, concurrency=6)
+        self.assertEqual(len(client._seen_game_ids), 8)
+        self.assertEqual(client.queued, ["bargaining", "negotiation", "persuasion"] * 2
+                         + ["bargaining", "negotiation"])
 
 
 if __name__ == "__main__":

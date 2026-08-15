@@ -15,6 +15,8 @@ import logging
 import os
 import sys
 import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypeVar
@@ -162,6 +164,62 @@ def dry_run(agent_spec: str, *, output_dir: str | Path = "reports/live", repeats
     return summary
 
 
+def _run_strict(client: Any, strategy: Any, *, families: list[str], max_games: int,
+                poll_interval: float, concurrency: int) -> None:
+    """Play exactly ``max_games`` unique games in bounded matchmaking waves.
+
+    The upstream SDK's counter only sees games ended by our own move. One queue
+    entry per family creates at most one new game, so waves of distinct families
+    provide a hard upper bound while still draining every accepted game.
+    """
+
+    if max_games < 1:
+        raise ValueError("max_games must be >= 1")
+    if not families:
+        raise ValueError("at least one game family is required")
+    client._leave_queue_quietly()
+    completed = 0
+    family_cursor = 0
+    try:
+        while completed < max_games:
+            wave_size = min(len(families), max_games - completed)
+            wave_families = [families[(family_cursor + offset) % len(families)] for offset in range(wave_size)]
+            family_cursor = (family_cursor + wave_size) % len(families)
+            before = set(client._seen_game_ids)
+            for family in wave_families:
+                client.queue(family)
+            logging.getLogger("glee_sdk").info(
+                "Strict wave queued (%s/%s complete): %s", completed, max_games, wave_families
+            )
+            last_stats = 0.0
+            active = None
+            while True:
+                games = client.pending_games()
+                if games:
+                    with ThreadPoolExecutor(max_workers=min(concurrency, len(games))) as pool:
+                        futures = [pool.submit(client._handle_game, strategy, game) for game in games]
+                        for future in as_completed(futures):
+                            future.result()
+                seen = set(client._seen_game_ids) - before
+                now = time.monotonic()
+                if len(seen) >= wave_size and (active is None or now - last_stats >= max(5.0, poll_interval * 2)):
+                    active = int(client.stats().get("active_games") or 0)
+                    last_stats = now
+                if len(seen) == wave_size and active == 0:
+                    completed += wave_size
+                    logging.getLogger("glee_sdk").info(
+                        "Strict wave drained; unique games completed: %s/%s", completed, max_games
+                    )
+                    break
+                if len(seen) > wave_size:
+                    raise RuntimeError(
+                        f"Strict game cap violated inside wave: expected {wave_size}, observed {len(seen)}"
+                    )
+                time.sleep(poll_interval)
+    finally:
+        client._leave_queue_quietly()
+
+
 def play(
     agent_spec: str,
     *,
@@ -197,15 +255,21 @@ def play(
     client = CapturingClient(api_key=api_key, move_result_log=out / "move_results.jsonl")
     logging.getLogger("glee_sdk").setLevel(logging.INFO)
 
+    selected_families = families or ["bargaining", "negotiation", "persuasion"]
     try:
-        client.run(
-            strategy,
-            game_families=families,
-            concurrency=concurrency,
-            max_games=max_games,
-            max_time=max_time,
-            poll_interval=poll_interval,
-        )
+        if max_games is not None:
+            if max_time is not None:
+                raise ValueError("strict --max-games cannot be combined with --max-time")
+            _run_strict(client, strategy, families=selected_families, max_games=max_games,
+                        poll_interval=poll_interval, concurrency=concurrency)
+        else:
+            client.run(
+                strategy,
+                game_families=selected_families,
+                concurrency=concurrency,
+                max_time=max_time,
+                poll_interval=poll_interval,
+            )
     finally:
         # Written even on Ctrl+C, since that is a normal way to stop a long run.
         client.backfill_terminal_results()
