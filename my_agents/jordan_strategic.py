@@ -32,6 +32,13 @@ from glee_eval.theory.benchmarks import (
 # pot they would have split.
 BARGAINING_FAIRNESS_FLOOR = 0.50
 
+# Model-FIT coefficients declared before the acting candidate was implemented.
+# Predictive evaluation passed on both untouched structural holdouts, but that is
+# not payoff evidence, so the policy surface using them remains default-off.
+PERSUASION_PLATT_INTERCEPT = 0.3651090145
+PERSUASION_PLATT_SLOPE = 1.1369808568
+PERSUASION_PLATT_EPSILON = 1e-6
+
 
 class StrategicMode(str, Enum):
     SAFE = "SAFE"
@@ -91,6 +98,7 @@ class JordanStrategicAgent(CandidateAgent):
         use_theory_anchor: bool = True,
         message_mode: str = "shadow",
         persuasion_explore: bool = False,
+        use_persuasion_platt: bool = False,
         max_exploration_loss: float = 0.45,
         use_time_concession: bool = False,
         concession_convexity: float = 2.5,
@@ -151,6 +159,11 @@ class JordanStrategicAgent(CandidateAgent):
         # argument is not something the gate can test, so the flag stays available
         # and off rather than the reasoning being deleted.
         self.persuasion_explore = persuasion_explore
+        # Apply the single preregistered model-FIT Platt map at the buyer's
+        # post-yes purchase boundary. OFF until payoff promotion and an
+        # independently declared confirmation both clear; predictive calibration
+        # success alone cannot flip a policy default.
+        self.use_persuasion_platt = use_persuasion_platt
         # Never explore when a single buy would cost more than this in price units.
         self.max_exploration_loss = max_exploration_loss
         # Concede over time in negotiation instead of repeating one price forever.
@@ -908,6 +921,7 @@ class JordanStrategicAgent(CandidateAgent):
                 prior_weight = 4.0
                 posterior_quality_given_yes = (market_high + prior_weight * p) / (market_sold + prior_weight)
         base_ev = p * (v - 1.0) + (1.0 - p) * (c - 1.0)
+        raw_posterior = self._clip(posterior_quality_given_yes, 0.0, 1.0)
         return {
             "base_quality_prob": self._clip(p, 0.0, 1.0),
             "high_value": v,
@@ -916,7 +930,12 @@ class JordanStrategicAgent(CandidateAgent):
             "seller_honesty": honesty,
             "yes_given_high": self._clip(yes_given_high, 0.0, 1.0),
             "yes_given_low": self._clip(yes_given_low, 0.0, 1.0),
-            "posterior_quality_given_yes": self._clip(posterior_quality_given_yes, 0.0, 1.0),
+            # Keep the production diagnostic stable and make both raw and
+            # candidate values explicit. The acting flag is consulted only after
+            # a yes recommendation in `_persuasion_buy_decision`.
+            "posterior_quality_given_yes": raw_posterior,
+            "posterior_quality_given_yes_raw": raw_posterior,
+            "posterior_quality_given_yes_platt": self._persuasion_platt_probability(raw_posterior),
             "receiver_obedience": obedience,
             "receiver_skepticism": 1.0 - obedience,
             # Kept separate on purpose. `transcript_observations` is the channel a
@@ -1055,6 +1074,14 @@ class JordanStrategicAgent(CandidateAgent):
         posterior_quality = control.beliefs.get("posterior_quality_given_yes")
         if posterior_quality is None:
             posterior_quality = 0.66 if control.beliefs.get("seller_honesty", 0.5) >= 0.60 else control.beliefs.get("base_quality_prob", 0.5)
+        raw_posterior = self._clip(posterior_quality, 0.0, 1.0)
+        posterior_quality = (
+            self._persuasion_platt_probability(raw_posterior)
+            if self.use_persuasion_platt
+            else raw_posterior
+        )
+        control.beliefs["posterior_quality_used_for_buy"] = posterior_quality
+        control.beliefs["persuasion_platt_applied"] = 1.0 if self.use_persuasion_platt else 0.0
         if high_value <= low_value:
             return "no"
         break_even_quality = self._clip((1.0 - low_value) / (high_value - low_value), 0.0, 1.0)
@@ -1069,6 +1096,19 @@ class JordanStrategicAgent(CandidateAgent):
             return "yes"
         self._last_exploration = None
         return "no"
+
+    @staticmethod
+    def _persuasion_platt_probability(raw_probability: float) -> float:
+        probability = min(max(float(raw_probability), PERSUASION_PLATT_EPSILON), 1.0 - PERSUASION_PLATT_EPSILON)
+        logit = math.log(probability / (1.0 - probability))
+        score = PERSUASION_PLATT_INTERCEPT + PERSUASION_PLATT_SLOPE * logit
+        if score >= 0.0:
+            z = math.exp(-score)
+            calibrated = 1.0 / (1.0 + z)
+        else:
+            z = math.exp(score)
+            calibrated = z / (1.0 + z)
+        return min(max(calibrated, PERSUASION_PLATT_EPSILON), 1.0 - PERSUASION_PLATT_EPSILON)
 
     def _persuasion_message(self, control: StrategicControl, decision: str, quality: str) -> str:
         if decision == "yes":

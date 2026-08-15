@@ -328,3 +328,70 @@ class ColdStartExplorationTests(unittest.TestCase):
         control = agent._control(state, beliefs, agent._persuasion_evidence(state, beliefs), "persuasion")
 
         self.assertIsNone(agent._persuasion_explore_buy(state, control))
+
+
+class PersuasionPlattCandidateTests(unittest.TestCase):
+    """Predictively successful, but default-off pending the payoff gate."""
+
+    @staticmethod
+    def _state(recommendation="yes"):
+        return SimpleNamespace(
+            role="buyer", round=1, horizon=20, game_family="persuasion",
+            public_parameters={"p": 0.5, "v": 1.5, "c": 0.0, "product_price": 100, "total_rounds": 20},
+            private_parameters={}, valid_action_schema={"kind": "buy_decision"},
+            visible_transcript=[{
+                "round": 1, "role": "seller", "action_type": "recommendation", "buy_no_buy": recommendation,
+            }],
+            metadata={}, game_id="g", scenario_id="s",
+        )
+
+    @staticmethod
+    def _control(agent, state):
+        beliefs = agent._persuasion_beliefs(state)
+        return agent._control(state, beliefs, agent._persuasion_evidence(state, beliefs), "persuasion")
+
+    def test_candidate_is_off_by_default(self) -> None:
+        self.assertFalse(MyAgent(seed=1).use_persuasion_platt)
+
+    def test_raw_posterior_is_retained_when_candidate_is_enabled(self) -> None:
+        state = self._state()
+        baseline = MyAgent(seed=1)
+        candidate = MyAgent(seed=1, use_persuasion_platt=True)
+        baseline_beliefs = baseline._persuasion_beliefs(state)
+        candidate_beliefs = candidate._persuasion_beliefs(state)
+
+        self.assertEqual(
+            candidate_beliefs["posterior_quality_given_yes_raw"],
+            baseline_beliefs["posterior_quality_given_yes"],
+        )
+        self.assertEqual(
+            candidate_beliefs["posterior_quality_given_yes"],
+            baseline_beliefs["posterior_quality_given_yes"],
+        )
+        self.assertGreater(
+            candidate_beliefs["posterior_quality_given_yes_platt"],
+            candidate_beliefs["posterior_quality_given_yes_raw"],
+        )
+
+    def test_candidate_changes_only_the_post_yes_buy_probability(self) -> None:
+        state = self._state("yes")
+        baseline = MyAgent(seed=1)
+        candidate = MyAgent(seed=1, use_persuasion_platt=True)
+        baseline_control = self._control(baseline, state)
+        candidate_control = self._control(candidate, state)
+
+        self.assertEqual(baseline._persuasion_buy_decision(state, baseline_control), "no")
+        self.assertEqual(candidate._persuasion_buy_decision(state, candidate_control), "yes")
+        self.assertEqual(candidate_control.beliefs["persuasion_platt_applied"], 1.0)
+        self.assertEqual(
+            candidate_control.beliefs["posterior_quality_given_yes_raw"],
+            baseline_control.beliefs["posterior_quality_given_yes_raw"],
+        )
+
+    def test_no_recommendation_still_declines_without_applying_candidate(self) -> None:
+        state = self._state("no")
+        candidate = MyAgent(seed=1, use_persuasion_platt=True)
+        control = self._control(candidate, state)
+
+        self.assertEqual(candidate._persuasion_buy_decision(state, control), "no")
+        self.assertNotIn("persuasion_platt_applied", control.beliefs)
