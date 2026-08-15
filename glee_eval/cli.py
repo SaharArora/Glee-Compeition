@@ -15,6 +15,7 @@ from glee_eval.diagnostics.schema_check import main as schema_check_main
 from glee_eval.experiments.ab import main as promotion_check_main
 from glee_eval.experiments.run import main as experiment_main
 from glee_eval.live.run import main as live_main
+from glee_eval.live.episodes import main as live_episodes_main
 from glee_eval.population.calibration import main as calibrate_main
 from glee_eval.population.config_catalogue import main as config_catalogue_main
 from glee_eval.population.opponent_fit import main as fit_opponents_main
@@ -43,6 +44,7 @@ def main(argv: list[str] | None = None) -> None:
         "config-catalogue",
         "promotion-check",
         "live",
+        "live-episodes",
         "search-failures",
         "shadow-score",
         "negotiation-diagnostic",
@@ -84,6 +86,8 @@ def main(argv: list[str] | None = None) -> None:
         promotion_check_main(rest)
     elif args.command == "live":
         live_main(rest)
+    elif args.command == "live-episodes":
+        live_episodes_main(rest)
     elif args.command == "search-failures":
         search_main(rest)
     elif args.command == "shadow-score":

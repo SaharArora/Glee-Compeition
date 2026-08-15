@@ -13,12 +13,67 @@ import json
 import logging
 import os
 import sys
+import threading
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from glee_eval.live.fixtures import sample_games
 from glee_eval.live.strategy import build_strategy
 from glee_eval.storage.trajectories import ensure_dir, write_json
+
+ClientT = TypeVar("ClientT")
+
+
+def capturing_client_class(base: type[ClientT]) -> type[ClientT]:
+    """Add best-effort JSONL capture around a client's real ``move`` call.
+
+    The SDK decides whether a game ended inside ``_handle_game`` from the mapping
+    returned by ``move``.  Overriding that exact boundary records the same result
+    without duplicating or replacing any SDK run-loop logic.
+    """
+
+    class MoveResultCapturingClient(base):  # type: ignore[misc, valid-type]
+        def __init__(self, *args: Any, move_result_log: str | Path | None = None, **kwargs: Any):
+            super().__init__(*args, **kwargs)
+            self.move_result_log = Path(move_result_log) if move_result_log else None
+            self._move_result_lock = threading.Lock()
+            self.move_result_counters = {"moves": 0, "terminal_results": 0, "log_errors": 0}
+            if self.move_result_log:
+                try:
+                    self.move_result_log.parent.mkdir(parents=True, exist_ok=True)
+                except Exception:  # noqa: BLE001 - result capture must never block a move
+                    logging.getLogger("glee_eval.live").exception(
+                        "Cannot create %s; continuing without move-result capture", self.move_result_log
+                    )
+                    self.move_result_log = None
+
+        def move(self, game_id: str, action: dict[str, Any]) -> dict[str, Any]:
+            response = super().move(game_id, action)
+            record = {
+                "captured_at": datetime.now(timezone.utc).isoformat(),
+                "game_id": game_id,
+                "game_over": bool(response.get("game_over")) if isinstance(response, dict) else None,
+                "result": response.get("result") if isinstance(response, dict) else None,
+                "move_result": response,
+            }
+            with self._move_result_lock:
+                self.move_result_counters["moves"] += 1
+                if record["game_over"]:
+                    self.move_result_counters["terminal_results"] += 1
+                if self.move_result_log:
+                    try:
+                        with self.move_result_log.open("a", encoding="utf-8") as handle:
+                            handle.write(json.dumps(record, default=str, sort_keys=True) + "\n")
+                    except Exception:  # noqa: BLE001 - logging must never change SDK behavior
+                        self.move_result_counters["log_errors"] += 1
+                        logging.getLogger("glee_eval.live").exception(
+                            "Could not append move result for game %s", game_id
+                        )
+            return response
+
+    MoveResultCapturingClient.__name__ = f"MoveResultCapturing{base.__name__}"
+    return MoveResultCapturingClient
 
 
 def dry_run(agent_spec: str, *, output_dir: str | Path = "reports/live", repeats: int = 1) -> dict[str, Any]:
@@ -51,15 +106,19 @@ def play(
     max_time: float | None = None,
     poll_interval: float = 2.0,
     output_dir: str | Path = "reports/live",
+    client_class: type[Any] | None = None,
+    api_key: str | None = None,
 ) -> dict[str, Any]:
     """Queue and play live games. Requires GLEE_API_KEY in the environment."""
 
-    try:
-        from glee_sdk import GleeClient
-    except ImportError as exc:  # pragma: no cover - depends on the local env
-        raise SystemExit("glee-sdk is not installed. Run: python3 -m pip install glee-sdk") from exc
+    if client_class is None:
+        try:
+            from glee_sdk import GleeClient
+        except ImportError as exc:  # pragma: no cover - depends on the local env
+            raise SystemExit("glee-sdk is not installed. Run: python3 -m pip install glee-sdk") from exc
+        client_class = GleeClient
 
-    api_key = os.getenv("GLEE_API_KEY")
+    api_key = api_key or os.getenv("GLEE_API_KEY")
     if not api_key:
         raise SystemExit(
             "GLEE_API_KEY is not set. Create an agent at https://glee-competition.com, "
@@ -68,7 +127,8 @@ def play(
 
     out = ensure_dir(output_dir)
     strategy = build_strategy(agent_spec, observation_log=out / "observations.jsonl")
-    client = GleeClient(api_key=api_key)
+    CapturingClient = capturing_client_class(client_class)
+    client = CapturingClient(api_key=api_key, move_result_log=out / "move_results.jsonl")
     logging.getLogger("glee_sdk").setLevel(logging.INFO)
 
     try:
@@ -87,6 +147,11 @@ def play(
             summary["stats"] = client.stats()
         except Exception as exc:  # noqa: BLE001
             summary["stats_error"] = str(exc)
+        summary["move_result_capture"] = dict(client.move_result_counters)
+        summary["move_result_coverage_note"] = (
+            "Captures terminal results returned by moves we submit. Games that end on an "
+            "opponent move do not cross this boundary and still require GET/backfill."
+        )
         write_json(out / "run_summary.json", summary)
         print(json.dumps(summary, indent=2, sort_keys=True))
     return summary

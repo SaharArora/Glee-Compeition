@@ -3,6 +3,20 @@
 Append-only record. Do not delete old entries when later evidence changes the interpretation;
 append a correction and update `docs/REGISTRY.md` instead.
 
+## Deriving complete live payoff from pre-action observations — rejected measurement
+
+- `reports/live/observations.jsonl` records strategy callbacks before our action. It contains
+  1,423 turns and 109 game IDs, but no authoritative `game_over`, result, or terminal payoff.
+- A conservative reconstruction recovers 47 terminal economic outcomes and leaves 62
+  indeterminate because the opponent's terminal response or the current persuasion quality is
+  never followed by another callback. Only 40 have the exact local normalization inputs.
+- Computing family means from the reconstructible subset is rejected: terminal-mover selection
+  makes that subset non-comparable to the unconditional offline means in HANDOVER section 4.
+  Coercing indeterminate games to zero is also rejected.
+- Fix: `live-episodes` emits explicit reconstructed/indeterminate audit rows, and future runs
+  capture SDK move responses. Exact historical comparison still requires an authoritative
+  terminal-result GET/export, especially for games ending on an opponent move.
+
 ## Unconditional live persuasion `u/v` requirement — rejected contract
 
 - The docs-derived contract required buyer utility values on every persuasion turn. Fifty real

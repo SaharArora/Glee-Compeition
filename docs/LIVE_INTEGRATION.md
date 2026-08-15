@@ -142,7 +142,18 @@ python3 -m glee_eval stats --observations reports/live/observations.jsonl
 
 `shadow-score` deliberately does not accept this turn log. Official-style percentiles require
 terminal candidate payoff, scenario/configuration, and reference episodes; the observation log
-contains pre-action turn payloads and omits terminal outcomes. Use an episode summary instead:
+contains pre-action turn payloads and omits terminal outcomes. Audit what can be reconstructed
+without inventing outcomes with:
+
+```bash
+python3 -m glee_eval live-episodes \
+  --observations reports/live/observations.jsonl \
+  --output-dir reports/live/episode_audit
+```
+
+This writes one audit row per game plus a summary. Rows whose opponent acted after our final
+callback remain `indeterminate`; they are never coerced to zero or silently excluded from a
+family mean. Only a complete terminal episode export can be passed to `shadow-score`:
 
 ```bash
 python3 -m glee_eval shadow-score \
@@ -152,6 +163,25 @@ python3 -m glee_eval shadow-score \
 
 Both `python3 -m glee_eval stats --help` and
 `python3 -m glee_eval shadow-score --help` now show their command-specific options.
+
+The historical `schema_violation` totals reported by `stats` are intentionally unchanged after
+a contract fix: the observation log is an append-only record of what the adapter reported at
+the time. Replaying raw payloads against the current contract is a separate validation step.
+
+### Terminal-result coverage
+
+The first observation file contains 1,423 turns from 109 game IDs, not a self-contained
+50-game terminal batch. It has no authoritative terminal-result or payoff fields. Conservative
+reconstruction finds bargaining 15 reconstructed / 21 indeterminate, negotiation 13 / 23,
+and persuasion 19 / 18; seven reconstructed negotiation acceptances also lack the normalization
+order. Consequently no unbiased family payoff mean, HANDOVER section 4 divergence, or
+official-style shadow rating can be computed from this file. Averaging only reconstructible
+games would select on which player made the terminal move.
+
+Future live runs capture every SDK `move` response in `reports/live/move_results.jsonl`, including
+the complete terminal result when our submitted move ends the game. Games ending on an opponent
+move still require an authoritative server GET/export backfill. This capture is prospective and
+does not recover the existing observation file. It does not authorize a live run.
 
 ### Real-server value visibility correction (50-game batch)
 
