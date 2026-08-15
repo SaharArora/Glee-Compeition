@@ -139,11 +139,13 @@ def build_reference_tables(games_path: str | Path) -> dict[str, list[float]]:
         family = str(game.get("game_family") or "")
         config = game.get("configuration") or {}
         for role, payoff in _role_payoffs(game):
-            for _, key in _bucket_keys(family, role, config):
+            keys = _bucket_keys(family, role, config)
+            for _, key in keys:
                 buckets[key].append(float(payoff))
             zone = _negotiation_trade_zone(family, config)
             if zone is not None:
-                buckets[f"trade_zone|{family}|{role}|{zone}"].append(float(payoff))
+                for _, key in keys:
+                    buckets[f"{key}|trade_zone:{zone}"].append(float(payoff))
     return {key: sorted(values) for key, values in buckets.items()}
 
 
@@ -178,6 +180,30 @@ def _choose_bucket(
     return fallback
 
 
+def _choose_trade_zone_bucket(
+    reference: dict[str, list[float]],
+    family: str,
+    role: str,
+    config_or_args: Any,
+    zone: str | None,
+    *,
+    min_reference: int,
+) -> BucketChoice | None:
+    if zone is None:
+        return None
+    fallback: BucketChoice | None = None
+    for level, base_key in _bucket_keys(family, role, config_or_args):
+        key = f"{base_key}|trade_zone:{zone}"
+        support = len(reference.get(key, []))
+        if support <= 0:
+            continue
+        if fallback is None:
+            fallback = BucketChoice(level=level, key=key, support=support)
+        if support >= min_reference:
+            return BucketChoice(level=level, key=key, support=support)
+    return fallback
+
+
 def _stratification_warning(family: str, rows: list[dict]) -> dict | None:
     """Flag when a family's percentile pools structurally different sub-populations.
 
@@ -199,7 +225,8 @@ def _stratification_warning(family: str, rows: list[dict]) -> dict | None:
     zones: dict[str, list[dict]] = defaultdict(list)
     for row in rows:
         zone = row.get("trade_zone")
-        if zone is None or row.get("trade_zone_stratified_percentile") is None:
+        if (zone is None or row.get("trade_zone_stratified_percentile") is None
+                or abs(float(row["trade_zone_stratified_percentile"]) - float(row["percentile"])) < 1e-12):
             continue
         zones[str(zone)].append(row)
     if len(zones) < 2:
@@ -282,8 +309,10 @@ def score_episodes(
         family, role, config, payoff, simulation_trigger = fields
         choice = _choose_bucket(reference, family, role, config, min_reference=min_reference)
         trade_zone = _negotiation_trade_zone(family, config)
-        trade_zone_key = f"trade_zone|{family}|{role}|{trade_zone}" if trade_zone else None
-        trade_zone_values = reference.get(trade_zone_key, []) if trade_zone_key else []
+        trade_zone_choice = _choose_trade_zone_bucket(
+            reference, family, role, config, trade_zone, min_reference=min_reference
+        )
+        trade_zone_values = reference.get(trade_zone_choice.key, []) if trade_zone_choice else []
         trade_zone_percentile = percentile_rank(trade_zone_values, payoff) if trade_zone_values else None
         percentile = None
         rating = None
@@ -305,11 +334,11 @@ def score_episodes(
                 "family": family,
                 "role": role,
                 "candidate_payoff": payoff,
-                "config": config,
                 "percentile": percentile,
                 "trade_zone": trade_zone,
                 "trade_zone_stratified_percentile": trade_zone_percentile,
                 "trade_zone_reference_support": len(trade_zone_values),
+                "trade_zone_bucket_level": trade_zone_choice.level if trade_zone_choice else None,
                 "game_rating": rating,
                 "eta": eta,
                 "raw_family_rating_after": next_raw,
@@ -338,6 +367,11 @@ def score_episodes(
                 [float(row["trade_zone_stratified_percentile"]) for row in rows
                  if row.get("trade_zone_stratified_percentile") is not None]
             ) if any(row.get("trade_zone_stratified_percentile") is not None for row in rows) else None,
+            "low_support_trade_zone_games": sum(
+                1 for row in rows
+                if row.get("trade_zone_stratified_percentile") is not None
+                and int(row.get("trade_zone_reference_support") or 0) < min_reference
+            ),
             "bucket_levels": dict(levels),
             "low_support_games": sum(1 for row in rows if int(row.get("bucket_support") or 0) < min_reference),
             "percentile_stratification_warning": _stratification_warning(family, rows),
@@ -345,7 +379,7 @@ def score_episodes(
 
     overall_displayed = mean([families[family]["displayed_rating"] for family in FAMILIES])
     summary = {
-        "schema_version": 1,
+        "schema_version": 2,
         "scoring_basis": "official_style_raw_percentile",
         "opponent_adjustment": "not_available_locally",
         "trade_zone_diagnostic": "reported_separately_and_never_used_for_rating",
@@ -449,15 +483,16 @@ def shadow_score_markdown(summary: dict[str, Any]) -> str:
         "",
         "## Family Ratings",
         "",
-        "| Family | Games | Displayed Rating | Raw Rating | Mean Percentile | Mean Game Rating | Low-Support Games | Bucket Levels |",
-        "|---|---:|---:|---:|---:|---:|---:|---|",
+        "| Family | Games | Displayed Rating | Raw Rating | Mean Percentile | Trade-Zone Diagnostic | Mean Game Rating | Low-Support Games | Bucket Levels |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for family in FAMILIES:
         row = summary["families"][family]
         bucket_levels = ", ".join(f"{key}:{value}" for key, value in sorted((row.get("bucket_levels") or {}).items())) or ""
         lines.append(
             f"| {family} | {row['games_scored']} | {_fmt(row['displayed_rating'])} | {_fmt(row['raw_rating'])} | "
-            f"{_fmt(row['mean_percentile'])} | {_fmt(row['mean_game_rating'])} | {row['low_support_games']} | {bucket_levels} |"
+            f"{_fmt(row['mean_percentile'])} | {_fmt(row.get('mean_trade_zone_stratified_percentile'))} | "
+            f"{_fmt(row['mean_game_rating'])} | {row['low_support_games']} | {bucket_levels} |"
         )
     lines.extend(
         [

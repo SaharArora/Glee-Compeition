@@ -35,10 +35,30 @@ class ShadowScoringTests(unittest.TestCase):
             self.assertEqual([row["bucket_level"] for row in rows], ["family_role", "family_role"])
             self.assertEqual([row["percentile"] for row in rows], [0.25, 0.6875])
             self.assertEqual([row["trade_zone_stratified_percentile"] for row in rows], [0.5, 0.375])
+            self.assertEqual([row["trade_zone_bucket_level"] for row in rows], ["family_role", "family_role"])
             warning = summary["families"]["negotiation"]["percentile_stratification_warning"]
             self.assertIsNotNone(warning)
             self.assertEqual(warning["episodes_by_zone"], {"no_trade_zone": 1, "gains_from_trade": 1})
             self.assertEqual(summary["trade_zone_diagnostic"], "reported_separately_and_never_used_for_rating")
+
+    def test_exact_negotiation_bucket_has_identical_trade_zone_percentile(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = {"seller_value": 0.2, "buyer_value": 0.9, "max_rounds": 6}
+            games_path = root / "games.jsonl"
+            write_jsonl(games_path, [
+                {"game_id": f"g{index}", "game_family": "negotiation", "configuration": {"game_args": config}, "player_1_payoff": payoff}
+                for index, payoff in enumerate([0.1, 0.3, 0.5, 0.7])
+            ])
+            episodes_path = root / "episodes.jsonl"
+            write_jsonl(episodes_path, [{"episode_id": "g", "scenario": {"game_family": "negotiation", "candidate_role": "seller", "public_parameters": config}, "candidate_payoff": 0.3}])
+
+            rows, summary = score_episodes(episodes_path, build_reference_tables(games_path), min_reference=1)
+
+            self.assertEqual(rows[0]["bucket_level"], "exact")
+            self.assertEqual(rows[0]["trade_zone_bucket_level"], "exact")
+            self.assertEqual(rows[0]["percentile"], rows[0]["trade_zone_stratified_percentile"])
+            self.assertIsNone(summary["families"]["negotiation"]["percentile_stratification_warning"])
 
     def test_missing_negotiation_values_suppress_trade_zone_diagnostic(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
