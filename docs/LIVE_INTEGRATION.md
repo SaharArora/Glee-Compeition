@@ -159,8 +159,12 @@ The first 50-game batch confirmed that persuasion `u/v` have no alternate live s
 are absent only when our role is seller and `is_seller_know_cv=false`: six games, all 20 rounds,
 for 120 affected turns. Buyer turns and informed-seller turns carry `u/v` normally. The contract
 now models that information boundary, and all 1,423 captured payloads replay with zero
-violations. No fallback or action change occurred, so this was a false-positive validation
-alert rather than a broken policy read path.
+violations. No fallback occurred, so the contract report was a false-positive validation
+alert. Do not overstate the policy impact: the direct recommendation and response-model paths
+ignore `v/c`, but an optional `GLEE_SUPPORT_INDEX` coverage lookup includes them in its context
+key and can change strategic mode. The observation log does not record whether that index was
+active, so this batch proves no harm from validation/fallback behavior but does not prove full
+action equivalence or a zero rating effect through coverage.
 
 Do not run further live games merely to verify this correction. Live/rated re-verification
 still requires explicit user authorization for that individual run.
