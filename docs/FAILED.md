@@ -95,6 +95,18 @@ append a correction and update `docs/REGISTRY.md` instead.
   candidate or endpoint declared before measurement. Retrospectively conditioning on the 117
   reached pairs is not valid.
 
+### Construction-defect conditional re-gate — confirmation failed
+
+- After the permanent criteria amendment was committed, the prospectively declared seed-4242
+  conditional gate reached 1,068 baseline pre-state branch pairs and passed: +0.0102835,
+  t=8.77, 96W/0L/972T, with zero regressing archetype/config subgroups.
+- The independent seed-104729, n=3200 confirmation was declared before execution. Its ordinary
+  effect was +0.0071239 with config concentration 0.5620. The identical conditional predicate
+  reached 2,155 pairs at +0.0091320, t=11.40, 166W/0L/1989T.
+- Confirmation therefore failed both ordinary concentration and conditional minimum effect.
+  Zero losses and zero regressing conditional subgroups were not enough because every declared
+  condition was mandatory. The family returns to `candidate`; no seed retry is permitted.
+
 ## Negotiation counterpart-value de-bias — rejected
 
 - Tried: correct first asks by measured 1.50x seller markup and first offers by measured 0.75x
