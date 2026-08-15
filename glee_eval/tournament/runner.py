@@ -264,7 +264,26 @@ def _run_persuasion(scenario: Scenario, candidate: CandidateAgent) -> EpisodeRes
         seller_row = {"player": "Alice", "round": round_number}
         seller_row.update(seller_action.structured)
         rows.append(seller_row)
-        transcript.append({"round": round_number, "role": "seller", "action_type": seller_action.action_type, "buy_no_buy": seller_action.buy_no_buy, "structured": seller_action.structured})
+        seller_event = {
+            "round": round_number,
+            "role": "seller",
+            "action_type": seller_action.action_type,
+            "buy_no_buy": seller_action.buy_no_buy,
+            "structured": seller_action.structured,
+        }
+        # Match the live contract at the candidate-buyer boundary. A live text
+        # message contains only text; it does not carry the simulator opponent's
+        # latent yes/no choice. The candidate must recover an explicit stance
+        # from the visible words. Keep the latent action for binary games and
+        # candidate-seller games so their existing trajectories are unchanged.
+        if scenario.candidate_role == "buyer" and cfg.get("seller_message_type") == "text":
+            seller_event.update(
+                action_type="message",
+                buy_no_buy=None,
+                structured={},
+                free_text_message=seller_action.message or seller_action.structured.get("message"),
+            )
+        transcript.append(seller_event)
         records.append(_decision_record(scenario, game_id, state, seller_action))
         state = _state(scenario, game_id, "buyer", round_number, horizon, transcript, "buy_decision")
         buyer_action = _policy_for_role(scenario, candidate, "buyer").decide(state)

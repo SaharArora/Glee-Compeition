@@ -10,7 +10,11 @@ from typing import Any
 
 from glee_eval.adapters.candidate_agent import CandidateAgent
 from glee_eval.data.schemas import AgentAction, GameState, compact_id
-from glee_eval.data.transcripts import transcript_item_decision, transcript_item_quality
+from glee_eval.data.transcripts import (
+    persuasion_text_intent,
+    transcript_item_decision,
+    transcript_item_quality,
+)
 from glee_eval.response_models.runtime import EmpiricalResponseModel, ResponseEstimate
 from glee_eval.simulate.coverage_gate import CoverageGate
 from my_agents.message_composer import PersuasionMessageComposer, shadow_record
@@ -100,6 +104,7 @@ class JordanStrategicAgent(CandidateAgent):
         persuasion_explore: bool = False,
         use_persuasion_platt: bool = False,
         use_deceptive_seller_guard: bool = False,
+        use_persuasion_text_stance: bool = False,
         max_exploration_loss: float = 0.45,
         use_time_concession: bool = False,
         concession_convexity: float = 2.5,
@@ -170,6 +175,9 @@ class JordanStrategicAgent(CandidateAgent):
         # It is deliberately separate from the rejected global Platt map and
         # cold-start exploration; the explicit gate candidate enables only this.
         self.use_deceptive_seller_guard = use_deceptive_seller_guard
+        # Recover explicit intent from live text only when the server supplied no
+        # structured recommendation. Default-off pending the preregistered gate.
+        self.use_persuasion_text_stance = use_persuasion_text_stance
         # Never explore when a single buy would cost more than this in price units.
         self.max_exploration_loss = max_exploration_loss
         # Concede over time in negotiation instead of repeating one price forever.
@@ -884,7 +892,7 @@ class JordanStrategicAgent(CandidateAgent):
         yes_on_low = 0
         low_total = 0
         for item in seller_actions:
-            rec = transcript_item_decision(item)
+            rec = self._persuasion_transcript_decision(state, item)
             quality = transcript_item_quality(qualities.get(int(item.get("round", 0))))
             if rec in {"yes", "no"} and quality:
                 truth_total += 1
@@ -899,7 +907,9 @@ class JordanStrategicAgent(CandidateAgent):
         yes_seen = 0
         seller_by_round = {int(item.get("round", 0)): item for item in seller_actions}
         for item in buyer_actions:
-            rec = transcript_item_decision(seller_by_round.get(int(item.get("round", 0))))
+            rec = self._persuasion_transcript_decision(
+                state, seller_by_round.get(int(item.get("round", 0)))
+            )
             if rec == "yes":
                 yes_seen += 1
                 buys_after_yes += int(transcript_item_decision(item) == "yes")
@@ -1081,9 +1091,13 @@ class JordanStrategicAgent(CandidateAgent):
         for item in reversed(self._transcript(state)):
             if item.get("role") != "seller":
                 continue
-            value = transcript_item_decision(item)
+            value = self._persuasion_transcript_decision(state, item)
             if value in {"yes", "no"}:
                 recommendation = value
+                break
+            if int(item.get("round", state.round)) == state.round:
+                # An ambiguous current message is not permission to reuse an
+                # older round's recommendation.
                 break
         if recommendation == "no":
             return "no"
@@ -1121,6 +1135,23 @@ class JordanStrategicAgent(CandidateAgent):
             return "yes"
         self._last_exploration = None
         return "no"
+
+    def _persuasion_transcript_decision(
+        self, state: GameState, item: dict[str, Any] | None
+    ) -> str | None:
+        """Read structured stance first, then candidate-only text intent."""
+
+        value = transcript_item_decision(item)
+        if value in {"yes", "no"}:
+            return value
+        if (
+            item
+            and self.use_persuasion_text_stance
+            and state.public_parameters.get("seller_message_type") == "text"
+            and item.get("role") == "seller"
+        ):
+            return persuasion_text_intent(item.get("free_text_message"))
+        return None
 
     @staticmethod
     def _persuasion_platt_probability(raw_probability: float) -> float:
@@ -1425,6 +1456,24 @@ class PersuasionDeceptiveSellerGuardCandidate(JordanStrategicAgent):
         super().__init__(
             seed=seed,
             use_deceptive_seller_guard=True,
+            use_persuasion_platt=False,
+            persuasion_explore=False,
+            **kwargs,
+        )
+
+
+class PersuasionTextStanceCandidate(JordanStrategicAgent):
+    """Isolated default-off entry point for the live-text translation candidate."""
+
+    def __init__(self, seed: int = 0, **kwargs: Any):
+        kwargs.pop("use_persuasion_text_stance", None)
+        kwargs.pop("use_deceptive_seller_guard", None)
+        kwargs.pop("use_persuasion_platt", None)
+        kwargs.pop("persuasion_explore", None)
+        super().__init__(
+            seed=seed,
+            use_persuasion_text_stance=True,
+            use_deceptive_seller_guard=False,
             use_persuasion_platt=False,
             persuasion_explore=False,
             **kwargs,

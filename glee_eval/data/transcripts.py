@@ -11,9 +11,57 @@ re-deriving the access pattern.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from glee_eval.data.ingest import as_float
+
+
+# This is intentionally an intent parser, not a bag-of-words sentiment score.
+# Each rule describes the seller's recommendation about the current product.
+# In particular, broad tokens such as "pass" are unsafe: a positive message may
+# explain that the buyer's *prior passes* revealed nothing.
+_PERSUASION_TEXT_NO = tuple(re.compile(pattern, re.IGNORECASE) for pattern in (
+    r"\bdo not recommend buying (?:this|the) product\b",
+    r"\bi(?:'d| would) pass on this one\b",
+    r"\byou (?:may|might) want to pass (?:today|this round)\b",
+    r"\bbetter to wait for a better one\b",
+    r"\bi(?:'d| would) hold off this round\b",
+    r"\bbelow (?:our|the) usual quality\b",
+    r"\bnot up to (?:my|the) usual standard\b",
+    r"\bnothing special\b",
+    r"\bisn['’]?t (?:my|the) best (?:unit|product)\b",
+))
+_PERSUASION_TEXT_YES = tuple(re.compile(pattern, re.IGNORECASE) for pattern in (
+    r"\brecommend buying (?:this|the) product\b",
+    r"\bstrongly recommend it\b",
+    r"\bhigh quality\b[^.]*\brecommended\b",
+    r"\bbuying is the right call\b",
+    r"\brecommend this one without reservation\b",
+    r"\bthis is a buy\b",
+    r"\bsolid pick\b.{0,80}\bworth it\b",
+    r"\bgenuinely strong\b[^.]*\bi['’]?d buy it\b",
+))
+
+
+def persuasion_text_intent(message: str | None) -> str | None:
+    """Conservatively recover an explicit current-product yes/no recommendation.
+
+    Negative intent has precedence so a negated phrase can never become a buy.
+    Unrecognised or conflicting prose remains unstructured and therefore retains
+    the buyer's existing safe-decline behaviour.
+    """
+
+    text = str(message or "").strip()
+    if not text:
+        return None
+    negative = any(pattern.search(text) for pattern in _PERSUASION_TEXT_NO)
+    positive = any(pattern.search(text) for pattern in _PERSUASION_TEXT_YES)
+    if negative:
+        return "no"
+    if positive:
+        return "yes"
+    return None
 
 
 def as_dict(value: Any) -> dict[str, Any]:
