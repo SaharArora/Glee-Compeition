@@ -620,6 +620,17 @@ large bargaining/persuasion shortfalls did not replicate at volume; both offline
 inside normal-approximation live intervals. Do not promote a policy change from the original
 31-game discrepancy.
 
+**Second strict rated-volume run, 15 August 2026.** A separately authorized batch again
+completed exactly 75/75 games, 25 per family, with 35 direct terminal results and 40 GET
+backfills. All 860 callbacks were `ok`; there were zero capture errors, fallbacks, or schema
+violations, and the launch manifest again records `GLEE_SUPPORT_INDEX` as not configured.
+Means were bargaining **0.384421** (−0.100579 vs offline), negotiation **0.071503**
+(−0.021197), and persuasion **0.525600** (+0.126300). Ending account ratings were 1138.91,
+1003.47, and 1156.72 respectively. Bargaining player-1/player-2 means were .382355/.386329,
+and persuasion seller/buyer means were .567857/.471818, so the earlier large role splits did
+not replicate. The bargaining and negotiation offline targets remain inside descriptive
+normal-approximation intervals; these matchmaker samples are not causal policy comparisons.
+
 **Live text-persuasion diagnosis and rejected candidate, 15 August 2026.** Across the complete
 confirmation and strict-volume logs, every one of 180 text-mode buyer turns defaulted to no.
 The server supplied 101 unequivocally positive and 79 negative messages, but unlike the
@@ -630,16 +641,20 @@ n=1600, but failed config-regime concentration at **0.5437 > 0.50**. It remains 
 the default is off and no post-fix live batch is authorized for it. See REGISTRY/FAILED for the
 exact gate and no-retry constraint.
 
-**Live negotiation attribution audit, 15 August 2026.** Across 35 authoritative complete
-games, 20 provable gains-from-trade cells averaged .147313, one known no-trade/equality cell
-scored .037752, and 14 zero-payoff incomplete-information cells have hidden counterpart values,
-so their true zone cannot be recovered. Those 14 contain every walkaway/no-deal; consequently
-the live no-trade outside-option rate cannot be compared honestly with 86%/88%. The prior
-zero-responder-gain acceptance estimate reproduces offline at .3298, while live has only 0/4
-observable boundary accepts and 147/319 responses whose gain is hidden. The known rejected
-flags show reach (85 adapter-fallback counterprices and one old unbounded static sequence), but
-no observed zero-margin harm or identifiable counterfactual payoff benefit. No new negotiation
-candidate or gate was opened.
+**Live negotiation attribution audit, 15 August 2026.** Across 60 authoritative complete
+games, 37 identifiable gains-from-trade cells averaged .127264, two known no-trade/equality
+cells averaged .031414, and 21 zero-payoff incomplete-information cells have hidden counterpart
+values, so their true zone cannot be recovered. The live no-trade explicit-outside rate has a
+sharp sample bound of 0%--84.62%; treating every hidden cell as no-trade gives 11/23=47.83%,
+but that is a sensitivity assumption, not an estimate comparable with offline 86%/real 88%.
+The offline zero-responder-gain boundary reproduces at .3298; live remains 0/4, underpowered,
+with 210/446 response gains hidden. Own-margin harm was absent in 37 openings and 38 agreements,
+and counterpart de-biasing was truth-checkable only twice. One materially new mechanism was
+proved: in hidden-horizon game `f29a…`, the adapter replaced the seller's 16950 opening with a
+worse static 17250 counter for 49 turns, ending at zero. A prospectively declared, isolated
+live-contract fallback candidate nevertheless measured only **+0.000307**, t=1.964, 4W/0L/
+1596T at n=1600 and failed minimum effect plus config concentration (.5980). It remains off;
+none of the older negotiation flags was revived.
 
 ### Bargaining — strongest
 

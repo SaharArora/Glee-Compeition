@@ -12,6 +12,7 @@ whether a bargaining game has symmetric discounting, and so on.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -87,6 +88,7 @@ def run_paired_ab(
     population: OpponentPopulation | None = None,
     catalogue: ConfigCatalogue | None = None,
     baseline_state_predicates: dict[str, Callable[[GameState, CandidateAgent], bool]] | None = None,
+    live_contract_hidden_horizon: bool = False,
 ) -> list[Observation]:
     """Play both arms over the same scenarios and return paired outcomes."""
 
@@ -96,6 +98,8 @@ def run_paired_ab(
     for index in range(games):
         family = families[index % len(families)]
         scenario = sample_scenario(family, seed=seed + index, population=population, catalogue=catalogue)
+        if live_contract_hidden_horizon and family == "negotiation":
+            scenario = replace(scenario, metadata={**scenario.metadata, "live_contract_hidden_horizon": True})
         base_episode = run_episode(scenario, baseline)
         cand_episode = run_episode(scenario, candidate)
         predicate_results: dict[str, bool] = {}
@@ -164,6 +168,8 @@ def main(argv: list[str] | None = None) -> None:
 
     parser = argparse.ArgumentParser(description="Gate a paired A/B against the promotion criteria.")
     parser.add_argument("--observations", help="Existing promotion_observations.jsonl to re-gate.")
+    parser.add_argument("--live-contract-hidden-horizon", action="store_true",
+                        help="Evaluate negotiation through the preregistered hidden-cap live-contract path.")
     parser.add_argument("--baseline-agent", default="my_agents.jordan_strategic:MyAgent")
     parser.add_argument("--candidate-agent", default="my_agents.jordan_strategic:MyAgent")
     parser.add_argument("--change", default="unnamed change")
@@ -203,6 +209,7 @@ def main(argv: list[str] | None = None) -> None:
             seed=args.seed,
             population=OpponentPopulation.load(args.opponent_population),
             catalogue=ConfigCatalogue.load(args.config_catalogue),
+            live_contract_hidden_horizon=args.live_contract_hidden_horizon,
         )
 
     verdict = gate_observations(

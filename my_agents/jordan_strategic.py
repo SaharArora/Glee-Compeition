@@ -111,6 +111,7 @@ class JordanStrategicAgent(CandidateAgent):
         min_negotiation_margin: float = 0.02,
         guarantee_own_margin: bool = False,
         debias_counterpart_value: bool = False,
+        use_unknown_horizon_counter_fallback: bool = False,
     ):
         self.rng = random.Random(seed)
         self.exploit_evidence_threshold = exploit_evidence_threshold
@@ -178,6 +179,7 @@ class JordanStrategicAgent(CandidateAgent):
         # Recover explicit intent from live text only when the server supplied no
         # structured recommendation. Default-off pending the preregistered gate.
         self.use_persuasion_text_stance = use_persuasion_text_stance
+        self.use_unknown_horizon_counter_fallback = use_unknown_horizon_counter_fallback
         # Never explore when a single buy would cost more than this in price units.
         self.max_exploration_loss = max_exploration_loss
         # Concede over time in negotiation instead of repeating one price forever.
@@ -529,6 +531,24 @@ class JordanStrategicAgent(CandidateAgent):
             "evidence": evidence,
             "beliefs": beliefs,
         }
+        if (
+            self.use_unknown_horizon_counter_fallback
+            and decision == "RejectOffer"
+            and state.metadata.get("horizon_known") is False
+        ):
+            own_value = beliefs["seller_value"] if state.role == "seller" else beliefs["buyer_value"]
+            scheduled_margin = max(0.02, 0.15 * 0.99 ** max(0, self._round(state) - 1))
+            scheduled = own_value + scheduled_margin if state.role == "seller" else own_value - scheduled_margin
+            own_offers = [
+                self._float(item.get("numeric_action"), None) / order
+                for item in self._transcript(state)
+                if item.get("role") == state.role and item.get("action_type") == "offer"
+                and self._float(item.get("numeric_action"), None) is not None
+            ]
+            if own_offers:
+                scheduled = min(own_offers[-1], scheduled) if state.role == "seller" else max(own_offers[-1], scheduled)
+            structured["counter_price"] = round(scheduled * order, 2)
+            structured["counter_normalized_price"] = scheduled
         if self.guarantee_own_margin and decision not in {
             "AcceptOffer",
             "SellToJhon",
@@ -1476,5 +1496,23 @@ class PersuasionTextStanceCandidate(JordanStrategicAgent):
             use_deceptive_seller_guard=False,
             use_persuasion_platt=False,
             persuasion_explore=False,
+            **kwargs,
+        )
+
+
+class UnknownHorizonCounterFallbackCandidate(JordanStrategicAgent):
+    """Isolated candidate for the preregistered hidden-horizon counter path."""
+
+    def __init__(self, seed: int = 0, **kwargs: Any):
+        kwargs.pop("use_unknown_horizon_counter_fallback", None)
+        kwargs.pop("use_time_concession", None)
+        kwargs.pop("guarantee_own_margin", None)
+        kwargs.pop("debias_counterpart_value", None)
+        super().__init__(
+            seed=seed,
+            use_unknown_horizon_counter_fallback=True,
+            use_time_concession=False,
+            guarantee_own_margin=False,
+            debias_counterpart_value=False,
             **kwargs,
         )

@@ -205,6 +205,14 @@ exactly 75 unique games, 25 per family. It captured 36 direct terminal results p
 backfills with zero errors, fallbacks, or schema violations. `GLEE_SUPPORT_INDEX` was again
 recorded as not configured. The account counters advanced exactly 25 games per family.
 
+The second authorized volume run in `reports/live/volume2_20260815` repeated the check: exactly
+75 unique games, 25 per family, 35 direct terminal results plus 40 GET backfills, zero capture
+errors/fallbacks/schema violations, and 860/860 callbacks `ok`. Its manifest records
+`GLEE_SUPPORT_INDEX` as not configured. Comparable normalized means were bargaining .384421,
+negotiation .071503, and persuasion .525600. Ending ratings were 1138.91, 1003.47, and 1156.72.
+No further live run is authorized by this record; every future batch still needs explicit user
+authorization under HANDOVER §0.9.
+
 ### Real-server value visibility correction (50-game batch)
 
 The first 50-game batch confirmed that persuasion `u/v` have no alternate live spelling. They

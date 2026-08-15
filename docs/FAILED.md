@@ -17,6 +17,9 @@ append a correction and update `docs/REGISTRY.md` instead.
   configurations or opponents within role.
 - Therefore a role-specific bargaining policy is killed. A materially new retry needs matched
   role cells with adequate overlap; tuning to these 12/13 confounded games is not permitted.
+- Independent correction: the next balanced 25-game bargaining batch produced player-1
+  .382355 (n=12) and player-2 .386329 (n=13). The large earlier split did not replicate, which
+  strengthens the rejection rather than opening a new role-policy family.
 
 ## Assuming live text persuasion carried the simulator's structured stance — rejected
 
@@ -71,6 +74,13 @@ append a correction and update `docs/REGISTRY.md` instead.
 - Therefore none of the three flags or their rejected combination gets a new gate, retry or
   status change from this batch. A materially new candidate requires the hidden true-zone
   problem to be resolved or a directly observed harmful action mechanism.
+- Correction after the next complete batch: the pooled corpus is 60 games, with 37 known-GFT
+  games averaging .127264, two known no-trade/equality games averaging .031414, and 21
+  hidden-zone zero outcomes. The no-trade explicit-outside rate remains unidentified: its
+  sharp sample bound is 0%--84.62% (11/23 only under the unsupported assumption that every
+  hidden game is no-trade). The new logs did reveal a different, directly harmful action
+  mechanism at the unknown-horizon adapter boundary; it was isolated and rejected by its own
+  prospectively declared gate below, not used to revive these three flags.
 
 ## Treating four live boundary responses as a new zero-gain acceptance rate — rejected
 
@@ -79,7 +89,8 @@ append a correction and update `docs/REGISTRY.md` instead.
   2,794/8,471=.3298, consistent with the documented approximately .34.
 - Complete live logs contain only four observable boundary responses across three games:
   zero accepts, two reject/counter actions and two outside-option walkaways. Its interval is
-  wide enough to contain .34; 147/319 live responses cannot be binned because the responder's
+  wide enough to contain .34; after all three complete batches, 210/446 live responses cannot
+  be binned because the responder's
   private value is legitimately hidden.
 - The 0/4 point estimate is therefore underpowered evidence, not a replacement constant or a
   diagnosed policy mechanism. Outside-option actions remain failures in the denominator, as
@@ -104,6 +115,10 @@ append a correction and update `docs/REGISTRY.md` instead.
   below section-4 offline means, but its n=11/n=10 intervals included the offline targets.
 - A strict 75-game rated-volume run did not reproduce the large gaps: bargaining was 0.441103
   and persuasion 0.382000 on 25 games each, only −0.043897 and −0.017300 from offline.
+- A second strict 75-game run also completed 25 per family: bargaining .384421 and persuasion
+  .525600. Bargaining's interval again contains the offline .4850 target; persuasion moved
+  above its .3993 target. Its bargaining role means were nearly identical (.382355/.386329),
+  and its persuasion seller/buyer split narrowed to .567857/.471818.
 - The samples are not distribution-equivalent. Live bargaining role cells differ sharply
   (player 1 .3149, player 2 .5576), and live pot frequencies differ from the fitted catalogue.
   Live persuasion seller games averaged .5292 while buyer games averaged .2462.
@@ -242,6 +257,24 @@ append a correction and update `docs/REGISTRY.md` instead.
   6W/76L/1518T over n=1600, below the 0.0100 minimum effect.
 - Materially new retry: must address reach or mechanism beyond the corrected curve; a new seed
   alone is not new.
+
+## Unknown-horizon counter fallback concession — rejected
+
+- Tried: on the proven live-adapter branch where a negotiation rejection had no supplied
+  counter-price and the horizon was hidden, preserve a positive own margin, never worsen the
+  candidate's last own offer, and concede by the fixed preregistered schedule
+  `max(0.02, 0.15 * 0.99 ** (round - 1))`. A live-contract simulator hid the sampled terminal
+  cap from both arms and treated rejection counter-prices as the next offer.
+- Material difference from the prior rejected policy time-concession and combined paths: this
+  acted at the adapter fallback boundary those policy curves never reached. Real evidence was
+  `f29a…`, where a seller opened at 16950 before the fallback raised all 49 counters to 17250.
+- Exact failure: config structural holdout seed 8675309, n=1600, effect +0.0003, 95% CI
+  [+0.0000,+0.0006], t=1.9644, 4W/0L/1596T. It failed `minimum_effect` and
+  `subgroup_concentration[config_regime]` at 0.5980; sample size, significance, downside,
+  structural holdout, both breadth checks, and archetype concentration passed.
+- Materially new retry: must change the response mechanism or prospectively target a
+  production-visible population with demonstrated counter acceptance; do not tune the decay
+  constant or rerun this fallback schedule on another seed.
 
 ## Negotiation own-margin offer clip — rejected
 
