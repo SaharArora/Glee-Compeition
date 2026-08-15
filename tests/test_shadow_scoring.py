@@ -9,6 +9,52 @@ from glee_eval.storage.trajectories import write_jsonl
 
 
 class ShadowScoringTests(unittest.TestCase):
+    def test_negotiation_trade_zone_diagnostic_does_not_change_primary_score(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            no_trade = {"seller_value": 0.8, "buyer_value": 0.6}
+            gains = {"seller_value": 0.2, "buyer_value": 0.9}
+            games = []
+            for index, payoff in enumerate([0.0, 0.0, 0.0, 0.0]):
+                games.append({"game_id": f"n{index}", "game_family": "negotiation", "configuration": {"game_args": no_trade}, "player_1_payoff": payoff})
+            for index, payoff in enumerate([0.1, 0.3, 0.5, 0.7]):
+                games.append({"game_id": f"g{index}", "game_family": "negotiation", "configuration": {"game_args": gains}, "player_1_payoff": payoff})
+            games_path = root / "games.jsonl"
+            write_jsonl(games_path, games)
+            episodes_path = root / "episodes.jsonl"
+            no_trade_episode = {**no_trade, "max_rounds": 99}
+            gains_episode = {**gains, "max_rounds": 99}
+            write_jsonl(episodes_path, [
+                {"episode_id": "no-trade", "scenario": {"game_family": "negotiation", "candidate_role": "seller", "public_parameters": no_trade_episode}, "candidate_payoff": 0.0},
+                {"episode_id": "gains", "scenario": {"game_family": "negotiation", "candidate_role": "seller", "public_parameters": gains_episode}, "candidate_payoff": 0.3},
+            ])
+            reference = build_reference_tables(games_path)
+
+            rows, summary = score_episodes(episodes_path, reference, min_reference=20)
+
+            self.assertEqual([row["bucket_level"] for row in rows], ["family_role", "family_role"])
+            self.assertEqual([row["percentile"] for row in rows], [0.25, 0.6875])
+            self.assertEqual([row["trade_zone_stratified_percentile"] for row in rows], [0.5, 0.375])
+            warning = summary["families"]["negotiation"]["percentile_stratification_warning"]
+            self.assertIsNotNone(warning)
+            self.assertEqual(warning["episodes_by_zone"], {"no_trade_zone": 1, "gains_from_trade": 1})
+            self.assertEqual(summary["trade_zone_diagnostic"], "reported_separately_and_never_used_for_rating")
+
+    def test_missing_negotiation_values_suppress_trade_zone_diagnostic(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = {"max_rounds": 1}
+            games_path = root / "games.jsonl"
+            write_jsonl(games_path, [{"game_id": "n", "game_family": "negotiation", "configuration": {"game_args": config}, "player_1_payoff": 0.0}])
+            episodes_path = root / "episodes.jsonl"
+            write_jsonl(episodes_path, [{"episode_id": "n", "scenario": {"game_family": "negotiation", "candidate_role": "seller", "public_parameters": config}, "candidate_payoff": 0.0}])
+
+            rows, summary = score_episodes(episodes_path, build_reference_tables(games_path), min_reference=1)
+
+            self.assertIsNone(rows[0]["trade_zone"])
+            self.assertIsNone(rows[0]["trade_zone_stratified_percentile"])
+            self.assertIsNone(summary["families"]["negotiation"]["percentile_stratification_warning"])
+
     def test_shadow_score_uses_exact_role_config_percentiles(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

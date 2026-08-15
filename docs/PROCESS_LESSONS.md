@@ -26,3 +26,7 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
   materially different—never merely with a fresh seed.
 - Never run or schedule live/rated play without explicit authorization for that specific
   instance.
+- Name the estimand and evidence channel explicitly before treating two posterior summaries as
+  interchangeable.
+- Compute diagnostics from the current run; historical constants are evidence, not a runtime
+  warning.
