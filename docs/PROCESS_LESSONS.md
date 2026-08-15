@@ -32,3 +32,6 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
   warning.
 - When comparing primary and diagnostic metrics, hold the fallback ladder and conditioning
   dimensions fixed so the reported delta isolates only the intended stratification.
+- Keep a confirmed symptom separate from a rejected mechanism: evidence may preserve the
+  calibration gap while showing that the initially suspected channel mismatch is too rare to
+  explain it.
