@@ -16,6 +16,20 @@ append a correction and update `docs/REGISTRY.md` instead.
   IDs, and drains each wave before queueing the next. A focused test proves an eight-game cap
   queues exactly eight balanced/rotating games. The upstream SDK assumption remains rejected.
 
+## Attributing confirmation-vs-offline payoff gaps to policy regression — rejected claim
+
+- The complete 31-game confirmation measured bargaining 0.383075 and persuasion 0.235000,
+  below section-4 offline means, but its n=11/n=10 intervals included the offline targets.
+- A strict 75-game rated-volume run did not reproduce the large gaps: bargaining was 0.441103
+  and persuasion 0.382000 on 25 games each, only −0.043897 and −0.017300 from offline.
+- The samples are not distribution-equivalent. Live bargaining role cells differ sharply
+  (player 1 .3149, player 2 .5576), and live pot frequencies differ from the fitted catalogue.
+  Live persuasion seller games averaged .5292 while buyer games averaged .2462.
+- A real simulator-alignment mechanism remains: live buyer-role persuasion purchased only
+  61/260 rounds (23.5%) versus the offline documented 49.94%; fitted persuasion opponents use
+  fixed trust/current stance and do not model language content or sampled memory. This warrants
+  measurement/replay work, not an ungated policy change or more seed retries.
+
 ## Deriving complete live payoff from pre-action observations — rejected measurement
 
 - `reports/live/observations.jsonl` records strategy callbacks before our action. It contains

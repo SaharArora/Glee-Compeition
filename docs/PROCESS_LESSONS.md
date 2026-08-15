@@ -45,3 +45,9 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
 - Even a matched one-step observational association can reverse under trajectory simulation;
   changing an action changes later information and behavior, so only the paired episode gate
   can establish policy value.
+- Treat third-party run limits as untrusted until their counting unit is verified against unique
+  terminal IDs; concurrency and opponent-ended work can make a documented completion cap exceed
+  the user's authorized total.
+- Do not attribute a small live/offline mean gap to policy when role, configuration, and opponent
+  distributions differ and the live interval still contains the offline target; replicate at
+  volume and diagnose conditional cells first.

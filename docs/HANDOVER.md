@@ -611,6 +611,15 @@ sampling target, so the differences are measurements, not causal policy regressi
 account counter advanced by 30 rated games while capture recorded 31 terminal games. Ending
 ratings were bargaining 1063.52, negotiation 1028.02, and persuasion 1072.86.
 
+**Strict rated-volume run, 15 August 2026.** The repaired wrapper completed exactly 75/75
+unique games, balanced 25 per family, with 36 direct terminal results and 39 GET backfills,
+zero capture errors, zero fallbacks, and a clean schema. Means were bargaining **0.441103**
+(−0.043897 vs offline), negotiation **0.072562** (−0.020138), and persuasion **0.382000**
+(−0.017300). Ending ratings were 1115.66, 1022.51, and 1108.86 respectively. The earlier
+large bargaining/persuasion shortfalls did not replicate at volume; both offline targets remain
+inside normal-approximation live intervals. Do not promote a policy change from the original
+31-game discrepancy.
+
 ### Bargaining — strongest
 
 - Tournament payoff **+0.4850**, 95% CI [+0.4794, +0.4906], n=69, median +0.5000

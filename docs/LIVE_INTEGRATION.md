@@ -200,6 +200,11 @@ records `GLEE_SUPPORT_INDEX` as not configured. The SDK/account counter advanced
 games (11/10/9), although 31 terminal game records were captured; preserve that discrepancy
 rather than silently dropping a terminal record.
 
+The subsequent authorized volume run in `reports/live/volume_20260815` verified the strict cap:
+exactly 75 unique games, 25 per family. It captured 36 direct terminal results plus 39 GET
+backfills with zero errors, fallbacks, or schema violations. `GLEE_SUPPORT_INDEX` was again
+recorded as not configured. The account counters advanced exactly 25 games per family.
+
 ### Real-server value visibility correction (50-game batch)
 
 The first 50-game batch confirmed that persuasion `u/v` have no alternate live spelling. They
