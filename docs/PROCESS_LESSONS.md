@@ -39,3 +39,6 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
   Brier and log loss does not authorize changing an acting threshold or default.
 - Even a well-confirmed predictive improvement can have a small acting effect when most paired
   episodes never cross the decision boundary; measure the policy consequence separately.
+- Adversarially match or stratify observational cohorts before attributing an aggregate gap to
+  a mechanism; include a constructed Simpson-reversal test so config mix cannot silently set
+  the sign.
