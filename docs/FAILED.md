@@ -3,6 +3,35 @@
 Append-only record. Do not delete old entries when later evidence changes the interpretation;
 append a correction and update `docs/REGISTRY.md` instead.
 
+## Treating the live bargaining role split as a role-policy defect — rejected
+
+- In the strict 75-game batch bargaining player 1 averaged .314893 (n=12) and player 2
+  .557605 (n=13), but role detection and action serialization were exact on every captured
+  callback.
+- The cells are not comparable: all 12 player-1 games were complete-information, versus only
+  6/13 player-2 games, and only two observable exact-config strata contained both roles.
+  Historical real games have a much smaller effect in the opposite direction (player 1
+  .45485 versus player 2 .42889).
+- The offline sampler chooses the candidate role uniformly and preserves player 1 as the
+  first proposer. The live batch was nearly balanced by role, but matchmaking did not balance
+  configurations or opponents within role.
+- Therefore a role-specific bargaining policy is killed. A materially new retry needs matched
+  role cells with adequate overlap; tuning to these 12/13 confounded games is not permitted.
+
+## Assuming live text persuasion carried the simulator's structured stance — rejected
+
+- Across the complete confirmation and strict-volume logs, the candidate was buyer for 180
+  text turns in nine games and declined 180/180. The raw corpus contains 101 unequivocally
+  positive and 79 unequivocally negative messages across 16 repeated templates.
+- The production mechanism is exact: live translation records non-`yes`/`no` text as a
+  message with `buy_no_buy=None`; the buyer then finds no recommendation and defaults to no.
+  Binary games are healthy: 101 purchases in 240 rounds, all after a yes recommendation.
+- The fitted simulator hides this defect by attaching the seller's latent `buy_no_buy` value
+  to text. A normal gate on that representation would be falsely inert, so the prospectively
+  declared gate must use a live-contract text path with no hidden structured stance.
+- Declined-round quality is not observable, so these logs prove a parsing defect but do not
+  prove that every missed positive message was truthful or quantify counterfactual payoff.
+
 ## Treating SDK `max_games` as a strict total-game cap — rejected assumption
 
 - The authorized confirmation invoked `--max-games 12`, but the SDK stopped after 15 games
