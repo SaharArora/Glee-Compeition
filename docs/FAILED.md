@@ -276,6 +276,22 @@ append a correction and update `docs/REGISTRY.md` instead.
   production-visible population with demonstrated counter acceptance; do not tune the decay
   constant or rerun this fallback schedule on another seed.
 
+### Branch-conditional eligibility audit — ineligible, not run
+
+- New reach evidence found the adapter fallback on 193/193 relevant live rejection responses.
+  That does not turn reach frequency into payoff evidence or waive the amendment's eligibility
+  requirements.
+- The immutable baseline predicate and the `16950 -> 17250` seller example support a logical
+  no-worsening defect, but the unchanged candidate is not the smallest invariant repair:
+  `max(0.02, 0.15 * 0.99 ** (round - 1))` adds a chosen concession schedule beyond simply
+  clamping the fallback to the last own offer.
+- Independently dispositive, the ordinary seed-8675309 gate failed config-regime concentration
+  at **0.5980 > 0.50** as well as `minimum_effect`. Amendment eligibility condition 4 requires
+  every ordinary non-effect check to pass. Therefore no branch-conditional predicate/seed/n was
+  declared, no evaluation or confirmation ran, and the default remains false. A retry requires
+  a materially new smallest fix and a fresh prospective ordinary gate; the 193/193 observation
+  is not permission to reuse the rejected evaluation.
+
 ## Negotiation own-margin offer clip — rejected
 
 - Tried: guarantee our own margin and attach the agent's counter price only while that
