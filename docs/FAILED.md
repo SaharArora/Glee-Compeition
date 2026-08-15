@@ -12,6 +12,21 @@ append a correction and update `docs/REGISTRY.md` instead.
 - Materially new retry: must change the learning mechanism or target population, not merely
   rerun one of these candidates with a new seed.
 
+## Persuasion Platt recalibration — rejected
+
+- Tried: a single prospectively declared two-parameter Platt map fitted on model-FIT real
+  decisions, applied only to post-yes buyer decisions behind `use_persuasion_platt=False`.
+  Predictive evaluation had improved clustered Brier and log loss on both model and config
+  holdouts before the acting candidate was defined.
+- Exact payoff failure: paired structural holdout seed 271828, n=1600, effect +0.0057,
+  t=+5.07, 84W/44L/1472T. It passed significance, downside, structural holdout, subgroup
+  concentration, and subgroup breadth, but failed the non-waivable `minimum_effect` threshold
+  of 0.0100. Level-2 (-0.0037) and deceptive (-0.0016) archetypes regressed.
+- Materially new retry: must change the mechanism or prospectively target a population already
+  justified by pre-gate calibration evidence, while explicitly addressing the dishonest-seller
+  regressions. Do not rerun this global map with another seed, and do not treat predictive
+  calibration success as payoff promotion evidence.
+
 ## Negotiation time concession — rejected
 
 - Tried: Boulware time-dependent concession in place of the mostly round-independent offer.

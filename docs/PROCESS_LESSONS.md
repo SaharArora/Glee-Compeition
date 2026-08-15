@@ -37,3 +37,5 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
   explain it.
 - Predictive calibration evidence and policy-payoff evidence are different gates; improving
   Brier and log loss does not authorize changing an acting threshold or default.
+- Even a well-confirmed predictive improvement can have a small acting effect when most paired
+  episodes never cross the decision boundary; measure the policy consequence separately.
