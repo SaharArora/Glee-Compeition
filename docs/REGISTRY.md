@@ -30,7 +30,7 @@ Durable status for policy, scoring, and evidence work. Statuses follow
 | `live_simulator_alignment` | Diagnose live/offline payoff differences against fitted opponent/config assumptions without changing policy. | Bargaining's deterministic simulator timing defect is fixed, but it explains only part of the live gap and produced no acting-policy candidate. Persuasion's residual buyer-rate/role premise is killed after message-mode conditioning. Negotiation's true no-trade exit rate remains unidentified. | Bargaining authoritative n=61 mean .407409; all agreed, gross share .54511 minus .13770 mean discount loss. Live opponent offer-transition mean .00657/median 0 versus fitted concession median .025. Corrected theory audit +.0551 and confirmation +.0601 both pass. A production-visible low-delta/stagnation override is killed at n=2 with opposite signs; flat theory-off replay is only +.00484/61 with 4 gains/7 losses. | `candidate` | unassigned | Fitted opponent marginals are independently sampled and do not preserve real joint player/config behavior; this is model risk, not an identified live policy fix. Persuasion/negotiation conclusions remain as recorded in FAILED. | `bargaining_opponent_timing_parity`; `docs/FAILED.md`; three terminal-complete live batches |
 | `model_b_joint_opponents` | Fit and empirically sample one correlated opponent-parameter bundle per stable `(player_model, config_id, role)` segment instead of independently drawing marginal quantiles. | Frozen predictive validation failed. Config-holdout whole bundles were significantly worse than the same-support conditional shuffle for bargaining and negotiation; persuasion was below the declared coverage floor. This exact fit/validation formulation may not be retried. | Model axis: all families unreportable at 4 actor-model clusters; retention B/N/P .680/.499/.202. Config axis: energy delta joint-minus-shuffle B +.003458, CI upper +.004512; N +.001593, upper +.002490; P retention .374. | `retracted` | none | The v2 sampler remains an experimental compatibility surface only and is not trusted for payoff gates. | `reports/model_b_validation`; `docs/FAILED.md`; declaration below |
 | `model_b_crossfit_joint_opponents` | Four-by-four actor/config out-of-fold joint opponent model with hierarchical decision-level response estimates. | Retracted at the mandatory pre-fit kill-check: the corpus contains 15 acting-model identities, not the declared 16, so four balanced actor folds of four cannot exist. No fold artifact or predictive score was produced. | Streaming full-corpus manifest scan stopped before actor fold 0 with `actor cross-fit requires exactly 16 identities, found 15`. | `retracted` | none | The hierarchical estimator remains reusable, but this exact manifest/fold declaration may not be repaired in place. | `docs/FAILED.md`; declaration below |
-| `model_b_mixed_fold_crossfit` | Exhaustive three-fold actor-model OOF (5 of the 15 real identities per fold) plus four-fold canonical-config OOF, retaining hierarchical response estimates and joint-bundle validation. | Implement and preflight the prospectively declared response-audit normalization, then rerun actor fold 0 as the sole FIT-only checkpoint before any validation. | Mixed manifest passed 5/5/5. Three numerical convergence failures and two distinct memory failures are retained in FAILED. Newton-PCG and its outer validator passed dense/adversarial review. Shared fixed-state Neumaier accumulators repaired the first row-contribution memory defect, but the post-repair actor-fold-0 process was also terminated with exit 137 before an artifact write: full final/inner solver audits were embedded repeatedly in every bundle parameter and recursively serialized. No accepted Newton-PCG corpus artifact or predictive result exists. Pre-normalization evidence remains exactly 82 Newton-PCG/core tests and 66 focused validator/solver/crossfit/opponent tests passing, plus the recorded independent validator checks; these are not a fit claim. | `candidate` | unassigned | Model/ridge/folds/raw-KKT/PCG/Armijo/endpoints remain frozen. Audit normalization may change only storage/object lifetime, not evidence content. Actor fold 0 remains the next FIT-only checkpoint; no holdout scoring, payoff gate or live play authorized. | Prospective mixed-fold, `model_b_response_newton_pcg`, and `model_b_response_audit_normalization` declarations below; `glee_eval/diagnostics/joint_population.py`; `tests/test_joint_population_validation.py`; `tests/test_hierarchical_opponent_responses.py`; `docs/FAILED.md` |
+| `model_b_mixed_fold_crossfit` | Exhaustive three-fold actor-model OOF (5 of the 15 real identities per fold) plus four-fold canonical-config OOF, retaining hierarchical response estimates and joint-bundle validation. | Implement and preflight the prospectively declared Decimal-Armijo and canonical-attachment instrument, then rerun actor fold 0 as the sole FIT-only checkpoint before any validation. | Normalized Newton-PCG actor fold 0 wrote a 63,070,064-byte artifact (`a6ac5e3b...`): bargaining and negotiation were KKT-clean, but persuasion `seller_high` stopped at KKT `2.132299e-7` with `line_search_stagnation`, and independent validation found 3,512 response-reference parameter-presence mismatches. Fold 1 was stopped and no holdout score exists. The exact Newton-PCG and audit-normalization instruments are retracted; prior numerical and memory failures remain in FAILED. | `candidate` | unassigned | Rows/objective/ridge/folds/PCG/raw-KKT/endpoints stay frozen. Actor fold 0 may run only after the new instrument's declared tests; no fold 1, holdout scoring, payoff gate or live play authorized until it passes. | Prospective mixed-fold and `model_b_response_decimal_armijo` declarations below; actor-fold-0 artifact SHA256 `a6ac5e3b6873c99bfb6b538d33d864a0da45bb0d37a51d294ecdaad4371b0dae`; `docs/FAILED.md` |
 | `persuasion_text_stance` | Default-off buyer parser for unequivocal natural-language recommendations when the live text payload contains no structured yes/no stance; ambiguous text remains a conservative decline and binary inputs are unchanged. | Gate rejected; do not rerun unchanged and do not flip the default. Production mechanism remains diagnosed: 180/180 text buyer turns across nine complete live games defaulted to no despite 101 clearly positive and 79 clearly negative messages. | Frozen 420-turn replay: 0 polarity errors, 420 raw messages preserved, 240/240 binary actions unchanged, 84 text actions reached. Seed 314159, n=1600 structural holdout: +0.1390, t=13.04, 241W/12L/1347T; all archetypes nonnegative, but config-regime concentration 0.5437 > 0.50. | `candidate` | unassigned | Default remains false. Shares persuasion transcript parsing with the live adapter, synthetic runner, fitted opponent policy, and buyer decision path. No live payoff claim is allowed from declined rounds because their qualities are unobserved. | `reports/promotion/persuasion_text_stance_seed314159`; `reports/live/confirmation_20260815`; `reports/live/volume_20260815`; `docs/FAILED.md` |
 | `h6_percentile` | Preserve official-style percentile/rating and add a separate run-specific trade-zone diagnostic using the identical exact-to-family fallback ladder. | Candidate implemented; real-log replay unavailable locally. | Adversarial review caught and corrected an initial family-wide comparison that dropped config conditioning. Zone-suffixed buckets now mirror primary fallback/min-support semantics; exact-bucket equality and fallback divergence are tested. | `candidate` | root | Scoring/reporting only; primary percentile/rating contract unchanged. | `glee_eval/scoring/shadow.py`; `tests/test_shadow_scoring.py`; `docs/HANDOVER.md` §2/§6 |
 
@@ -308,6 +308,13 @@ Add sample size and seed here before executing any independent confirmation run.
   PCG cap/forcing, shift schedule or Armijo constants may not be relaxed in place. No holdout may
   be scored until all seven mixed-fold artifacts freeze, and no payoff/live work is authorized.
 
+  **Result: retracted.** The normalized actor-fold-0 artifact left persuasion unavailable because
+  `seller_high` stopped at original-coordinate KKT `2.132299274926197e-7` with
+  `line_search_stagnation`, above the frozen `1e-7` threshold. Bargaining and negotiation passing
+  cannot substitute for the declared all-family condition. Fold 1 was stopped and no holdout was
+  scored. The tolerance, iteration ceiling, ridge grid and ordinary Armijo constants may not be
+  relaxed for an unchanged retry.
+
 - `model_b_response_audit_normalization` FIT-instrument declaration (declared 2026-08-16 after
   the post-Neumaier actor-fold-0 process exited 137 without writing an artifact, and before code,
   another corpus fit or any holdout inspection): preserve exactly the response rows, estimator,
@@ -346,6 +353,65 @@ Add sample size and seed here before executing any independent confirmation run.
   only permitted FIT checkpoint after these tests. Exit 137, a partial/missing artifact, any
   equivalence or provenance failure, or any validator regression retracts this storage instrument;
   no holdout scoring, payoff gate or live play is authorized.
+
+  **Result: failed/retracted.** The instrument successfully wrote one normalized 63,070,064-byte
+  actor-fold-0 artifact, but independent validation found 3,512 response-reference
+  `parameter_presence` mismatches. The required zero-error reference/equivalence condition did
+  not pass. This artifact remains FIT-instrument evidence only; fold 1 was stopped and no holdout
+  was extracted or scored.
+
+- `model_b_response_decimal_armijo` materially-new FIT-instrument declaration (declared
+  2026-08-16 after the normalized Newton-PCG actor-fold-0 rejection, and before code, another
+  corpus fit or any holdout inspection): preserve exactly the response rows and aggregated
+  sufficient statistics, summed penalized-logistic objective, zero-sum contrasts, ridge grid
+  `[.1, 1, 10, 100]`, three inner game-hash folds, pooled validation-decision loss and larger-ridge
+  exact tie rule, mixed outer folds, PCG residual/cap/shift/preconditioner rules, projected slope
+  bound, 300-Newton limit, original-coordinate KKT tolerance `1e-7`, bundle sampler, comparators,
+  predictive endpoints and all validation thresholds. No iteration, tolerance, seed, ridge,
+  response-row or endpoint change is authorized.
+
+  Continue evaluating projected Armijo first in compensated binary64 using the unchanged
+  `c1=1e-4`, backtracking factor `.5` and floor `2^-30`. Let `old`, `candidate` and `rhs` denote
+  the same penalized objective and Armijo right-hand side already used by that check. Invoke the
+  ambiguity resolver only when
+  `abs(candidate_value - rhs_value) <= 8 * max(ulp(old_value), ulp(candidate_value),
+  ulp(rhs_value))`. On that fixed trigger, recompute the same penalized objective at the old and
+  projected candidate coefficients and the same directional derivative from the already-frozen
+  aggregated sufficient statistics using Decimal precision 50, with every binary64 coefficient,
+  statistic, ridge and constant introduced by exact `Decimal.from_float`. Accept the step only if
+  the exact Decimal Armijo inequality holds. Decimal does not change the candidate step, search
+  direction, backtracking sequence, objective, penalty or stopping test; outside the ambiguity
+  trigger the ordinary compensated binary64 result is final. After every accepted step,
+  independently recompute the unchanged binary64 original-coordinate projected KKT.
+
+  Serialize for every ambiguity event the trigger result, precision `50`, backtracking iteration,
+  and exact Decimal strings for old objective, candidate objective, Armijo RHS and directional
+  derivative, alongside the ordinary Armijo audit. The validator must independently reconstruct
+  the ULP trigger from the binary64 values, parse and finitely validate the Decimal strings,
+  recompute the exact inequality, reject Decimal use outside the trigger, and continue enforcing
+  every frozen PCG, Armijo, objective, zero-sum, raw-KKT, inner-CV and ridge-selection condition.
+
+  In the same instrument, make canonical response attachment the sole source of parameter
+  presence. Before calling canonical `response_parameter`, remove any preexisting response-fitted
+  parameter and its observation/game-support entries. Insert the parameter, support and compact
+  reference together only when the canonical return is finite and non-`None`; then apply the
+  unchanged distinct-game support filter to parameter, support and reference as one record. An
+  unavailable family or filtered parameter must leave no response parameter, support or reference.
+  An accepted artifact requires exactly zero missing, orphaned, cross-family/channel, hash,
+  reconstructed-value and `parameter_presence` reference errors.
+
+  Pre-corpus kill-checks must cover both sides and the equality boundary of the eight-ULP trigger;
+  Decimal acceptance and rejection near a large objective; exact `Decimal.from_float` conversion;
+  no Decimal call outside ambiguity; unchanged ordinary-double behavior away from ambiguity;
+  identical candidate/backtracking/KKT behavior when double and Decimal agree; malformed,
+  nonfinite and tampered Decimal provenance; unavailable-family, finite/nonfinite response,
+  preexisting-parameter removal and post-support-filter attachment fixtures; and an end-to-end
+  normalized artifact with zero reference errors. Dense objective/directional-derivative fixtures
+  must agree with the Decimal recomputation of the same sufficient statistics. Actor fold 0 is
+  again the only permitted FIT checkpoint after all tests pass. Every final and inner B/N/P fit
+  must be finite, `status=ok` and KKT-certified and the artifact must have zero reference errors.
+  Any failure retracts this instrument without an unchanged retry; fold 1, holdout scoring, payoff
+  gates and live play remain prohibited.
 
 - `bargaining_opponent_timing_parity` theory-anchor evidence audit (declared 2026-08-15 before
   measurement): make exactly two simulator-fidelity corrections and no fitted-parameter changes:

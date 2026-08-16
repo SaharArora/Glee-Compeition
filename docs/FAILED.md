@@ -546,6 +546,33 @@ append a correction and update `docs/REGISTRY.md` instead.
   solver, folds, ridge grid, endpoints and thresholds remain frozen. The prospective storage-only
   instrument is recorded in REGISTRY before implementation or another FIT attempt.
 
+## Normalized Newton-PCG actor fold 0 — FIT instrument rejected
+
+- Closest prior entries: the sparse coordinate-Newton convergence rejection and the two
+  Newton-PCG memory failures above. Unlike either memory failure, this attempt completed and
+  atomically wrote the normalized artifact; unlike coordinate Newton, Newton-PCG certified the
+  bargaining and negotiation response fits. The exact declared all-family convergence and
+  reference-integrity requirements nevertheless remained mandatory.
+- Artifact: `models/opponent_population_model_b_crossfit/actor_fold_0/opponent_population.json`,
+  63,070,064 bytes, SHA256
+  `a6ac5e3b6873c99bfb6b538d33d864a0da45bb0d37a51d294ecdaad4371b0dae`.
+- Numerical kill-check: bargaining and negotiation were KKT-clean. Persuasion was unavailable:
+  `seller_high` ended with `line_search_stagnation` at original-coordinate projected KKT
+  `2.132299274926197e-7`, above the frozen `1e-7` acceptance ceiling. A near miss is a failure;
+  the passing families cannot waive the declared B/N/P all-pass rule.
+- Construction kill-check: independent validation reported exactly 3,512 response-reference
+  `parameter_presence` mismatches. This equals the artifact's 3,512 persuasion references, but
+  equality alone does not authorize silently deleting the check or claiming a predictive result.
+  Canonical parameter presence, support and reference attachment must be repaired and tested as
+  one construction path.
+- Fold 1 was stopped immediately after the actor-fold-0 rejection. No holdout extraction or
+  score, predictive verdict, payoff tournament, policy gate, default change or live game occurred.
+- Materially new retry must change the floating-point ambiguity mechanism and the reference
+  construction, not loosen KKT tolerance, increase iterations, change the ridge grid/folds/seed,
+  accept partial families, or retry the same line search. REGISTRY prospectively declares a
+  fixed eight-ULP Decimal-Armijo ambiguity resolver and canonical source-of-truth attachment while
+  preserving the statistical estimator and every predictive endpoint.
+
 ## Retracted claims from the 14 August session
 
 ### Frozen persuasion posterior guarantees zero payoff — retracted claim

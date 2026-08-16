@@ -103,3 +103,8 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
   verified compact references at high-cardinality leaves, stream atomic output, and test peak
   memory against leaf count as well as numerical row count. Release phase-local state only after
   its last semantic consumer so memory repair cannot silently change the estimator or provenance.
+- An absolute objective difference is not a reliable line-search verdict when the objective is
+  large: two rounded values can straddle Armijo while differing by only a few representable
+  numbers. Declare an ULP-scaled ambiguity band before measurement and use higher precision only
+  to reevaluate the identical objective and inequality inside that band. Do not turn higher
+  precision into a new step, tolerance, search direction or post hoc acceptance rule.
