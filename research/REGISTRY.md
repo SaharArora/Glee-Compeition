@@ -11,6 +11,9 @@
 
 ## Wave 5A offline-preflight checkpoint
 
+- Implementation commit: `179fd706d6df4d4e9770a21200e8ec3ec07a920f`; exact file hashes,
+  tests, audit verdict, boundaries, and user decisions are frozen in
+  `research/EVIDENCE/WAVE5A_OFFLINE_PREFLIGHT_CHECKPOINT.json`.
 - Route A is complete at `research/TECHNICAL_HANDOFF_2X2.md`. It is researcher-facing and
   source-grounded; it does not promote an empirical treatment claim.
 - Route B is an implementation checkpoint, not a receiver result. The generic contract,

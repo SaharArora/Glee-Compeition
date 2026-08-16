@@ -2,6 +2,8 @@
 
 - Wave-5A UTC start: `2026-08-16T22:01:06Z`; hard stop no later than
   `2026-08-17T01:01:06Z`.
+- Wave-5A implementation commit: `179fd706d6df4d4e9770a21200e8ec3ec07a920f`;
+  durable evidence manifest: `research/EVIDENCE/WAVE5A_OFFLINE_PREFLIGHT_CHECKPOINT.json`.
 - Wave-5A scope: bounded offline technical handoff, controlled-receiver preflight, and
   pre-outcome manifest/hostile-validation infrastructure. No Model B, payoff, external model,
   holdout treatment-effect, or live/rated work is authorized.

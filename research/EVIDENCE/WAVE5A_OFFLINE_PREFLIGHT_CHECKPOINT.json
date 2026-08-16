@@ -1,0 +1,122 @@
+{
+  "schema": "glee.research.wave5a_offline_preflight.v1",
+  "base_commit": "3a04ec199a725957b06df75bc6eabd50e60a6574",
+  "implementation_commit": "179fd706d6df4d4e9770a21200e8ec3ec07a920f",
+  "branch": "research/2x2-eprocess-language",
+  "utc_start": "2026-08-16T22:01:06Z",
+  "utc_implementation_checkpoint": "2026-08-16T22:27:11Z",
+  "status": "offline_preflight_complete_production_unauthorized",
+  "evidence_classes": [
+    "unit",
+    "synthetic",
+    "independent_audit"
+  ],
+  "outcome_evidence": false,
+  "artifacts": {
+    "technical_handoff": {
+      "path": "research/TECHNICAL_HANDOFF_2X2.md",
+      "sha256": "e4e9c0f1507d7eb1638a9c95ac11a9087242788148748e643509509195fae909"
+    },
+    "controlled_receiver": {
+      "path": "glee_eval/experiments/controlled_receiver.py",
+      "sha256": "3905d59f2666399ccc4864a71f17749d882cff9b17bf724014759db4f078bab1",
+      "status": "generic_injected_transport_infrastructure_only",
+      "receiver_selected": false
+    },
+    "controlled_receiver_tests": {
+      "path": "tests/test_controlled_receiver.py",
+      "sha256": "a3d3069e383b99401d58e63fb38c916f1b5dac799a20bb88e915f82185a85706",
+      "tests": 11,
+      "result": "PASS"
+    },
+    "receiver_decision_gate": {
+      "path": "research/ROUTES/WAVE5A_RECEIVER_DECISION.md",
+      "sha256": "30cebb4714aff0cb0a0c51cd94f65b0e8ca4825b123a8de60cbd6e3776ccae12",
+      "user_inputs_required": 13
+    },
+    "factorial_evaluator": {
+      "path": "glee_eval/experiments/factorial.py",
+      "sha256": "e0101e1db26bb69a5bc7501200c7a15c70c7c3591f6f9e9d9fce20b830cdd44f",
+      "change": "public_reconstruction_of_existing_scenario_seed_derivation"
+    },
+    "preoutcome_manifest": {
+      "path": "glee_eval/experiments/preoutcome_manifest.py",
+      "sha256": "d609cee7f6974e2956952c3aeaa40ca578a8cbde84b120d9ee0e8f29e1622812",
+      "status": "fixed_contract_synthetic_checkpoint",
+      "production_authorization_pin": null
+    },
+    "preoutcome_manifest_tests": {
+      "path": "tests/test_preoutcome_manifest.py",
+      "sha256": "c40712926e48370872627408e8bbbb8213df908d72468f264f6a53e7659b2df1"
+    },
+    "manifest_designs": {
+      "path": "research/ROUTES/WAVE5A_MANIFEST_DESIGNS.md",
+      "sha256": "df0d9624c8f4530acf8f323c0ff19638e8e8f217c261f0928dd54dba1ac952c4",
+      "selected_design": null,
+      "candidates": [
+        "300_base_x_2_roles_x_2_receiver_replicates",
+        "600_base_x_2_roles",
+        "200_base_x_2_roles_x_3_receiver_replicates"
+      ]
+    }
+  },
+  "tests": {
+    "integrated_command": "env -u GLEE_RESPONSE_MODEL -u GLEE_SUPPORT_INDEX PYTHONPYCACHEPREFIX=/private/tmp/glee_wave5a_pycache python3 -m unittest tests.test_r1_treatment_off_baseline tests.test_wave3_factorial_agents tests.test_r2_population_bound_kill_check tests.test_r3_language_feasibility tests.test_controlled_receiver tests.test_preoutcome_manifest tests.test_factorial_evaluator tests.test_factorial_report -q",
+    "integrated_result": {
+      "passed": 74,
+      "failed": 0,
+      "unittest_seconds": 3.646,
+      "wall_seconds": 3.76,
+      "evidence_class": "unit_and_synthetic"
+    },
+    "receiver_integration_result": {
+      "passed": 27,
+      "failed": 0,
+      "seconds": 0.143,
+      "evidence_class": "unit_and_synthetic"
+    },
+    "manifest_audit_regression_result": {
+      "passed": 38,
+      "failed": 0,
+      "seconds": 3.43,
+      "evidence_class": "unit_and_synthetic"
+    }
+  },
+  "fresh_hostile_audit": {
+    "auditor": "fresh_worker_context_wave5a_manifest_audit",
+    "general_attacks_rejected": 39,
+    "general_attacks_accepted": 0,
+    "scenario_seed_mutations_rejected": 13,
+    "scenario_seed_mutations_accepted": 0,
+    "formula_checks_passed": 3,
+    "verdict": "GO_fixed_contract_offline_synthetic_checkpoint_NO_GO_production_while_pins_none",
+    "evidence_class": "independent_audit"
+  },
+  "model_b": {
+    "status": "quarantined_after_failed_exact_out_of_fold_validation",
+    "used_by_wave5a": false,
+    "artifacts_preserved": true,
+    "reopen_only_if": "A new explicitly authorized campaign supplies a new falsifiable formulation, prespecified untouched validation, strict resource budget, and a downstream decision that would change; never simply resume the interrupted actor-factor fit."
+  },
+  "authorization": {
+    "report_production_contract_sha256": null,
+    "preoutcome_manifest_contract_sha256": null,
+    "external_receiver_calls_authorized": false,
+    "production_study_authorized": false
+  },
+  "boundaries": {
+    "model_b_run": false,
+    "treatment_payoff_evaluation_run": false,
+    "holdout_treatment_effect_run": false,
+    "external_model_calls": 0,
+    "live_or_rated_games": 0,
+    "receiver_selected_or_tuned": false,
+    "production_manifest_generated": false,
+    "synthetic_values_are_outcome_evidence": false
+  },
+  "remaining_user_decisions": [
+    "Supply and authorize all thirteen receiver-contract/selection/adapter/capability inputs.",
+    "Choose the 3600-row breadth-versus-receiver-replication design A, B, or C.",
+    "After exact bytes and row root freeze, separately authorize both production pins and require a fresh activated audit."
+  ]
+}
