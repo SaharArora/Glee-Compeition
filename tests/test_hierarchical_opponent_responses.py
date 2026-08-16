@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 
 from glee_eval.population.opponent_fit import (
@@ -23,6 +24,44 @@ def _rows(channel: str, cutoff: float, *, model: str = "m", config: str = "c") -
 
 
 class HierarchicalResponseFitTests(unittest.TestCase):
+    def test_damped_newton_objective_is_monotone_deterministic_and_converges(self) -> None:
+        rows = []
+        for x, hits in ((0.1, 2), (0.3, 5), (0.5, 10), (0.7, 15), (0.9, 18)):
+            for index in range(20):
+                rows.append({"channel": "bargaining|player_1", "x": x, "outcome": int(index < hits),
+                             "game_id": f"g{index}", "player_model": "m", "config_signature": "c"})
+        first = _fit_response_coefficients(rows, 10.0)
+        second = _fit_response_coefficients(list(reversed(rows)), 10.0)
+        self.assertTrue(first["converged"])
+        self.assertTrue(all(after <= before + 1e-12 for before, after in zip(
+            first["objective_history"], first["objective_history"][1:],
+        )))
+        self.assertEqual(first["coefficients"], second["coefficients"])
+        self.assertEqual(
+            json.dumps(first["coefficients"], sort_keys=True, separators=(",", ":")),
+            json.dumps(second["coefficients"], sort_keys=True, separators=(",", ":")),
+        )
+        self.assertEqual(
+            json.dumps(first, sort_keys=True, separators=(",", ":")),
+            json.dumps(second, sort_keys=True, separators=(",", ":")),
+        )
+        self.assertEqual(first["final_objective"], first["objective_history"][-1])
+        self.assertLess(first["final_max_change"], first["tolerance"])
+
+    def test_sparse_model_offsets_recover_direction_with_ridge_shrinkage(self) -> None:
+        rows = []
+        for model, hits in (("high", 8), ("low", 2)):
+            for index in range(10):
+                rows.append({"channel": "persuasion|buyer_yes", "x": None, "outcome": int(index < hits),
+                             "game_id": f"{model}-{index}", "player_model": model, "config_signature": "c"})
+        fit = _fit_response_coefficients(rows, 10.0)
+        high = _response_probability(fit, {"channel": "persuasion|buyer_yes", "x": None,
+                                           "player_model": "high", "config_signature": "c"})
+        low = _response_probability(fit, {"channel": "persuasion|buyer_yes", "x": None,
+                                          "player_model": "low", "config_signature": "c"})
+        self.assertGreater(high, low)
+        self.assertTrue(all(abs(value) < 2.0 for key, value in fit["coefficients"].items() if key.startswith("model|")))
+
     def test_aggregated_gradient_is_equivalent_to_raw_fixture(self) -> None:
         rows = _rows("bargaining|player_1", 0.5)[:30]
         aggregated = _fit_response_coefficients(rows, 10.0, max_iterations=40, aggregate=True)
@@ -50,6 +89,8 @@ class HierarchicalResponseFitTests(unittest.TestCase):
         self.assertEqual(fit["ridge_grid"], [0.1, 1.0, 10.0, 100.0])
         self.assertIn("three_fold_sha256_game_id", fit["selection"])
         self.assertIn("converged", provenance)
+        self.assertIn("final_objective", provenance)
+        self.assertIn("final_max_gradient", provenance)
 
     def test_threshold_clips_only_to_training_x_range(self) -> None:
         rows = _rows("negotiation|seller", 2.0)

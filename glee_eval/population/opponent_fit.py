@@ -99,25 +99,21 @@ def _fit_response_coefficients(
     tolerance: float = 1e-7,
     aggregate: bool = True,
 ) -> dict[str, Any]:
-    """Deterministic projected-gradient ridge logistic fit on aggregated rows."""
+    """Deterministic diagonal-Newton ridge logistic fit on aggregated rows."""
 
-    if aggregate:
-        grouped: dict[tuple[Any, ...], list[int]] = defaultdict(lambda: [0, 0])
-        for row in rows:
-            key = (str(row["channel"]), row.get("x"), str(row["player_model"]), str(row["config_signature"]))
-            grouped[key][0] += 1
-            grouped[key][1] += int(row["outcome"])
-        work_rows = [
-            {"channel": key[0], "x": key[1], "player_model": key[2], "config_signature": key[3],
-             "count": counts[0], "positive": counts[1]}
-            for key, counts in sorted(grouped.items(), key=lambda item: tuple(str(value) for value in item[0]))
-        ]
-    else:
-        work_rows = [
-            {"channel": str(row["channel"]), "x": row.get("x"), "player_model": str(row["player_model"]),
-             "config_signature": str(row["config_signature"]), "count": 1, "positive": int(row["outcome"])}
-            for row in rows
-        ]
+    # Canonical sufficient statistics define the objective identically for both
+    # optimized and reference modes; `aggregate` controls reported execution
+    # accounting, not floating-point summation order.
+    grouped: dict[tuple[Any, ...], list[int]] = defaultdict(lambda: [0, 0])
+    for row in rows:
+        key = (str(row["channel"]), row.get("x"), str(row["player_model"]), str(row["config_signature"]))
+        grouped[key][0] += 1
+        grouped[key][1] += int(row["outcome"])
+    work_rows = [
+        {"channel": key[0], "x": key[1], "player_model": key[2], "config_signature": key[3],
+         "count": counts[0], "positive": counts[1]}
+        for key, counts in sorted(grouped.items(), key=lambda item: tuple(str(value) for value in item[0]))
+    ]
     channels = sorted({str(row["channel"]) for row in work_rows})
     x_values = {
         channel: [(float(row["x"]), int(row["count"])) for row in work_rows if row["channel"] == channel and row.get("x") is not None]
@@ -147,11 +143,32 @@ def _fit_response_coefficients(
         coefficients.setdefault(f"model|{channel}|{row['player_model']}", 0.0)
         coefficients.setdefault(f"config|{channel}|{row['config_signature']}", 0.0)
 
+    def objective(candidate: dict[str, float]) -> float:
+        total = 0.0
+        for row in work_rows:
+            channel = str(row["channel"])
+            linear = candidate[f"intercept|{channel}"]
+            linear += candidate[f"model|{channel}|{row['player_model']}"]
+            linear += candidate[f"config|{channel}|{row['config_signature']}"]
+            if row.get("x") is not None:
+                scale = x_scale[channel]
+                standardized = (float(row["x"]) - scale["mean"]) / scale["sd"]
+                linear += candidate[f"slope|{channel}"] * standardized
+            # count*log(1+exp(z))-positive*z, evaluated stably.
+            softplus = linear + math.log1p(math.exp(-linear)) if linear >= 0 else math.log1p(math.exp(linear))
+            total += int(row["count"]) * softplus - int(row["positive"]) * linear
+        total += 0.5 * ridge * sum(
+            value * value for key, value in candidate.items() if key.startswith(("model|", "config|"))
+        )
+        return total
+
     converged = False
-    n = max(1, sum(int(row["count"]) for row in work_rows))
-    step = 0.25
+    objective_history = [objective(coefficients)]
+    final_max_change = float("inf")
+    final_max_gradient = float("inf")
     for iteration in range(1, max_iterations + 1):
         gradient = defaultdict(float)
+        curvature = defaultdict(float)
         for row in work_rows:
             channel = str(row["channel"])
             keys = [
@@ -165,19 +182,50 @@ def _fit_response_coefficients(
                 scale = x_scale[channel]
                 features.append((float(row["x"]) - scale["mean"]) / scale["sd"])
             linear = sum(coefficients[key] * feature for key, feature in zip(keys, features))
-            error = int(row["count"]) * _sigmoid(linear) - int(row["positive"])
+            probability = _sigmoid(linear)
+            error = int(row["count"]) * probability - int(row["positive"])
+            variance = int(row["count"]) * probability * (1.0 - probability)
             for key, feature in zip(keys, features):
                 gradient[key] += error * feature
-        max_change = 0.0
-        for key, old in list(coefficients.items()):
-            penalty = ridge * old if key.startswith(("model|", "config|")) else 0.0
-            change = step * (gradient[key] + penalty) / n
-            new = old - change
-            if key.startswith("slope|"):
-                new = max(1e-8, new)
-            coefficients[key] = new
-            max_change = max(max_change, abs(new - old))
-        if max_change < tolerance:
+                curvature[key] += variance * feature * feature
+        direction = {}
+        projected_gradients = []
+        for key, old in coefficients.items():
+            penalized_gradient = gradient[key]
+            penalized_curvature = curvature[key]
+            if key.startswith(("model|", "config|")):
+                penalized_gradient += ridge * old
+                penalized_curvature += ridge
+            penalized_curvature = max(1e-12, penalized_curvature)
+            proposed = penalized_gradient / penalized_curvature
+            if key.startswith("slope|") and old <= 1e-8 and proposed > 0:
+                proposed = 0.0
+                projected_gradients.append(0.0)
+            else:
+                projected_gradients.append(abs(penalized_gradient))
+            direction[key] = proposed
+        final_max_gradient = max(projected_gradients, default=0.0)
+        old_objective = objective_history[-1]
+        damping = 1.0
+        accepted = None
+        while damping >= 2 ** -30:
+            candidate = {}
+            for key, old in coefficients.items():
+                value = old - damping * direction[key]
+                candidate[key] = max(1e-8, value) if key.startswith("slope|") else value
+            candidate_objective = objective(candidate)
+            if candidate_objective <= old_objective + 1e-12:
+                accepted = (candidate, candidate_objective)
+                break
+            damping *= 0.5
+        if accepted is None:
+            final_max_change = 0.0
+            break
+        candidate, candidate_objective = accepted
+        final_max_change = max(abs(candidate[key] - coefficients[key]) for key in coefficients)
+        coefficients = candidate
+        objective_history.append(candidate_objective)
+        if final_max_change < tolerance:
             converged = True
             break
     return {
@@ -188,7 +236,14 @@ def _fit_response_coefficients(
         "max_iterations": max_iterations,
         "tolerance": tolerance,
         "ridge": ridge,
-        "aggregated_rows": len(work_rows),
+        "optimizer": "diagonal_newton_with_deterministic_backtracking",
+        "final_objective": objective_history[-1],
+        "objective_history": objective_history,
+        "final_max_change": final_max_change,
+        "final_max_gradient": final_max_gradient,
+        "aggregated_rows": len(work_rows) if aggregate else len(rows),
+        "numerical_sufficient_statistic_rows": len(work_rows),
+        "aggregation_enabled": aggregate,
         "raw_rows": len(rows),
     }
 
@@ -288,7 +343,7 @@ def response_parameter(
 
     provenance = {
         key: fit.get(key)
-        for key in ("status", "selected_ridge", "converged", "iterations", "training_rows", "training_games", "training_models", "training_config_signatures")
+        for key in ("status", "selected_ridge", "converged", "iterations", "training_rows", "training_games", "training_models", "training_config_signatures", "optimizer", "final_objective", "final_max_change", "final_max_gradient")
     }
     provenance["channel_support"] = (fit.get("channel_support") or {}).get(channel)
     if fit.get("status") != "ok" or channel not in fit.get("x_scale", {}):
