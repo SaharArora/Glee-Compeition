@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import hashlib
 import math
+from decimal import Decimal, localcontext
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -372,16 +373,58 @@ def _sparse_logistic_numerics_for_test(
     return objective,gradient,hvp
 
 
-def _projected_armijo(objective, beta, direction, gradient, project=lambda x:x):
+def _decimal_response_armijo_values(encoded, old_b, new_b, ridge, penalty_groups):
+    """Precision-50 penalized objective pair and old-point projected derivative."""
+    with localcontext() as context:
+        context.prec=50
+        decimal_ridge=Decimal.from_float(float(ridge))
+        def objective_and_gradient(values):
+            converted=[Decimal.from_float(float(value)) for value in values]
+            total=Decimal(0); gradient=[Decimal(0) for _ in values]
+            for inds in penalty_groups:
+                group_sum=sum((converted[i] for i in inds),Decimal(0))
+                total+=decimal_ridge/2*(sum((converted[i]*converted[i] for i in inds),Decimal(0))+group_sum*group_sum)
+                for i in inds: gradient[i]+=decimal_ridge*(converted[i]+group_sum)
+            for row,features in encoded:
+                eta=sum((converted[i]*Decimal.from_float(float(value)) for i,value in features.items()),Decimal(0))
+                softplus=eta+(Decimal(1)+(-eta).exp()).ln() if eta>=0 else (Decimal(1)+eta.exp()).ln()
+                total+=Decimal(int(row["n"]))*softplus-Decimal(int(row["y"]))*eta
+                probability=Decimal(1)/(Decimal(1)+(-eta).exp()); error=Decimal(int(row["n"]))*probability-Decimal(int(row["y"]))
+                for i,value in features.items(): gradient[i]+=error*Decimal.from_float(float(value))
+            return total,gradient
+        old,gradient=objective_and_gradient(old_b); candidate,_=objective_and_gradient(new_b)
+        directional=sum((gradient[i]*(Decimal.from_float(float(new_b[i]))-Decimal.from_float(float(old_b[i]))) for i in range(len(old_b))),Decimal(0))
+        return old,candidate,directional
+
+
+def _projected_armijo(objective, beta, direction, gradient, project=lambda x:x,
+                      decimal_evaluator=None, audit_out=None):
     """Exact projected Armijo loop used to exercise stagnation/finite guards."""
-    old=objective(beta); alpha=1.0
+    old=objective(beta); alpha=1.0; decimal_used=False; decimal_evaluations=0; ambiguity_events=[]
     while alpha>=2**-30:
         candidate=project([beta[i]+alpha*direction[i] for i in range(len(beta))])
         step_dot=math.fsum(gradient[i]*(candidate[i]-beta[i]) for i in range(len(beta)))
         value=objective(candidate)
-        if step_dot < 0.0 and math.isfinite(value) and value <= old + 1e-4 * step_dot:
+        rhs_float=old+1e-4*step_dot
+        passed=step_dot < 0.0 and math.isfinite(value) and value <= rhs_float
+        trigger_distance=abs(value-rhs_float) if math.isfinite(value) and math.isfinite(rhs_float) else float("inf")
+        trigger_scale=8*max(math.ulp(old),math.ulp(value) if math.isfinite(value) else 0.0,math.ulp(rhs_float) if math.isfinite(rhs_float) else 0.0)
+        trigger_finite=all(math.isfinite(number) for number in (old,value,rhs_float,step_dot,trigger_distance,trigger_scale))
+        if decimal_evaluator is not None and trigger_finite and step_dot < 0.0 and trigger_distance <= trigger_scale:
+            decimal_used=True; decimal_evaluations+=1
+            old_decimal,new_decimal,directional_decimal=decimal_evaluator(beta,candidate,gradient)
+            with localcontext() as decimal_context:
+                decimal_context.prec=50
+                rhs_decimal=old_decimal+Decimal.from_float(1e-4)*directional_decimal
+                passed=directional_decimal < 0 and new_decimal <= rhs_decimal
+            ambiguity_events.append({"alpha":alpha,"backtracks":int(round(-math.log2(alpha))),"old_float":old,"candidate_float":value,"rhs_float":rhs_float,"step_dot_float":step_dot,"trigger_distance":trigger_distance,"trigger_threshold":trigger_scale,"old_decimal":str(old_decimal),"candidate_decimal":str(new_decimal),"directional_decimal":str(directional_decimal),"rhs_decimal":str(rhs_decimal),"decision":bool(passed)})
+        if passed:
+            if audit_out is not None:
+                audit_out.update({"decimal_ambiguity_trigger_ulps":8,"decimal_precision":50,"decimal_from_float":True,"decimal_used":decimal_used,"decimal_evaluations":decimal_evaluations,"decimal_ambiguity_events":ambiguity_events})
             return candidate, value, alpha
         alpha*=.5
+    if audit_out is not None:
+        audit_out.update({"decimal_ambiguity_trigger_ulps":8,"decimal_precision":50,"decimal_from_float":True,"decimal_used":decimal_used,"decimal_evaluations":decimal_evaluations,"decimal_ambiguity_events":ambiguity_events})
     return None,None,alpha
 
 
@@ -440,6 +483,8 @@ def _fit_response_coefficients(
                 eta=math.fsum(b[i]*v for i,v in f.items()); sp=eta+math.log1p(math.exp(-eta)) if eta>=0 else math.log1p(math.exp(eta))
                 accumulator.add(r["n"]*sp-r["y"]*eta)
             return accumulator.value()
+        def decimal_armijo_values(old_b, new_b, gradient):
+            return _decimal_response_armijo_values(enc,old_b,new_b,ridge,(list(mi.values()),list(ci.values())))
         def gh(b):
             gterms=[_CompensatedSum() for _ in range(dim)]; dterms=[_CompensatedSum() for _ in range(dim)]; weights=[]
             for r,f in enc:
@@ -521,12 +566,13 @@ def _fit_response_coefficients(
             if not solved: stop="pcg_nonconvergence"; break
             if not math.isfinite(directional) or directional>=0 or not math.isfinite(curvature_product) or curvature_product<=0: stop="pcg_nondescent_or_nonpositive_curvature"; break
             project=(lambda candidate: [max(1e-8,x) if i==slope_i else x for i,x in enumerate(candidate)]) if slope_i is not None else (lambda candidate:candidate)
-            cand,no,damping=_projected_armijo(obj,beta,d,g,project)
+            decimal_audit={}
+            cand,no,damping=_projected_armijo(obj,beta,d,g,project,decimal_armijo_values,decimal_audit)
             accepted=(cand,no) if cand is not None else None
             iteration_backtracks=(int(round(-math.log2(damping))) if accepted is not None else 31)
             backtracks+=iteration_backtracks
             last_damping=damping
-            armijo_records.append({"iteration":iteration,"alpha":damping,"backtracks":iteration_backtracks,"passed":accepted is not None})
+            armijo_records.append({"iteration":iteration,"alpha":damping,"backtracks":iteration_backtracks,"passed":accepted is not None,**decimal_audit})
             if accepted is None: stop="line_search_stagnation"; break
             previous=beta; beta,no=accepted; channel_max_change=max(channel_max_change,max(abs(beta[i]-previous[i]) for i in range(dim))); hist.append(no)
         g,_,_=gh(beta)
@@ -551,7 +597,7 @@ def _fit_response_coefficients(
     final_obj=math.fsum(h[-1] for h in histories); overall=bool(histories) and all(channel_passes)
     overall_stop="projected_kkt" if overall else next((s for s in channel_stops if s!="projected_kkt"),"iteration_limit")
     max_len=max(map(len,histories),default=0); aggregate_history=[math.fsum(h[min(i,len(h)-1)] for h in histories) for i in range(max_len)]
-    return {"coefficients":all_coefficients,"x_scale":x_scale,"converged":overall,"iterations":max((len(h)-1 for h in histories),default=0),"max_iterations":max_iterations,"tolerance":tolerance,"ridge":ridge,"optimizer":"zero_sum_sparse_newton_pcg_with_armijo","final_objective":final_obj,"objective_history":aggregate_history,"final_max_change":max((a["max_change"] for a in audits),default=0.0),"final_max_gradient":max(channel_kkts,default=float('inf')),"projected_kkt_tolerance":tolerance,"projected_kkt_pass":overall,"stop_reason":overall_stop,"last_damping":min((a["last_damping"] for a in audits),default=1.0),"total_backtracks":sum(a["total_backtracks"] for a in audits),"pcg_residual_rule":"max(1e-12,min(.5,sqrt(current_projected_kkt))*current_projected_kkt)","pcg_iteration_cap_rule":"min(2000,max(50,4*free_parameter_count))","pcg_shift_schedule":[0.0,1e-12,1e-10,1e-8,1e-6,1e-4],"pcg_preconditioner":"exact_intercept_slope_block_plus_diagonal_contrasts","armijo_c1":1e-4,"contrast_audit":audits,"aggregated_rows":len(work) if aggregate else len(rows),"numerical_sufficient_statistic_rows":len(work),"aggregation_enabled":aggregate,"raw_rows":len(rows)}
+    return {"coefficients":all_coefficients,"x_scale":x_scale,"converged":overall,"iterations":max((len(h)-1 for h in histories),default=0),"max_iterations":max_iterations,"tolerance":tolerance,"ridge":ridge,"optimizer":"zero_sum_sparse_newton_pcg_with_armijo_decimal_ambiguity","final_objective":final_obj,"objective_history":aggregate_history,"final_max_change":max((a["max_change"] for a in audits),default=0.0),"final_max_gradient":max(channel_kkts,default=float('inf')),"projected_kkt_tolerance":tolerance,"projected_kkt_pass":overall,"stop_reason":overall_stop,"last_damping":min((a["last_damping"] for a in audits),default=1.0),"total_backtracks":sum(a["total_backtracks"] for a in audits),"pcg_residual_rule":"max(1e-12,min(.5,sqrt(current_projected_kkt))*current_projected_kkt)","pcg_iteration_cap_rule":"min(2000,max(50,4*free_parameter_count))","pcg_shift_schedule":[0.0,1e-12,1e-10,1e-8,1e-6,1e-4],"pcg_preconditioner":"exact_intercept_slope_block_plus_diagonal_contrasts","armijo_c1":1e-4,"decimal_armijo":{"trigger":"abs(candidate_float-armijo_rhs_float)<=8*max(ulp(old_float),ulp(candidate_float),ulp(rhs_float))","trigger_ulps":8,"precision":50,"conversion":"Decimal.from_float","objective":"same aggregated penalized logistic likelihood","ordinary_path_unchanged_outside_trigger":True},"contrast_audit":audits,"aggregated_rows":len(work) if aggregate else len(rows),"numerical_sufficient_statistic_rows":len(work),"aggregation_enabled":aggregate,"raw_rows":len(rows)}
 
 
 def _response_probability(fit: dict[str, Any], row: dict[str, Any]) -> float:
@@ -633,7 +679,7 @@ def fit_hierarchical_responses(
                 "iterations": fitted["iterations"],
                 "solver_audit": {
                     key: fitted.get(key) for key in (
-                        "optimizer", "pcg_residual_rule", "pcg_iteration_cap_rule", "pcg_shift_schedule", "pcg_preconditioner", "armijo_c1",
+                        "optimizer", "pcg_residual_rule", "pcg_iteration_cap_rule", "pcg_shift_schedule", "pcg_preconditioner", "armijo_c1", "decimal_armijo",
                         "last_damping", "total_backtracks", "contrast_audit",
                     )
                 },
@@ -1310,21 +1356,26 @@ def fit_opponent_population(
     for row in raw_bundles:
         attached = {}
         for parameter, channel in channel_parameters.get((row["family"], row["role"]), ()):
+            # Canonical hierarchical response fit is the sole source of truth
+            # for response parameters; never retain the earlier empirical proxy.
+            row["parameters"].pop(parameter, None)
+            row["parameter_observations"].pop(parameter, None)
+            row["parameter_game_counts"].pop(parameter, None)
             value, provenance = response_parameter(
                 response_fits[row["family"]], channel=channel,
                 player_model=row["player_model"], signature=row["config_signature"],
             )
-            attached[parameter] = {
-                "family": row["family"],
-                "channel": channel,
-                "canonical_fit_reference": f"joint_model.response_estimators.{row['family']}",
-                "canonical_fit_sha256": response_fit_hashes[row["family"]],
-                **{key: provenance[key] for key in (
-                    "parameter_kind", "raw_threshold", "fit_min", "fit_max",
-                    "clipped", "monotone_slope", "channel_support",
-                ) if key in provenance},
-            }
-            if value is not None:
+            if value is not None and math.isfinite(float(value)):
+                attached[parameter] = {
+                    "family": row["family"],
+                    "channel": channel,
+                    "canonical_fit_reference": f"joint_model.response_estimators.{row['family']}",
+                    "canonical_fit_sha256": response_fit_hashes[row["family"]],
+                    **{key: provenance[key] for key in (
+                        "parameter_kind", "raw_threshold", "fit_min", "fit_max",
+                        "clipped", "monotone_slope", "channel_support",
+                    ) if key in provenance},
+                }
                 row["parameters"][parameter] = value
                 support = provenance.get("channel_support") or {}
                 row["parameter_observations"][parameter] = int(support.get("rows") or 0)
@@ -1345,6 +1396,7 @@ def fit_opponent_population(
         row["parameters"] = supported
         row["parameter_observations"] = {name: row["parameter_observations"][name] for name in supported}
         row["parameter_game_counts"] = {name: row["parameter_game_counts"][name] for name in supported}
+        row["response_estimator"] = {name: entry for name,entry in row["response_estimator"].items() if name in supported}
         expected = parameter_names.get((row["family"], row["role"]), parameter_names.get((row["family"], "*"), set()))
         row["missing_parameters"] = sorted(expected - set(supported))
     retained = [row for row in raw_bundles if len(row["parameters"]) >= 2]

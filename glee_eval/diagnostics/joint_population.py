@@ -15,6 +15,7 @@ import hashlib
 import json
 import bisect
 import sys
+from decimal import Decimal, InvalidOperation, localcontext
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -83,7 +84,7 @@ def response_reference_errors(payload: dict[str, Any], *, require_schema: bool =
                 if not fit: continue
                 value,provenance=response_parameter(fit,channel=str(channel),player_model=str(bundle.get("player_model")),signature=str(bundle.get("config_signature")))
                 parameters=bundle.get("parameters") or {}; stored=parameters.get(parameter)
-                if (parameter in parameters)!=(value is not None): errors.append(f"{identity}:{parameter}:parameter_presence")
+                if (parameter in parameters and stored is not None)!=(value is not None): errors.append(f"{identity}:{parameter}:parameter_presence")
                 elif value is not None and (
                     not math.isfinite(float(value)) or not math.isfinite(float(stored))
                     or float(value) != float(stored)
@@ -96,7 +97,7 @@ def response_reference_errors(payload: dict[str, Any], *, require_schema: bool =
                         equal=math.isfinite(left) and math.isfinite(right) and left == right
                     else: equal=left==right
                     if not equal: errors.append(f"{identity}:{parameter}:metadata:{key}")
-            if set(entries)!=set(expected): errors.append(f"{identity}:reference_completeness")
+            if set(entries)!=(set(expected)&set(bundle.get("parameters") or {})): errors.append(f"{identity}:reference_completeness")
     declared=schema.get("references_by_family") or {}
     if dict(counts)!={key:int(value) for key,value in declared.items()}: errors.append("reference_counts")
     if int(schema.get("total_references",-1))!=sum(counts.values()): errors.append("total_reference_count")
@@ -299,7 +300,7 @@ def _newton_pcg_solver_audit_errors(payload: dict[str, Any], prefix: str) -> lis
     def fail(reason: str) -> None:
         errors.append(f"{prefix}:{reason}")
 
-    if payload.get("optimizer") != "zero_sum_sparse_newton_pcg_with_armijo":
+    if payload.get("optimizer") != "zero_sum_sparse_newton_pcg_with_armijo_decimal_ambiguity":
         fail("optimizer")
     if payload.get("pcg_residual_rule") != _PCG_RESIDUAL_RULE:
         fail("pcg_residual_rule")
@@ -311,6 +312,8 @@ def _newton_pcg_solver_audit_errors(payload: dict[str, Any], prefix: str) -> lis
         fail("pcg_preconditioner")
     if payload.get("armijo_c1") != 1e-4:
         fail("armijo_c1")
+    if payload.get("decimal_armijo") != {"trigger":"abs(candidate_float-armijo_rhs_float)<=8*max(ulp(old_float),ulp(candidate_float),ulp(rhs_float))","trigger_ulps":8,"precision":50,"conversion":"Decimal.from_float","objective":"same aggregated penalized logistic likelihood","ordinary_path_unchanged_outside_trigger":True}:
+        fail("decimal_armijo")
     audits = payload.get("contrast_audit")
     if not isinstance(audits, list) or not audits:
         fail("missing_contrast_audit")
@@ -325,6 +328,37 @@ def _newton_pcg_solver_audit_errors(payload: dict[str, Any], prefix: str) -> lis
         if not channel or channel in seen_channels:
             errors.append(f"{label}:channel_identity")
         seen_channels.add(channel)
+        for record in audit.get("armijo") or []:
+            events=record.get("decimal_ambiguity_events")
+            if events is None or record.get("decimal_ambiguity_trigger_ulps")!=8 or record.get("decimal_precision")!=50 or record.get("decimal_from_float") is not True:
+                errors.append(f"{label}:decimal_schema"); continue
+            if bool(events)!=bool(record.get("decimal_used")) or len(events)!=record.get("decimal_evaluations"):
+                errors.append(f"{label}:decimal_count")
+            event_alphas=[]; event_old=[]; true_indexes=[]
+            for event_index,event in enumerate(events):
+                try:
+                    with localcontext() as context:
+                        context.prec=50
+                        old=Decimal(event["old_decimal"]); candidate=Decimal(event["candidate_decimal"]); directional=Decimal(event["directional_decimal"]); rhs=Decimal(event["rhs_decimal"])
+                        old_float=float(event["old_float"]); candidate_float=float(event["candidate_float"]); rhs_float=float(event["rhs_float"]); step_dot=float(event["step_dot_float"]); alpha=float(event["alpha"])
+                        finite=all(math.isfinite(value) for value in (old_float,candidate_float,rhs_float,step_dot,alpha,float(event["trigger_distance"]),float(event["trigger_threshold"]))) and all(value.is_finite() for value in (old,candidate,directional,rhs))
+                        threshold=8*max(math.ulp(old_float),math.ulp(candidate_float),math.ulp(rhs_float)); distance=abs(candidate_float-rhs_float)
+                        decision=directional<0 and candidate<=old+Decimal.from_float(1e-4)*directional
+                        if (not finite or rhs_float!=old_float+1e-4*step_dot or distance!=float(event["trigger_distance"]) or threshold!=float(event["trigger_threshold"]) or distance>threshold or
+                                rhs!=old+Decimal.from_float(1e-4)*directional or event.get("decision") is not decision or event.get("backtracks")!=int(round(-math.log2(alpha)))):
+                            errors.append(f"{label}:decimal_reconstruction")
+                        event_alphas.append(alpha); event_old.append((old_float,str(old))); true_indexes.extend([event_index] if decision else [])
+                except (KeyError,TypeError,ValueError,InvalidOperation): errors.append(f"{label}:decimal_reconstruction")
+            if events:
+                outer_alpha=float(record.get("alpha")); outer_backtracks=int(record.get("backtracks")); outer_passed=record.get("passed") is True
+                if any(left<=right for left,right in zip(event_alphas,event_alphas[1:])) or len(set(event_old))!=1 or any(int(event.get("backtracks",outer_backtracks+1))>outer_backtracks for event in events):
+                    errors.append(f"{label}:decimal_alignment")
+                if true_indexes:
+                    final=true_indexes[-1]
+                    if true_indexes!=[len(events)-1] or not outer_passed or event_alphas[final]!=outer_alpha or int(events[final]["backtracks"])!=outer_backtracks:
+                        errors.append(f"{label}:decimal_alignment")
+                elif outer_passed and not (outer_alpha<event_alphas[-1]):
+                    errors.append(f"{label}:decimal_alignment")
         try:
             dimension = int(audit["dimension"])
             models = int(audit["models"])
@@ -542,7 +576,7 @@ def response_fit_provenance_errors(fit: dict[str, Any]) -> list[str]:
     expected_keys = {str(value) for value in expected_grid}
     if fit.get("status") != "ok" or fit.get("reason") is not None:
         errors.append("fit_status_not_ok")
-    if fit.get("optimizer") != "zero_sum_sparse_newton_pcg_with_armijo":
+    if fit.get("optimizer") != "zero_sum_sparse_newton_pcg_with_armijo_decimal_ambiguity":
         errors.append("optimizer_mismatch")
     errors.extend(_newton_pcg_solver_audit_errors(fit, "final"))
     if fit.get("converged") is not True or fit.get("projected_kkt_pass") is not True:
@@ -713,7 +747,7 @@ def response_fit_provenance_errors(fit: dict[str, Any]) -> list[str]:
                     else:
                         if set(solver_audit) != {
                             "optimizer", "pcg_residual_rule", "pcg_iteration_cap_rule",
-                            "pcg_shift_schedule", "pcg_preconditioner", "armijo_c1",
+                            "pcg_shift_schedule", "pcg_preconditioner", "armijo_c1", "decimal_armijo",
                             "last_damping", "total_backtracks", "contrast_audit",
                         }:
                             errors.append(f"inner_solver_audit_schema:{key}:{fold}")

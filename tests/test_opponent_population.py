@@ -333,6 +333,19 @@ class PersuasionRateSemanticsTests(unittest.TestCase):
 
 
 class FitSmokeTests(unittest.TestCase):
+    def test_unavailable_canonical_fit_removes_preexisting_response_proxies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); events=[]
+            for game in range(25):
+                for quality in ("high-quality","low-quality"):
+                    events.append({"game_family":"persuasion","game_id":f"g{game}","config_id":"c","role":"seller","player_1_model":"m","action_type":"recommendation","round":game+1,"configuration":{"p":.5,"v":2,"c":0,"product_price":100},"round_quality":quality,"raw_record":{"decision":"yes"}})
+            write_jsonl(root/"processed"/"events.jsonl",events)
+            unavailable={"status":"unavailable","reason":"fixture"}
+            with patch("glee_eval.population.opponent_fit.fit_hierarchical_responses",return_value=unavailable):
+                payload=fit_opponent_population(root,root/"out")
+            self.assertEqual(payload["joint_bundles"].get("persuasion",[]),[])
+            self.assertEqual(payload["joint_model"]["response_estimator_reference_schema"]["references_by_family"].get("persuasion",0),0)
+
     def test_outer_fold_is_excluded_from_marginals_observations_and_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

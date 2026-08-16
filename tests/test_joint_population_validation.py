@@ -51,6 +51,22 @@ def _actual_response_fit():
 
 
 class JointPopulationValidationTests(unittest.TestCase):
+    def test_decimal_armijo_provenance_rejects_malformed_precision_and_alignment(self) -> None:
+        fit=copy.deepcopy(_actual_response_fit())
+        self.assertEqual(response_fit_provenance_errors(fit),[])
+        records=[record for audit in fit["contrast_audit"] for record in audit["armijo"] if record.get("decimal_ambiguity_events")]
+        self.assertTrue(records)
+        for mutation in ("rhs_decimal","candidate_float","alpha"):
+            tampered=copy.deepcopy(fit)
+            record=next(record for audit in tampered["contrast_audit"] for record in audit["armijo"] if record.get("decimal_ambiguity_events"))
+            event=record["decimal_ambiguity_events"][0]
+            if mutation=="rhs_decimal": event[mutation]="NaN"
+            elif mutation=="candidate_float": event[mutation]=float("inf")
+            else: event[mutation]*=.5
+            self.assertTrue(response_fit_provenance_errors(tampered))
+        tampered=copy.deepcopy(fit); tampered["decimal_armijo"]["precision"]=28
+        self.assertTrue(response_fit_provenance_errors(tampered))
+
     def test_compact_response_references_validate_recompute_and_detect_tampering(self) -> None:
         fit=copy.deepcopy(_actual_response_fit())
         fit_hash=canonical_json_sha256(fit)
@@ -59,16 +75,15 @@ class JointPopulationValidationTests(unittest.TestCase):
         support=fit["channel_support"]["persuasion|buyer_yes"]
         entries={
             "trust_prior":{"family":"persuasion","channel":"persuasion|buyer_yes","canonical_fit_reference":"joint_model.response_estimators.persuasion","canonical_fit_sha256":fit_hash,"parameter_kind":"probability","channel_support":support},
-            "buy_after_no_rate":{"family":"persuasion","channel":"persuasion|buyer_no","canonical_fit_reference":"joint_model.response_estimators.persuasion","canonical_fit_sha256":fit_hash,"channel_support":None},
         }
-        payload={"joint_model":{"response_estimators":{"bargaining":copy.deepcopy(fit),"negotiation":copy.deepcopy(fit),"persuasion":fit},"response_estimator_reference_schema":{"version":1,"canonical_root":"joint_model.response_estimators","required_fields":["family","channel","canonical_fit_reference","canonical_fit_sha256"],"canonical_fit_sha256_by_family":{"bargaining":fit_hash,"negotiation":fit_hash,"persuasion":fit_hash},"references_by_family":{"bargaining":0,"negotiation":0,"persuasion":2},"total_references":2,"canonical_full_fit_count":3}},"joint_bundles":{"bargaining":[],"negotiation":[],"persuasion":[{"bundle_id":"b","family":"persuasion","role":"buyer","player_model":"model-0","config_signature":"config-0","parameters":{"trust_prior":value},"response_estimator":entries}]}}
+        payload={"joint_model":{"response_estimators":{"bargaining":copy.deepcopy(fit),"negotiation":copy.deepcopy(fit),"persuasion":fit},"response_estimator_reference_schema":{"version":1,"canonical_root":"joint_model.response_estimators","required_fields":["family","channel","canonical_fit_reference","canonical_fit_sha256"],"canonical_fit_sha256_by_family":{"bargaining":fit_hash,"negotiation":fit_hash,"persuasion":fit_hash},"references_by_family":{"bargaining":0,"negotiation":0,"persuasion":1},"total_references":1,"canonical_full_fit_count":3}},"joint_bundles":{"bargaining":[],"negotiation":[],"persuasion":[{"bundle_id":"b","family":"persuasion","role":"buyer","player_model":"model-0","config_signature":"config-0","parameters":{"trust_prior":value},"response_estimator":entries}]}}
         self.assertEqual(response_reference_errors(payload),[])
         for field,bad in (("family","bargaining"),("channel","persuasion|seller_high"),("canonical_fit_reference","wrong")):
             tampered=copy.deepcopy(payload); tampered["joint_bundles"]["persuasion"][0]["response_estimator"]["trust_prior"][field]=bad
             self.assertTrue(response_reference_errors(tampered))
         tampered=copy.deepcopy(payload); tampered["joint_bundles"]["persuasion"][0]["parameters"]["trust_prior"]+=.1
         self.assertTrue(any("recompute" in error for error in response_reference_errors(tampered)))
-        tampered=copy.deepcopy(payload); del tampered["joint_bundles"]["persuasion"][0]["response_estimator"]["buy_after_no_rate"]
+        tampered=copy.deepcopy(payload); del tampered["joint_bundles"]["persuasion"][0]["response_estimator"]["trust_prior"]
         self.assertTrue(any("completeness" in error for error in response_reference_errors(tampered)))
         for schema_field,bad in (("version",2),("canonical_root","wrong"),("required_fields",[])):
             tampered=copy.deepcopy(payload); tampered["joint_model"]["response_estimator_reference_schema"][schema_field]=bad
@@ -85,11 +100,11 @@ class JointPopulationValidationTests(unittest.TestCase):
         for field in ("parameter_kind","channel_support"):
             tampered=copy.deepcopy(payload); tampered["joint_bundles"]["persuasion"][0]["response_estimator"]["trust_prior"][field]="tampered"
             self.assertTrue(response_reference_errors(tampered))
-        tampered=copy.deepcopy(payload); del tampered["joint_bundles"]["persuasion"][0]["response_estimator"]["buy_after_no_rate"]["channel_support"]
+        tampered=copy.deepcopy(payload); del tampered["joint_bundles"]["persuasion"][0]["response_estimator"]["trust_prior"]["channel_support"]
         self.assertTrue(response_reference_errors(tampered))
         tampered=copy.deepcopy(payload); tampered["joint_bundles"]["persuasion"][0]["response_estimator"]["trust_prior"]["contrast_audit"]={}
         self.assertTrue(response_reference_errors(tampered))
-        tampered=copy.deepcopy(payload); tampered["joint_bundles"]["persuasion"][0]["parameters"]["buy_after_no_rate"]=None
+        tampered=copy.deepcopy(payload); tampered["joint_bundles"]["persuasion"][0]["parameters"]["trust_prior"]=None
         self.assertTrue(any("parameter_presence" in error for error in response_reference_errors(tampered)))
         tampered=copy.deepcopy(payload)
         tampered["joint_bundles"]["persuasion"][0]["parameters"]["trust_prior"]=math.nextafter(value,math.inf)

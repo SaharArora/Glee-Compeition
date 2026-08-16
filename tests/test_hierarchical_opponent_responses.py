@@ -14,6 +14,7 @@ from glee_eval.population.opponent_fit import (
     _sparse_hvp,
     _armijo_projected_for_test,
     _CompensatedSum,
+    _decimal_response_armijo_values,
     _pcg_shift_retry_allowed,
     extract_response_observations,
     fit_hierarchical_responses,
@@ -33,6 +34,56 @@ def _rows(channel: str, cutoff: float, *, model: str = "m", config: str = "c") -
 
 
 class HierarchicalResponseFitTests(unittest.TestCase):
+    def test_decimal_objective_and_projected_derivative_match_dense_reference(self) -> None:
+        from decimal import Decimal,localcontext
+        encoded=[({"n":3,"y":2},{0:1.0,1:-.5}),({"n":2,"y":0},{0:1.0,1:.25})]
+        old=[.2,-.3]; new=[.2,-.3+1e-8]
+        objective,candidate,directional=_decimal_response_armijo_values(encoded,old,new,1.0,([1],))
+        with localcontext() as context:
+            context.prec=50
+            b=[Decimal.from_float(x) for x in old]; displacement=Decimal.from_float(new[1])-b[1]
+            gradient=2*b[1]
+            dense=b[1]*b[1]
+            for row,features in encoded:
+                eta=sum((b[i]*Decimal.from_float(v) for i,v in features.items()),Decimal(0)); p=Decimal(1)/(Decimal(1)+(-eta).exp())
+                dense+=Decimal(row["n"])*(eta+(Decimal(1)+(-eta).exp()).ln() if eta>=0 else (Decimal(1)+eta.exp()).ln())-Decimal(row["y"])*eta
+                gradient+=(Decimal(row["n"])*p-Decimal(row["y"]))*Decimal.from_float(features.get(1,0.0))
+            self.assertEqual(objective,dense); self.assertLessEqual(abs(directional-gradient*displacement),Decimal("1e-55")); self.assertLess(candidate,objective if directional<0 else candidate+1)
+
+    def test_decimal_armijo_exact_ambiguity_trigger_accept_reject_and_ordinary_bypass(self) -> None:
+        from decimal import Decimal
+        calls=[]; audit={}
+        def accept(old,candidate,gradient):
+            calls.append(1); return Decimal.from_float(1.0),Decimal.from_float(1.0)-Decimal("1e-18"),Decimal("-1e-15")
+        candidate,value,alpha=_armijo_projected_for_test(lambda _:1.0,[0.0],[-1e-15],[1.0],decimal_evaluator=accept,audit_out=audit)
+        self.assertIsNotNone(candidate); self.assertTrue(audit["decimal_used"]); self.assertEqual(audit["decimal_ambiguity_trigger_ulps"],8)
+        event=audit["decimal_ambiguity_events"][0]
+        from decimal import localcontext
+        with localcontext() as context:
+            context.prec=50
+            self.assertEqual(Decimal(event["rhs_decimal"]),Decimal(event["old_decimal"])+Decimal.from_float(1e-4)*Decimal(event["directional_decimal"]))
+        bypass=[]
+        _armijo_projected_for_test(lambda x:1.0 if x[0]==0 else .5,[0.0],[-1.0],[1.0],decimal_evaluator=lambda *args:bypass.append(1))
+        self.assertEqual(bypass,[])
+        rejected={}
+        def reject(old,candidate,gradient): return Decimal(1),Decimal(1),Decimal("-1e-15")
+        result=_armijo_projected_for_test(lambda _:1.0,[0.0],[-1e-15],[1.0],decimal_evaluator=reject,audit_out=rejected)
+        self.assertIsNone(result[0]); self.assertTrue(all(not event["decision"] for event in rejected["decimal_ambiguity_events"]))
+        nonfinite=[]
+        _armijo_projected_for_test(lambda _:float("inf"),[0.0],[-1.0],[1.0],decimal_evaluator=lambda *args:nonfinite.append(1))
+        self.assertEqual(nonfinite,[])
+        import math
+        step=-1e-12; rhs=1.0+1e-4*step; boundary=rhs+8*max(math.ulp(1.0),math.ulp(rhs))
+        boundary_calls=[]
+        _armijo_projected_for_test(lambda x:1.0 if x[0]==0 else boundary,[0.0],[step],[1.0],decimal_evaluator=lambda *args:(boundary_calls.append(1) or accept(*args)))
+        self.assertTrue(boundary_calls)
+        outside=math.nextafter(boundary,math.inf); outside_calls=[]
+        _armijo_projected_for_test(lambda x:1.0 if x[0]==0 else outside,[0.0],[step],[1.0],decimal_evaluator=lambda *args:outside_calls.append(1))
+        self.assertEqual(outside_calls,[])
+        projected_calls=[]
+        _armijo_projected_for_test(lambda x:x[0]**2,[0.0],[-1.0],[1.0],project=lambda x:[max(0.0,x[0])],decimal_evaluator=lambda *args:projected_calls.append(1))
+        self.assertEqual(projected_calls,[])
+
     def test_pcg_shift_retry_restriction_is_used_by_production(self) -> None:
         rows=_rows("bargaining|player_1",.5)[:20]
         forbidden={"solved":False,"stop_reason":"iteration_limit","iterations":50,"residual":1.0}
@@ -232,7 +283,7 @@ class HierarchicalResponseFitTests(unittest.TestCase):
         audit = pcg["contrast_audit"][0]
         self.assertAlmostEqual(audit["zero_sum_model"], 0.0, places=14)
         self.assertAlmostEqual(audit["zero_sum_config"], 0.0, places=14)
-        self.assertEqual(pcg["optimizer"], "zero_sum_sparse_newton_pcg_with_armijo")
+        self.assertEqual(pcg["optimizer"], "zero_sum_sparse_newton_pcg_with_armijo_decimal_ambiguity")
         self.assertTrue(all(record["solved"] for record in audit["pcg"]))
         self.assertEqual(pcg["pcg_shift_schedule"], [0.0, 1e-12, 1e-10, 1e-8, 1e-6, 1e-4])
         self.assertEqual(pcg["pcg_preconditioner"], "exact_intercept_slope_block_plus_diagonal_contrasts")
