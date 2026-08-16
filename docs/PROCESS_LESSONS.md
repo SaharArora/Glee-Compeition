@@ -97,3 +97,9 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
   and deterministic tie rule. Preserve enough bounded-memory provenance to audit the original
   estimand—zero-sum reconstruction, coefficient ordering, PCG residual/curvature/descent and
   projected line-search records—without reintroducing row-scale temporary storage.
+- A bounded-memory computation can still fail when its result graph repeats shared evidence.
+  Recursive serializers expand every repeated reference and may also hold the logical tree and a
+  complete encoded copy at once. Normalize large audit objects to one canonical owner, use
+  verified compact references at high-cardinality leaves, stream atomic output, and test peak
+  memory against leaf count as well as numerical row count. Release phase-local state only after
+  its last semantic consumer so memory repair cannot silently change the estimator or provenance.

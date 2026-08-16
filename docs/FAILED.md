@@ -518,6 +518,34 @@ append a correction and update `docs/REGISTRY.md` instead.
   rather than O(row-feature nonzeros). The statistical objective, folds, ridge grid, PCG forcing/
   cap/shifts, Armijo constants, 300 outer limit and raw KKT `1e-7` may not change.
 
+## Repeated response-audit serialization after Neumaier repair — instrument retracted before artifact write
+
+- Closest prior entry: the list-materialized stable-summation failure immediately above. That
+  failure occurred inside repeated numerical evaluation because row contributions were retained
+  in temporary lists. The materially different post-Neumaier attempt used shared fixed-state
+  compensated accumulators, so objective, gradient/HVP and raw-KKT accumulation no longer grew
+  with row-feature contributions; this failure exposed artifact object ownership and recursive
+  serialization instead. The estimator, folds, ridge selection and Newton-PCG contract did not
+  change.
+- Kill-check: the repaired, preregistered actor-fold-0 FIT-only process was terminated by the OS
+  with exit code 137. It wrote no new actor-fold-0 artifact and produced no holdout extraction,
+  predictive verdict, payoff tournament, policy gate or live game. In particular, termination is
+  not evidence that any family fit converged or passed its KKT contract.
+- Mechanism identified by the post-run serialization-path audit: every retained bundle response
+  parameter embedded the family's complete final audit and all ridge-by-inner-fold solver audits,
+  including nested PCG shift attempts and Armijo histories. The same canonical family fit was
+  also present at the artifact top level. Thousands of bundles therefore expanded a shared
+  logical audit into a recursively serialized object graph many orders larger than its unique
+  evidence content, while ordinary JSON construction/writing could additionally retain a whole
+  tree and serialized copy concurrently.
+- Materially new repair: normalize complete solver evidence to one canonical family audit and
+  replace per-bundle copies with verified family/channel/fit references and parameter-specific
+  metadata. Use an atomic streaming writer and release phase-local state only after its final
+  consumer. Preserve every numerical record required by the declared independent validator;
+  hashes alone may not replace auditable KKT/PCG/Armijo/CV evidence. The statistical estimator,
+  solver, folds, ridge grid, endpoints and thresholds remain frozen. The prospective storage-only
+  instrument is recorded in REGISTRY before implementation or another FIT attempt.
+
 ## Retracted claims from the 14 August session
 
 ### Frozen persuasion posterior guarantees zero payoff — retracted claim
