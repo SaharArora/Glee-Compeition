@@ -91,3 +91,9 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
   for exact summation can turn a sparse matrix-free optimizer into an O(nonzeros) temporary-
   allocation loop; use deterministic compensated or fixed-block accumulation and test peak
   storage before the full corpus run.
+- Never accept a serialized `converged` flag as its own proof. Before holdout extraction or
+  scoring, independently reconstruct the frozen solver constants, original-coordinate terminal
+  KKT certificate, every inner-fold eligibility decision, pooled validation-loss ridge choice,
+  and deterministic tie rule. Preserve enough bounded-memory provenance to audit the original
+  estimand—zero-sum reconstruction, coefficient ordering, PCG residual/curvature/descent and
+  projected line-search records—without reintroducing row-scale temporary storage.

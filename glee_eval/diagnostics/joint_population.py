@@ -1687,7 +1687,10 @@ def run_crossfit_validation(
         }
     report = {
         "schema_version": 2,
-        "declaration": "docs/REGISTRY.md model_b_crossfit_joint_opponents",
+        "declaration": (
+            "docs/REGISTRY.md model_b_mixed_fold_crossfit; "
+            "model_b_response_newton_pcg numerical instrument"
+        ),
         "data_events_path": str(events_path),
         "manifest_path": str(manifest_path),
         "manifest_sha256": hashlib.sha256(raw_manifest).hexdigest(),
