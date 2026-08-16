@@ -121,6 +121,13 @@ def _bin(value: float, width: float = 0.1, low: float = 0.0, high: float = 1.5) 
     return f"{start:.1f}-{end:.1f}"
 
 
+def _optional_bin(value: Any, **kwargs: float) -> str | None:
+    """Bin a visible value without turning missing private information into zero."""
+
+    parsed = as_float(value)
+    return _bin(parsed, **kwargs) if parsed is not None else None
+
+
 def _round_bucket(round_number: Any, horizon: Any = None) -> str:
     round_int = int(as_float(round_number) or 0)
     horizon_int = int(as_float(horizon) or 0)
@@ -194,9 +201,9 @@ def _coarse_config(family: str, config: dict[str, Any]) -> dict[str, Any]:
     if family == "persuasion":
         return {
             "total_rounds": config.get("total_rounds"),
-            "p": _bin(as_float(config.get("p")) or 0.0, width=0.1, low=0.0, high=1.0),
-            "v": _bin(as_float(config.get("v")) or 0.0, width=0.1, low=0.0, high=2.0),
-            "c": _bin(as_float(config.get("c")) or 0.0, width=0.1, low=0.0, high=1.5),
+            "p": _optional_bin(config.get("p"), width=0.1, low=0.0, high=1.0),
+            "v": _optional_bin(config.get("v"), width=0.1, low=0.0, high=2.0),
+            "c": _optional_bin(config.get("c"), width=0.1, low=0.0, high=1.5),
             "seller_message_type": config.get("seller_message_type"),
             "is_seller_know_cv": config.get("is_seller_know_cv"),
             "is_buyer_know_p": config.get("is_buyer_know_p"),

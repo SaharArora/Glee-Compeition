@@ -71,6 +71,17 @@ class TranslationTests(unittest.TestCase):
         self.assertAlmostEqual(state.public_parameters["v"], 1.25)
         self.assertAlmostEqual(state.public_parameters["c"], 0.25)
 
+    def test_uninformed_seller_values_are_absent_not_defaulted_by_translation(self) -> None:
+        game = fixtures.persuasion_seller_recommendation(is_seller_know_cv=False)
+        game["game_state"].pop("u")
+        game["game_state"].pop("v")
+
+        state = to_game_state(game)
+
+        self.assertNotIn("v", state.public_parameters)
+        self.assertNotIn("c", state.public_parameters)
+        self.assertFalse(state.public_parameters["is_seller_know_cv"])
+
     def test_persuasion_quality_high_maps_to_high_quality(self) -> None:
         seller = to_game_state(fixtures.persuasion_seller_recommendation(current_quality="high"))
         low = to_game_state(fixtures.persuasion_seller_recommendation(current_quality="low"))
@@ -101,6 +112,31 @@ class TranslationTests(unittest.TestCase):
 
         self.assertIn("buyer_value", state.private_parameters)
         self.assertIn("seller_value", state.private_parameters)
+
+    def test_documented_histories_are_consumed(self) -> None:
+        bargaining = to_game_state(fixtures.bargaining_decision())
+        negotiation = to_game_state(fixtures.negotiation_decision())
+        persuasion = to_game_state(fixtures.persuasion_buyer_decision())
+
+        self.assertEqual(len([row for row in bargaining.visible_transcript if row["action_type"] == "offer"]), 2)
+        self.assertEqual(len([row for row in negotiation.visible_transcript if row["action_type"] == "offer"]), 3)
+        self.assertEqual(len([row for row in persuasion.visible_transcript if row["action_type"] == "buy_decision"]), 2)
+        self.assertTrue(any(row.get("quality") == "high-quality" for row in persuasion.visible_transcript))
+
+    def test_last_offer_remains_a_compatibility_fallback_without_history(self) -> None:
+        game = fixtures.negotiation_decision(history=[])
+
+        state = to_game_state(game)
+
+        offers = [row for row in state.visible_transcript if row["action_type"] == "offer"]
+        self.assertEqual(len(offers), 1)
+        self.assertEqual(offers[0]["numeric_action"], 11000 / 12000)
+
+    def test_all_fixtures_carry_documented_history_and_persuasion_current_player(self) -> None:
+        for game in ALL_GAMES():
+            self.assertIsInstance(game["game_state"]["history"], list)
+            if game["game_family"] == "persuasion":
+                self.assertIn(game["game_state"]["current_player"], {"player_1", "player_2"})
 
 
 class ActionLegalityTests(unittest.TestCase):
@@ -317,7 +353,7 @@ if __name__ == "__main__":
 
 
 class MarketStatisticsRecoveryTests(unittest.TestCase):
-    """The live payload has no per-round history, only running payoff totals.
+    """Older live payloads may have only running payoff totals.
 
     Without recovering the buyer's own purchase record from those totals its
     posterior stays pinned at the prior for the whole game, so a truthful seller
@@ -327,7 +363,7 @@ class MarketStatisticsRecoveryTests(unittest.TestCase):
     """
 
     def _stats(self, **overrides):
-        game = fixtures.persuasion_buyer_decision(**overrides)
+        game = fixtures.persuasion_buyer_decision(history=[], **overrides)
         state = to_game_state(game)
         return next(
             (row for row in state.visible_transcript if row.get("action_type") == "market_statistics"),
@@ -369,6 +405,7 @@ class MarketStatisticsRecoveryTests(unittest.TestCase):
 
     def test_missing_totals_are_omitted(self) -> None:
         game = fixtures.persuasion_buyer_decision()
+        game["game_state"]["history"] = []
         game["game_state"].pop("seller_total_payoff", None)
         state = to_game_state(game)
 
@@ -394,9 +431,9 @@ class MarketStatisticsRecoveryTests(unittest.TestCase):
 
         agent = MyAgent(seed=1)
         frozen = agent._persuasion_beliefs(to_game_state(fixtures.persuasion_buyer_decision(
-            product_price=10000, v=12500, u=0, seller_total_payoff=0, buyer_total_payoff=0)))
+            history=[], product_price=10000, v=12500, u=0, seller_total_payoff=0, buyer_total_payoff=0)))
         informed = agent._persuasion_beliefs(to_game_state(fixtures.persuasion_buyer_decision(
-            product_price=10000, v=12500, u=0, seller_total_payoff=80000, buyer_total_payoff=20000)))
+            history=[], product_price=10000, v=12500, u=0, seller_total_payoff=80000, buyer_total_payoff=20000)))
 
         self.assertEqual(frozen["market_products_sold"], 0.0)
         self.assertEqual(informed["market_products_sold"], 8.0)

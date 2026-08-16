@@ -10,7 +10,11 @@ from typing import Any
 
 from glee_eval.adapters.candidate_agent import CandidateAgent
 from glee_eval.data.schemas import AgentAction, GameState, compact_id
-from glee_eval.data.transcripts import transcript_item_decision, transcript_item_quality
+from glee_eval.data.transcripts import (
+    persuasion_text_intent,
+    transcript_item_decision,
+    transcript_item_quality,
+)
 from glee_eval.response_models.runtime import EmpiricalResponseModel, ResponseEstimate
 from glee_eval.simulate.coverage_gate import CoverageGate
 from my_agents.message_composer import PersuasionMessageComposer, shadow_record
@@ -31,6 +35,13 @@ from glee_eval.theory.benchmarks import (
 # 0.0 equilibrium share against a fairness-anchored opponent would give away a
 # pot they would have split.
 BARGAINING_FAIRNESS_FLOOR = 0.50
+
+# Model-FIT coefficients declared before the acting candidate was implemented.
+# Predictive evaluation passed on both untouched structural holdouts, but that is
+# not payoff evidence, so the policy surface using them remains default-off.
+PERSUASION_PLATT_INTERCEPT = 0.3651090145
+PERSUASION_PLATT_SLOPE = 1.1369808568
+PERSUASION_PLATT_EPSILON = 1e-6
 
 
 class StrategicMode(str, Enum):
@@ -91,12 +102,17 @@ class JordanStrategicAgent(CandidateAgent):
         use_theory_anchor: bool = True,
         message_mode: str = "shadow",
         persuasion_explore: bool = False,
+        use_persuasion_platt: bool = False,
+        use_deceptive_seller_guard: bool = False,
+        use_persuasion_text_stance: bool = False,
         max_exploration_loss: float = 0.45,
         use_time_concession: bool = False,
         concession_convexity: float = 2.5,
         min_negotiation_margin: float = 0.02,
         guarantee_own_margin: bool = False,
         debias_counterpart_value: bool = False,
+        use_unknown_horizon_counter_fallback: bool = False,
+        use_unknown_horizon_counter_preservation: bool = False,
     ):
         self.rng = random.Random(seed)
         self.exploit_evidence_threshold = exploit_evidence_threshold
@@ -151,6 +167,23 @@ class JordanStrategicAgent(CandidateAgent):
         # argument is not something the gate can test, so the flag stays available
         # and off rather than the reasoning being deleted.
         self.persuasion_explore = persuasion_explore
+        # Apply the single preregistered model-FIT Platt map at the buyer's
+        # post-yes purchase boundary. OFF until payoff promotion and an
+        # independently declared confirmation both clear; predictive calibration
+        # success alone cannot flip a policy default.
+        self.use_persuasion_platt = use_persuasion_platt
+        # Persistent-buyer uncertainty guard after an observed yes-on-low lie.
+        # Default-off pending the preregistered payoff gate and confirmation.
+        # It is deliberately separate from the rejected global Platt map and
+        # cold-start exploration; the explicit gate candidate enables only this.
+        self.use_deceptive_seller_guard = use_deceptive_seller_guard
+        # Recover explicit intent from live text only when the server supplied no
+        # structured recommendation. Default-off pending the preregistered gate.
+        self.use_persuasion_text_stance = use_persuasion_text_stance
+        self.use_unknown_horizon_counter_fallback = use_unknown_horizon_counter_fallback
+        # Exact hidden-horizon repair: repeat the latest own offer, without adding
+        # a newly fitted concession schedule or value-model assumption.
+        self.use_unknown_horizon_counter_preservation = use_unknown_horizon_counter_preservation
         # Never explore when a single buy would cost more than this in price units.
         self.max_exploration_loss = max_exploration_loss
         # Concede over time in negotiation instead of repeating one price forever.
@@ -502,6 +535,40 @@ class JordanStrategicAgent(CandidateAgent):
             "evidence": evidence,
             "beliefs": beliefs,
         }
+        if (
+            self.use_unknown_horizon_counter_preservation
+            and decision == "RejectOffer"
+            and state.metadata.get("horizon_known") is False
+        ):
+            own_offers = [
+                self._float(item.get("numeric_action"), None)
+                for item in self._transcript(state)
+                if item.get("role") == state.role
+                and item.get("action_type") == "offer"
+                and self._float(item.get("numeric_action"), None) is not None
+            ]
+            if own_offers:
+                preserved = own_offers[-1]
+                structured["counter_price"] = preserved
+                structured["counter_normalized_price"] = preserved / order
+        if (
+            self.use_unknown_horizon_counter_fallback
+            and decision == "RejectOffer"
+            and state.metadata.get("horizon_known") is False
+        ):
+            own_value = beliefs["seller_value"] if state.role == "seller" else beliefs["buyer_value"]
+            scheduled_margin = max(0.02, 0.15 * 0.99 ** max(0, self._round(state) - 1))
+            scheduled = own_value + scheduled_margin if state.role == "seller" else own_value - scheduled_margin
+            own_offers = [
+                self._float(item.get("numeric_action"), None) / order
+                for item in self._transcript(state)
+                if item.get("role") == state.role and item.get("action_type") == "offer"
+                and self._float(item.get("numeric_action"), None) is not None
+            ]
+            if own_offers:
+                scheduled = min(own_offers[-1], scheduled) if state.role == "seller" else max(own_offers[-1], scheduled)
+            structured["counter_price"] = round(scheduled * order, 2)
+            structured["counter_normalized_price"] = scheduled
         if self.guarantee_own_margin and decision not in {
             "AcceptOffer",
             "SellToJhon",
@@ -865,7 +932,7 @@ class JordanStrategicAgent(CandidateAgent):
         yes_on_low = 0
         low_total = 0
         for item in seller_actions:
-            rec = transcript_item_decision(item)
+            rec = self._persuasion_transcript_decision(state, item)
             quality = transcript_item_quality(qualities.get(int(item.get("round", 0))))
             if rec in {"yes", "no"} and quality:
                 truth_total += 1
@@ -880,7 +947,9 @@ class JordanStrategicAgent(CandidateAgent):
         yes_seen = 0
         seller_by_round = {int(item.get("round", 0)): item for item in seller_actions}
         for item in buyer_actions:
-            rec = transcript_item_decision(seller_by_round.get(int(item.get("round", 0))))
+            rec = self._persuasion_transcript_decision(
+                state, seller_by_round.get(int(item.get("round", 0)))
+            )
             if rec == "yes":
                 yes_seen += 1
                 buys_after_yes += int(transcript_item_decision(item) == "yes")
@@ -908,6 +977,15 @@ class JordanStrategicAgent(CandidateAgent):
                 prior_weight = 4.0
                 posterior_quality_given_yes = (market_high + prior_weight * p) / (market_sold + prior_weight)
         base_ev = p * (v - 1.0) + (1.0 - p) * (c - 1.0)
+        raw_posterior = self._clip(posterior_quality_given_yes, 0.0, 1.0)
+        visible_yes_observations = yes_on_high + yes_on_low
+        guarded_posterior = raw_posterior
+        if stats is None and yes_on_low >= 1:
+            guarded_posterior = max(
+                0.0,
+                raw_posterior
+                - math.sqrt(raw_posterior * (1.0 - raw_posterior) / (visible_yes_observations + 4.0)),
+            )
         return {
             "base_quality_prob": self._clip(p, 0.0, 1.0),
             "high_value": v,
@@ -916,7 +994,16 @@ class JordanStrategicAgent(CandidateAgent):
             "seller_honesty": honesty,
             "yes_given_high": self._clip(yes_given_high, 0.0, 1.0),
             "yes_given_low": self._clip(yes_given_low, 0.0, 1.0),
-            "posterior_quality_given_yes": self._clip(posterior_quality_given_yes, 0.0, 1.0),
+            # Keep the production diagnostic stable and make both raw and
+            # candidate values explicit. The acting flag is consulted only after
+            # a yes recommendation in `_persuasion_buy_decision`.
+            "posterior_quality_given_yes": raw_posterior,
+            "posterior_quality_given_yes_raw": raw_posterior,
+            "posterior_quality_given_yes_platt": self._persuasion_platt_probability(raw_posterior),
+            "posterior_quality_given_yes_deceptive_guard": guarded_posterior,
+            "prior_visible_yes_on_high": float(yes_on_high),
+            "prior_visible_yes_on_low": float(yes_on_low),
+            "prior_visible_yes_quality_observations": float(visible_yes_observations),
             "receiver_obedience": obedience,
             "receiver_skepticism": 1.0 - obedience,
             # Kept separate on purpose. `transcript_observations` is the channel a
@@ -1044,9 +1131,13 @@ class JordanStrategicAgent(CandidateAgent):
         for item in reversed(self._transcript(state)):
             if item.get("role") != "seller":
                 continue
-            value = transcript_item_decision(item)
+            value = self._persuasion_transcript_decision(state, item)
             if value in {"yes", "no"}:
                 recommendation = value
+                break
+            if int(item.get("round", state.round)) == state.round:
+                # An ambiguous current message is not permission to reuse an
+                # older round's recommendation.
                 break
         if recommendation == "no":
             return "no"
@@ -1055,6 +1146,21 @@ class JordanStrategicAgent(CandidateAgent):
         posterior_quality = control.beliefs.get("posterior_quality_given_yes")
         if posterior_quality is None:
             posterior_quality = 0.66 if control.beliefs.get("seller_honesty", 0.5) >= 0.60 else control.beliefs.get("base_quality_prob", 0.5)
+        raw_posterior = self._clip(posterior_quality, 0.0, 1.0)
+        guard_applies = (
+            self.use_deceptive_seller_guard
+            and control.beliefs.get("myopic_buyer", 0.0) == 0.0
+            and control.beliefs.get("prior_visible_yes_on_low", 0.0) >= 1.0
+        )
+        if guard_applies:
+            posterior_quality = control.beliefs["posterior_quality_given_yes_deceptive_guard"]
+        elif self.use_persuasion_platt:
+            posterior_quality = self._persuasion_platt_probability(raw_posterior)
+        else:
+            posterior_quality = raw_posterior
+        control.beliefs["posterior_quality_used_for_buy"] = posterior_quality
+        control.beliefs["persuasion_platt_applied"] = 1.0 if self.use_persuasion_platt and not guard_applies else 0.0
+        control.beliefs["deceptive_seller_guard_applied"] = 1.0 if guard_applies else 0.0
         if high_value <= low_value:
             return "no"
         break_even_quality = self._clip((1.0 - low_value) / (high_value - low_value), 0.0, 1.0)
@@ -1069,6 +1175,36 @@ class JordanStrategicAgent(CandidateAgent):
             return "yes"
         self._last_exploration = None
         return "no"
+
+    def _persuasion_transcript_decision(
+        self, state: GameState, item: dict[str, Any] | None
+    ) -> str | None:
+        """Read structured stance first, then candidate-only text intent."""
+
+        value = transcript_item_decision(item)
+        if value in {"yes", "no"}:
+            return value
+        if (
+            item
+            and self.use_persuasion_text_stance
+            and state.public_parameters.get("seller_message_type") == "text"
+            and item.get("role") == "seller"
+        ):
+            return persuasion_text_intent(item.get("free_text_message"))
+        return None
+
+    @staticmethod
+    def _persuasion_platt_probability(raw_probability: float) -> float:
+        probability = min(max(float(raw_probability), PERSUASION_PLATT_EPSILON), 1.0 - PERSUASION_PLATT_EPSILON)
+        logit = math.log(probability / (1.0 - probability))
+        score = PERSUASION_PLATT_INTERCEPT + PERSUASION_PLATT_SLOPE * logit
+        if score >= 0.0:
+            z = math.exp(-score)
+            calibrated = 1.0 / (1.0 + z)
+        else:
+            z = math.exp(score)
+            calibrated = z / (1.0 + z)
+        return min(max(calibrated, PERSUASION_PLATT_EPSILON), 1.0 - PERSUASION_PLATT_EPSILON)
 
     def _persuasion_message(self, control: StrategicControl, decision: str, quality: str) -> str:
         if decision == "yes":
@@ -1341,3 +1477,70 @@ class JordanStrategicAgent(CandidateAgent):
 class MyAgent(JordanStrategicAgent):
     """Alias so `my_agents.jordan_strategic:MyAgent` works like other examples."""
     pass
+
+
+class PersuasionPlattCandidate(JordanStrategicAgent):
+    """Default-off candidate entry point for paired offline promotion runs."""
+
+    def __init__(self, seed: int = 0, **kwargs: Any):
+        super().__init__(seed=seed, use_persuasion_platt=True, **kwargs)
+
+
+class PersuasionDeceptiveSellerGuardCandidate(JordanStrategicAgent):
+    """Isolated default-off entry point for the preregistered payoff gate."""
+
+    def __init__(self, seed: int = 0, **kwargs: Any):
+        kwargs.pop("use_deceptive_seller_guard", None)
+        kwargs.pop("use_persuasion_platt", None)
+        kwargs.pop("persuasion_explore", None)
+        super().__init__(
+            seed=seed,
+            use_deceptive_seller_guard=True,
+            use_persuasion_platt=False,
+            persuasion_explore=False,
+            **kwargs,
+        )
+
+
+class PersuasionTextStanceCandidate(JordanStrategicAgent):
+    """Isolated default-off entry point for the live-text translation candidate."""
+
+    def __init__(self, seed: int = 0, **kwargs: Any):
+        kwargs.pop("use_persuasion_text_stance", None)
+        kwargs.pop("use_deceptive_seller_guard", None)
+        kwargs.pop("use_persuasion_platt", None)
+        kwargs.pop("persuasion_explore", None)
+        super().__init__(
+            seed=seed,
+            use_persuasion_text_stance=True,
+            use_deceptive_seller_guard=False,
+            use_persuasion_platt=False,
+            persuasion_explore=False,
+            **kwargs,
+        )
+
+
+class UnknownHorizonCounterFallbackCandidate(JordanStrategicAgent):
+    """Isolated candidate for the preregistered hidden-horizon counter path."""
+
+    def __init__(self, seed: int = 0, **kwargs: Any):
+        kwargs.pop("use_unknown_horizon_counter_fallback", None)
+        kwargs.pop("use_time_concession", None)
+        kwargs.pop("guarantee_own_margin", None)
+        kwargs.pop("debias_counterpart_value", None)
+        super().__init__(
+            seed=seed,
+            use_unknown_horizon_counter_fallback=True,
+            use_time_concession=False,
+            guarantee_own_margin=False,
+            debias_counterpart_value=False,
+            **kwargs,
+        )
+
+
+class BargainingTheoryOffBaseline(JordanStrategicAgent):
+    """Isolated baseline for corrected-simulator theory-anchor evidence audits."""
+
+    def __init__(self, seed: int = 0, **kwargs: Any):
+        kwargs.pop("use_theory_anchor", None)
+        super().__init__(seed=seed, use_theory_anchor=False, **kwargs)

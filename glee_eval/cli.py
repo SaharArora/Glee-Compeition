@@ -10,10 +10,12 @@ from glee_eval.data.validation import main as validate_main
 from glee_eval.diagnostics.negotiation import main as negotiation_diagnostic_main
 from glee_eval.diagnostics.language import main as language_diagnostic_main
 from glee_eval.diagnostics.persuasion import main as persuasion_diagnostic_main
+from glee_eval.diagnostics.persuasion_dishonesty import main as persuasion_dishonesty_main
 from glee_eval.diagnostics.schema_check import main as schema_check_main
 from glee_eval.experiments.ab import main as promotion_check_main
 from glee_eval.experiments.run import main as experiment_main
 from glee_eval.live.run import main as live_main
+from glee_eval.live.episodes import main as live_episodes_main
 from glee_eval.population.calibration import main as calibrate_main
 from glee_eval.population.config_catalogue import main as config_catalogue_main
 from glee_eval.population.opponent_fit import main as fit_opponents_main
@@ -42,14 +44,19 @@ def main(argv: list[str] | None = None) -> None:
         "config-catalogue",
         "promotion-check",
         "live",
+        "live-episodes",
         "search-failures",
         "shadow-score",
         "negotiation-diagnostic",
         "persuasion-calibration",
+        "persuasion-dishonesty-audit",
         "language-analysis",
         "schema-check",
     ]:
-        sub.add_parser(name)
+        # Command-specific parsers own their help. Disabling the placeholder
+        # parser's help keeps `--help` in `rest` so it reaches that parser rather
+        # than printing an option-less wrapper page.
+        sub.add_parser(name, add_help=False)
     args, rest = parser.parse_known_args(argv)
     if args.command == "audit":
         audit_main(rest)
@@ -79,6 +86,8 @@ def main(argv: list[str] | None = None) -> None:
         promotion_check_main(rest)
     elif args.command == "live":
         live_main(rest)
+    elif args.command == "live-episodes":
+        live_episodes_main(rest)
     elif args.command == "search-failures":
         search_main(rest)
     elif args.command == "shadow-score":
@@ -87,6 +96,8 @@ def main(argv: list[str] | None = None) -> None:
         negotiation_diagnostic_main(rest)
     elif args.command == "persuasion-calibration":
         persuasion_diagnostic_main(rest)
+    elif args.command == "persuasion-dishonesty-audit":
+        persuasion_dishonesty_main(rest)
     elif args.command == "language-analysis":
         language_diagnostic_main(rest)
     elif args.command == "schema-check":

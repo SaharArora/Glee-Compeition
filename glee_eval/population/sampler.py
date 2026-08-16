@@ -106,6 +106,8 @@ def sample_opponent_spec(
     game_family: str,
     rng: random.Random,
     population: Any = None,
+    opponent_role: str | None = None,
+    scenario_config: dict[str, Any] | None = None,
 ) -> OpponentSpec:
     """Draw an opponent, from fitted real behavior when a population is available.
 
@@ -115,20 +117,43 @@ def sample_opponent_spec(
     and left `policies.py`'s archetype defaults as dead code.
     """
 
-    archetype = rng.choice(ARCHETYPES)
     population = population if population is not None else load_opponent_population()
     params: dict[str, Any] = {}
     calibrated = False
-    if population is not None:
-        params = population.parameters(game_family, archetype, rng)
+    archetype: str
+    bundle = None
+    if population is not None and opponent_role is not None and scenario_config is not None:
+        bundle = population.sample_bundle(game_family, opponent_role, scenario_config, rng)
+    if bundle is not None:
+        archetype = str(bundle["derived_archetype"])
+        params = dict(bundle.get("parameters") or {})
+        params["joint_bundle_id"] = str(bundle["bundle_id"])
+        params["joint_bundle_role"] = str(bundle["role"])
+        params["joint_draw_fallback_level"] = str(bundle["draw_fallback_level"])
+        params["joint_latent_percentile"] = float(bundle.get("latent_percentile", 0.5))
+        params["population_schema_version"] = int(population.payload.get("schema_version", 0))
+        params["population_provenance"] = dict(population.payload.get("provenance") or {})
+        calibrated = True
+    else:
+        archetype = rng.choice(ARCHETYPES)
+    if population is not None and not calibrated:
+        params = population.parameters(game_family, archetype, rng, role=opponent_role)
         calibrated = bool(params)
     if not calibrated:
         params = {name: rng.uniform(*bounds) for name, bounds in UNCALIBRATED_RANGES.get(game_family, {}).items()}
     if game_family == "persuasion":
         params.setdefault("memory_length", rng.choice([1, 3, 5, 20]))
+        params["memory_length_source"] = "compatibility_metadata_policy_inert"
     else:
-        params.setdefault("action_noise", rng.uniform(0.0, 0.03))
-    params["parameter_source"] = "fitted_real_population" if calibrated else "uncalibrated_hand_picked"
+        if params.get("joint_bundle_id"):
+            params.setdefault("action_noise", 0.0)
+            params.setdefault("action_noise_source", "explicit_zero_when_bundle_residual_unidentified")
+        else:
+            params.setdefault("action_noise", rng.uniform(0.0, 0.03))
+    if calibrated and "joint_bundle_id" in params:
+        params["parameter_source"] = "fitted_joint_population"
+    else:
+        params["parameter_source"] = "fitted_real_population" if calibrated else "uncalibrated_hand_picked"
     return OpponentSpec(archetype=archetype, game_family=game_family, parameters=params, seed=rng.randrange(10**9))
 
 
@@ -172,7 +197,13 @@ def sample_scenario(
     }[game_family]
     cand_role = candidate_role or rng.choice(roles)
     opp_role = roles[1] if cand_role == roles[0] else roles[0]
-    opponent = sample_opponent_spec(game_family, rng, population=population)
+    opponent = sample_opponent_spec(
+        game_family,
+        rng,
+        population=population,
+        opponent_role=opp_role,
+        scenario_config=config,
+    )
     payload = f"{game_family}:{seed}:{cand_role}:{opponent.archetype}:{opponent.parameters}:{config}"
     return Scenario(
         scenario_id=stable_id(payload),
@@ -191,6 +222,14 @@ def sample_scenario(
         },
         seed=seed,
         source="synthetic",
-        metadata={"config_source": config_source, "parameter_source": opponent.parameters.get("parameter_source")},
+        metadata={
+            "config_source": config_source,
+            "parameter_source": opponent.parameters.get("parameter_source"),
+            "joint_bundle_id": opponent.parameters.get("joint_bundle_id"),
+            "joint_draw_fallback_level": opponent.parameters.get("joint_draw_fallback_level"),
+            "joint_latent_type": opponent.archetype if opponent.parameters.get("joint_bundle_id") else None,
+            "joint_latent_percentile": opponent.parameters.get("joint_latent_percentile"),
+            "population_schema_version": opponent.parameters.get("population_schema_version"),
+            "population_provenance": opponent.parameters.get("population_provenance"),
+        },
     )
-

@@ -12,13 +12,16 @@ whether a bargaining game has symmetric discounting, and so on.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
 
 from glee_eval.adapters.candidate_agent import CandidateAgent
 from glee_eval.config import DEFAULT_DATA_DIR
 from glee_eval.data.ingest import as_float
+from glee_eval.data.schemas import GameState
 from glee_eval.experiments.promotion import Observation, PromotionCriteria, evaluate_promotion, verdict_markdown
+from glee_eval.experiments.artifact_provenance import artifact_provenance
 from glee_eval.population.config_catalogue import ConfigCatalogue
 from glee_eval.population.opponent_fit import OpponentPopulation
 from glee_eval.population.sampler import sample_scenario
@@ -57,6 +60,76 @@ def config_regime(family: str, config: dict[str, Any]) -> str:
     return "unknown"
 
 
+def negotiation_collapsed_margin_window(state: GameState, baseline: CandidateAgent) -> bool:
+    """Whether the baseline is about to construct a zero-margin-only offer.
+
+    This reads only the baseline pre-offer state. With buyer_value <=
+    seller_value, the old seller clip is [seller, seller] and the old buyer clip
+    is [buyer, buyer], so either role can construct only its reservation value.
+    """
+
+    if state.game_family != "negotiation" or state.valid_action_schema.get("kind") != "offer":
+        return False
+    beliefs_fn = getattr(baseline, "_negotiation_beliefs", None)
+    if not callable(beliefs_fn):
+        return False
+    beliefs = beliefs_fn(state)
+    seller = as_float(beliefs.get("seller_value"))
+    buyer = as_float(beliefs.get("buyer_value"))
+    return seller is not None and buyer is not None and buyer <= seller
+
+
+def negotiation_time_concession_window(state: GameState, baseline: CandidateAgent) -> bool:
+    """Immutable baseline reach: a negotiation offer after the opening round."""
+
+    return state.game_family == "negotiation" and state.valid_action_schema.get("kind") == "offer" and state.round > 1 and state.horizon > 1
+
+
+def negotiation_debias_counterpart_window(state: GameState, baseline: CandidateAgent) -> bool:
+    """Immutable baseline reach: hidden counterpart value plus an observed offer."""
+
+    if state.game_family != "negotiation":
+        return False
+    beliefs_fn = getattr(baseline, "_negotiation_beliefs", None)
+    transcript_fn = getattr(baseline, "_transcript", None)
+    if not callable(beliefs_fn) or not callable(transcript_fn):
+        return False
+    if bool(beliefs_fn(state).get("counterpart_value_known")):
+        return False
+    return any(
+        item.get("role") != state.role and item.get("action_type") == "offer" and as_float(item.get("numeric_action")) is not None
+        for item in transcript_fn(state)
+    )
+
+
+def unknown_horizon_counter_preservation_window(state: GameState, baseline: CandidateAgent) -> bool:
+    """Condition-4 eligibility, frozen from the baseline pre-action state."""
+
+    if state.game_family != "negotiation" or state.metadata.get("horizon_known") is not False:
+        return False
+    if state.valid_action_schema.get("kind") == "offer":
+        return False
+    transcript_fn = getattr(baseline, "_transcript", None)
+    if not callable(transcript_fn):
+        return False
+    if not any(
+        item.get("role") == state.role and item.get("action_type") == "offer" and as_float(item.get("numeric_action")) is not None
+        for item in transcript_fn(state)
+    ):
+        return False
+    action = baseline.decide(state)
+    structured = action.structured or {}
+    return action.accept_reject == "RejectOffer" and structured.get("counter_price") is None and structured.get("product_price") is None
+
+
+BASELINE_STATE_PREDICATES = {
+    "negotiation_collapsed_margin_window": negotiation_collapsed_margin_window,
+    "negotiation_time_concession_window": negotiation_time_concession_window,
+    "negotiation_debias_counterpart_window": negotiation_debias_counterpart_window,
+    "unknown_horizon_counter_preservation_window": unknown_horizon_counter_preservation_window,
+}
+
+
 def run_paired_ab(
     baseline_factory: Callable[[], CandidateAgent],
     candidate_factory: Callable[[], CandidateAgent],
@@ -66,6 +139,9 @@ def run_paired_ab(
     seed: int = 4242,
     population: OpponentPopulation | None = None,
     catalogue: ConfigCatalogue | None = None,
+    baseline_state_predicates: dict[str, Callable[[GameState, CandidateAgent], bool]] | None = None,
+    live_contract_hidden_horizon: bool = False,
+    artifact_provenance: dict[str, Any] | None = None,
 ) -> list[Observation]:
     """Play both arms over the same scenarios and return paired outcomes."""
 
@@ -75,8 +151,16 @@ def run_paired_ab(
     for index in range(games):
         family = families[index % len(families)]
         scenario = sample_scenario(family, seed=seed + index, population=population, catalogue=catalogue)
+        if live_contract_hidden_horizon and family == "negotiation":
+            scenario = replace(scenario, metadata={**scenario.metadata, "live_contract_hidden_horizon": True})
         base_episode = run_episode(scenario, baseline)
         cand_episode = run_episode(scenario, candidate)
+        predicate_results: dict[str, bool] = {}
+        for name, predicate in (baseline_state_predicates or {}).items():
+            predicate_results[name] = any(
+                predicate(GameState(**record.visible_state), baseline)
+                for record in base_episode.decision_records
+            )
         observations.append(
             Observation(
                 key=f"{family}:{scenario.scenario_id}:{scenario.candidate_role}",
@@ -87,7 +171,12 @@ def run_paired_ab(
                     "opponent_archetype": str(scenario.opponent_spec.get("archetype")),
                     "config_regime": config_regime(family, scenario.public_parameters),
                     "candidate_role": scenario.candidate_role,
+                    "opponent_population_path": str((artifact_provenance or {}).get("opponent_population", {}).get("path")),
+                    "opponent_population_sha256": str((artifact_provenance or {}).get("opponent_population", {}).get("sha256")),
+                    "config_catalogue_path": str((artifact_provenance or {}).get("config_catalogue", {}).get("path")),
+                    "config_catalogue_sha256": str((artifact_provenance or {}).get("config_catalogue", {}).get("sha256")),
                 },
+                branch_predicates=predicate_results,
             )
         )
     return observations
@@ -113,7 +202,14 @@ def gate_observations(
     write_jsonl(
         out / "promotion_observations.jsonl",
         [
-            {"key": o.key, "baseline": o.baseline, "candidate": o.candidate, "difference": o.difference, **o.subgroups}
+            {
+                "key": o.key,
+                "baseline": o.baseline,
+                "candidate": o.candidate,
+                "difference": o.difference,
+                **o.subgroups,
+                "branch_predicates": o.branch_predicates,
+            }
             for o in observations
         ],
     )
@@ -129,6 +225,8 @@ def main(argv: list[str] | None = None) -> None:
 
     parser = argparse.ArgumentParser(description="Gate a paired A/B against the promotion criteria.")
     parser.add_argument("--observations", help="Existing promotion_observations.jsonl to re-gate.")
+    parser.add_argument("--live-contract-hidden-horizon", action="store_true",
+                        help="Evaluate negotiation through the preregistered hidden-cap live-contract path.")
     parser.add_argument("--baseline-agent", default="my_agents.jordan_strategic:MyAgent")
     parser.add_argument("--candidate-agent", default="my_agents.jordan_strategic:MyAgent")
     parser.add_argument("--change", default="unnamed change")
@@ -138,6 +236,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))
     parser.add_argument("--opponent-population", default=None)
     parser.add_argument("--config-catalogue", default=None)
+    parser.add_argument("--baseline-predicate", action="append", choices=sorted(BASELINE_STATE_PREDICATES))
     parser.add_argument("--output-dir", default="reports/promotion")
     parser.add_argument("--holdout", action="store_true", help="Assert this evaluation used withheld data.")
     parser.add_argument("--holdout-description", default=None)
@@ -150,11 +249,20 @@ def main(argv: list[str] | None = None) -> None:
                 key=row["key"],
                 baseline=float(row["baseline"]),
                 candidate=float(row["candidate"]),
-                subgroups={k: v for k, v in row.items() if k not in {"key", "baseline", "candidate", "difference"}},
+                subgroups={
+                    k: v
+                    for k, v in row.items()
+                    if k not in {"key", "baseline", "candidate", "difference", "branch_predicates"}
+                },
+                branch_predicates={str(k): bool(v) for k, v in (row.get("branch_predicates") or {}).items()},
             )
             for row in rows
         ]
     else:
+        artifacts = {
+            "opponent_population": artifact_provenance(args.opponent_population, "opponent_population.json"),
+            "config_catalogue": artifact_provenance(args.config_catalogue, "config_catalogue.json"),
+        }
         observations = run_paired_ab(
             lambda: load_agent(args.baseline_agent, seed=7),
             lambda: load_agent(args.candidate_agent, seed=7),
@@ -163,6 +271,9 @@ def main(argv: list[str] | None = None) -> None:
             seed=args.seed,
             population=OpponentPopulation.load(args.opponent_population),
             catalogue=ConfigCatalogue.load(args.config_catalogue),
+            baseline_state_predicates={name: BASELINE_STATE_PREDICATES[name] for name in (args.baseline_predicate or [])},
+            live_contract_hidden_horizon=args.live_contract_hidden_horizon,
+            artifact_provenance=artifacts,
         )
 
     verdict = gate_observations(

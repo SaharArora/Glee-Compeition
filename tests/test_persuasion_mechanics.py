@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import unittest
 from dataclasses import replace
 from types import SimpleNamespace
@@ -9,7 +10,11 @@ from glee_eval.data.transcripts import transcript_item_decision, transcript_item
 from glee_eval.population.config_catalogue import ConfigCatalogue
 from glee_eval.population.sampler import sample_scenario
 from glee_eval.tournament.runner import run_episode
-from my_agents.jordan_strategic import MyAgent
+from my_agents.jordan_strategic import (
+    MyAgent,
+    PersuasionDeceptiveSellerGuardCandidate,
+    PersuasionPlattCandidate,
+)
 
 
 def _scenario(role: str, *, myopic: bool, rounds: int = 8, **overrides):
@@ -328,3 +333,152 @@ class ColdStartExplorationTests(unittest.TestCase):
         control = agent._control(state, beliefs, agent._persuasion_evidence(state, beliefs), "persuasion")
 
         self.assertIsNone(agent._persuasion_explore_buy(state, control))
+
+
+class PersuasionPlattCandidateTests(unittest.TestCase):
+    """Predictively successful, but default-off pending the payoff gate."""
+
+    @staticmethod
+    def _state(recommendation="yes"):
+        return SimpleNamespace(
+            role="buyer", round=1, horizon=20, game_family="persuasion",
+            public_parameters={"p": 0.5, "v": 1.5, "c": 0.0, "product_price": 100, "total_rounds": 20},
+            private_parameters={}, valid_action_schema={"kind": "buy_decision"},
+            visible_transcript=[{
+                "round": 1, "role": "seller", "action_type": "recommendation", "buy_no_buy": recommendation,
+            }],
+            metadata={}, game_id="g", scenario_id="s",
+        )
+
+    @staticmethod
+    def _control(agent, state):
+        beliefs = agent._persuasion_beliefs(state)
+        return agent._control(state, beliefs, agent._persuasion_evidence(state, beliefs), "persuasion")
+
+    def test_candidate_is_off_by_default(self) -> None:
+        self.assertFalse(MyAgent(seed=1).use_persuasion_platt)
+        self.assertTrue(PersuasionPlattCandidate(seed=1).use_persuasion_platt)
+
+    def test_raw_posterior_is_retained_when_candidate_is_enabled(self) -> None:
+        state = self._state()
+        baseline = MyAgent(seed=1)
+        candidate = MyAgent(seed=1, use_persuasion_platt=True)
+        baseline_beliefs = baseline._persuasion_beliefs(state)
+        candidate_beliefs = candidate._persuasion_beliefs(state)
+
+        self.assertEqual(
+            candidate_beliefs["posterior_quality_given_yes_raw"],
+            baseline_beliefs["posterior_quality_given_yes"],
+        )
+        self.assertEqual(
+            candidate_beliefs["posterior_quality_given_yes"],
+            baseline_beliefs["posterior_quality_given_yes"],
+        )
+        self.assertGreater(
+            candidate_beliefs["posterior_quality_given_yes_platt"],
+            candidate_beliefs["posterior_quality_given_yes_raw"],
+        )
+
+    def test_candidate_changes_only_the_post_yes_buy_probability(self) -> None:
+        state = self._state("yes")
+        baseline = MyAgent(seed=1)
+        candidate = MyAgent(seed=1, use_persuasion_platt=True)
+        baseline_control = self._control(baseline, state)
+        candidate_control = self._control(candidate, state)
+
+        self.assertEqual(baseline._persuasion_buy_decision(state, baseline_control), "no")
+        self.assertEqual(candidate._persuasion_buy_decision(state, candidate_control), "yes")
+        self.assertEqual(candidate_control.beliefs["persuasion_platt_applied"], 1.0)
+        self.assertEqual(
+            candidate_control.beliefs["posterior_quality_given_yes_raw"],
+            baseline_control.beliefs["posterior_quality_given_yes_raw"],
+        )
+
+    def test_no_recommendation_still_declines_without_applying_candidate(self) -> None:
+        state = self._state("no")
+        candidate = MyAgent(seed=1, use_persuasion_platt=True)
+        control = self._control(candidate, state)
+
+        self.assertEqual(candidate._persuasion_buy_decision(state, control), "no")
+        self.assertNotIn("persuasion_platt_applied", control.beliefs)
+
+
+class PersuasionDeceptiveSellerGuardTests(unittest.TestCase):
+    @staticmethod
+    def _state(*, lie=True, myopic=False):
+        history = []
+        if lie:
+            history.extend([
+                {"round": 1, "role": "nature", "action_type": "nature_quality", "quality": "low-quality"},
+                {"round": 1, "role": "seller", "action_type": "recommendation", "buy_no_buy": "yes"},
+            ])
+        else:
+            history.extend([
+                {"round": 1, "role": "nature", "action_type": "nature_quality", "quality": "high-quality"},
+                {"round": 1, "role": "seller", "action_type": "recommendation", "buy_no_buy": "yes"},
+            ])
+        if myopic:
+            history = [{"round": 2, "action_type": "market_statistics", "products_sold": 1, "high_quality_sold": 0}]
+        history.append({
+            "round": 2, "role": "seller", "action_type": "recommendation", "buy_no_buy": "yes",
+        })
+        return SimpleNamespace(
+            role="buyer", round=2, horizon=8, game_family="persuasion",
+            public_parameters={"p": .5, "v": 2.0, "c": 0.0, "product_price": 100, "is_myopic": myopic},
+            private_parameters={}, valid_action_schema={"kind": "buy_decision"},
+            visible_transcript=history, metadata={}, game_id="g", scenario_id="s",
+        )
+
+    @staticmethod
+    def _control(agent, state):
+        beliefs = agent._persuasion_beliefs(state)
+        return agent._control(state, beliefs, agent._persuasion_evidence(state, beliefs), "persuasion")
+
+    def test_guard_is_off_by_default_and_gate_candidate_is_isolated(self) -> None:
+        baseline = MyAgent(seed=1)
+        candidate = PersuasionDeceptiveSellerGuardCandidate(
+            seed=1, use_persuasion_platt=True, persuasion_explore=True,
+        )
+        self.assertFalse(baseline.use_deceptive_seller_guard)
+        self.assertTrue(candidate.use_deceptive_seller_guard)
+        self.assertFalse(candidate.use_persuasion_platt)
+        self.assertFalse(candidate.persuasion_explore)
+
+    def test_exact_declared_bound_applies_after_one_visible_lie(self) -> None:
+        state = self._state(lie=True)
+        candidate = PersuasionDeceptiveSellerGuardCandidate(seed=1)
+        control = self._control(candidate, state)
+        q = control.beliefs["posterior_quality_given_yes_raw"]
+        expected = max(0.0, q - math.sqrt(q * (1.0 - q) / 5.0))
+
+        self.assertAlmostEqual(control.beliefs["posterior_quality_given_yes_deceptive_guard"], expected)
+        self.assertEqual(candidate._persuasion_buy_decision(state, control), "no")
+        self.assertAlmostEqual(control.beliefs["posterior_quality_used_for_buy"], expected)
+        self.assertEqual(control.beliefs["deceptive_seller_guard_applied"], 1.0)
+        self.assertEqual(control.beliefs["posterior_quality_given_yes_raw"], q)
+
+    def test_no_lie_history_is_behaviorally_unchanged(self) -> None:
+        state = self._state(lie=False)
+        baseline = MyAgent(seed=1)
+        candidate = PersuasionDeceptiveSellerGuardCandidate(seed=1)
+        base_control = self._control(baseline, state)
+        candidate_control = self._control(candidate, state)
+
+        self.assertEqual(
+            baseline._persuasion_buy_decision(state, base_control),
+            candidate._persuasion_buy_decision(state, candidate_control),
+        )
+        self.assertEqual(candidate_control.beliefs["deceptive_seller_guard_applied"], 0.0)
+
+    def test_myopic_history_is_behaviorally_unchanged(self) -> None:
+        state = self._state(lie=True, myopic=True)
+        baseline = MyAgent(seed=1)
+        candidate = PersuasionDeceptiveSellerGuardCandidate(seed=1)
+        base_control = self._control(baseline, state)
+        candidate_control = self._control(candidate, state)
+
+        self.assertEqual(
+            baseline._persuasion_buy_decision(state, base_control),
+            candidate._persuasion_buy_decision(state, candidate_control),
+        )
+        self.assertEqual(candidate_control.beliefs["deceptive_seller_guard_applied"], 0.0)

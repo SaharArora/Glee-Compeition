@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from glee_eval.data.dataset_audit import audit_processed, audit_records, build_support_index, support_lookup
+from glee_eval.data.dataset_audit import audit_processed, audit_records, build_support_index, context_support_lookup, support_lookup
 from glee_eval.storage.trajectories import write_jsonl
 
 
@@ -94,6 +94,26 @@ class DatasetAuditTests(unittest.TestCase):
         )
         self.assertEqual(result["action_n"], 2)
         self.assertGreater(result["coverage_score"], 0.7)
+
+    def test_missing_persuasion_values_do_not_alias_real_zero_bins(self) -> None:
+        events = [
+            {
+                "event_id": f"e{i}", "game_id": f"g{i}", "game_family": "persuasion",
+                "role": "seller", "round": 1, "action_type": "recommendation",
+                "raw_action": {"decision": "yes"},
+                "configuration": {"total_rounds": 20, "p": 0.5, "v": 0.0, "c": 0.0,
+                                  "seller_message_type": "binary", "is_seller_know_cv": True},
+            }
+            for i in range(12)
+        ]
+        index = build_support_index(events)
+        result = context_support_lookup(
+            "persuasion",
+            {"total_rounds": 20, "p": 0.5, "seller_message_type": "binary",
+             "is_seller_know_cv": False},
+            "seller", "recommendation", support_index=index,
+        )
+        self.assertEqual(result["bucket_level"], "family_role_round")
 
 
 if __name__ == "__main__":

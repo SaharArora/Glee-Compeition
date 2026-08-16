@@ -10,10 +10,13 @@ from glee_eval.config import DEFAULT_DATA_DIR
 from glee_eval.data.schemas import EpisodeResult, to_jsonable
 from glee_eval.diagnostics.negotiation import diagnostic_hypothesis, negotiation_diagnostic
 from glee_eval.experiments.hypotheses import generate_hypotheses, hypotheses_markdown
+from glee_eval.experiments.artifact_provenance import artifact_provenance
 from glee_eval.experiments.matches import write_match_ledger
 from glee_eval.probes.runner import run_probes
 from glee_eval.scoring.shadow import score_run
 from glee_eval.simulate.dispatch import TargetedSimulationDispatcher
+from glee_eval.population.config_catalogue import ConfigCatalogue
+from glee_eval.population.opponent_fit import OpponentPopulation
 from glee_eval.storage.trajectories import ensure_dir, read_json, write_json, write_jsonl
 
 
@@ -114,12 +117,18 @@ def run_experiment(
     skip_probes: bool = False,
     skip_search: bool = False,
     skip_shadow_score: bool = False,
+    opponent_population: str | Path | None = None,
+    config_catalogue: str | Path | None = None,
 ) -> dict[str, Any]:
     families = families or ["bargaining", "negotiation", "persuasion"]
     search_families = search_families or families
     run_name = name or _timestamp_name(agent_spec)
     run_dir = ensure_dir(Path(output_root) / run_name)
 
+    artifacts = {
+        "opponent_population": artifact_provenance(opponent_population, "opponent_population.json"),
+        "config_catalogue": artifact_provenance(config_catalogue, "config_catalogue.json"),
+    }
     config = {
         "agent": agent_spec,
         "families": families,
@@ -135,6 +144,7 @@ def run_experiment(
         "skip_probes": skip_probes,
         "skip_search": skip_search,
         "skip_shadow_score": skip_shadow_score,
+        "artifacts": artifacts,
     }
     write_json(run_dir / "config.json", config)
 
@@ -159,6 +169,9 @@ def run_experiment(
         audit_report=audit_report,
         seed=seed,
         ledger_path=run_dir / "simulation" / "simulation_ledger.jsonl",
+        population=OpponentPopulation.load(opponent_population),
+        catalogue=ConfigCatalogue.load(config_catalogue),
+        artifact_provenance=artifacts,
     )
 
     tournament_result = dispatcher.policy_optimization_simulation(
@@ -308,6 +321,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--search-families", default=None)
     parser.add_argument("--match-report-limit", type=int, default=200)
     parser.add_argument("--output-root", default="runs")
+    parser.add_argument("--opponent-population")
+    parser.add_argument("--config-catalogue")
     parser.add_argument("--skip-probes", action="store_true")
     parser.add_argument("--skip-search", action="store_true")
     parser.add_argument("--skip-shadow-score", action="store_true")
@@ -330,6 +345,8 @@ def main(argv: list[str] | None = None) -> None:
         skip_probes=args.skip_probes,
         skip_search=args.skip_search,
         skip_shadow_score=args.skip_shadow_score,
+        opponent_population=args.opponent_population,
+        config_catalogue=args.config_catalogue,
     )
     print(json.dumps(manifest, indent=2, sort_keys=True))
 

@@ -14,7 +14,7 @@ from glee_eval.data.ingest import (
     terminal_persuasion,
     visible_private_parameters,
 )
-from glee_eval.data.schemas import DecisionRecord, EpisodeResult, GameState, OpponentSpec, Scenario, to_jsonable
+from glee_eval.data.schemas import AgentAction, DecisionRecord, EpisodeResult, GameState, OpponentSpec, Scenario, to_jsonable
 from glee_eval.diagnostics.failures import diagnose_episode
 from glee_eval.opponents.policies import PolicyFactory
 from glee_eval.population.sampler import sample_scenario
@@ -50,6 +50,9 @@ def _state(
         scenario.game_family, role, round_number, transcript, scenario.public_parameters
     )
     config = _config(scenario.game_family, scenario.public_parameters)
+    state_metadata = dict(metadata or {})
+    if scenario.game_family == "negotiation" and scenario.metadata.get("live_contract_hidden_horizon"):
+        state_metadata["horizon_known"] = False
     return GameState(
         scenario_id=scenario.scenario_id,
         game_id=game_id,
@@ -61,7 +64,7 @@ def _state(
         private_parameters=visible_private_parameters(scenario.game_family, role, config),
         visible_transcript=visible_transcript,
         valid_action_schema=_schema(kind, seller_message_type=scenario.public_parameters.get("seller_message_type")),
-        metadata=metadata or {},
+        metadata=state_metadata,
     )
 
 
@@ -221,13 +224,19 @@ def _run_negotiation(scenario: Scenario, candidate: CandidateAgent) -> EpisodeRe
     records: list[DecisionRecord] = []
     rows: list[dict[str, Any]] = []
     terminal: dict[str, Any] | None = None
+    pending_counter: dict[str, Any] | None = None
+    live_hidden = bool(scenario.metadata.get("live_contract_hidden_horizon"))
     roles = ("seller", "buyer")
     names = {"seller": "Alice", "buyer": "Bob"}
     for round_number in range(1, horizon + 1):
         proposer = roles[0] if round_number % 2 else roles[1]
         receiver = roles[1] if proposer == roles[0] else roles[0]
         state = _state(scenario, game_id, proposer, round_number, horizon, transcript, "offer")
-        offer = _policy_for_role(scenario, candidate, proposer).decide(state)
+        if live_hidden and pending_counter and pending_counter.get("role") == proposer:
+            offer = pending_counter["action"]
+            pending_counter = None
+        else:
+            offer = _policy_for_role(scenario, candidate, proposer).decide(state)
         rows.append({"player": names[proposer], "round": round_number, "product_price": offer.numeric_action})
         transcript.append({"round": round_number, "role": proposer, "action_type": "offer", "numeric_action": offer.numeric_action, "structured": offer.structured})
         records.append(_decision_record(scenario, game_id, state, offer))
@@ -239,6 +248,25 @@ def _run_negotiation(scenario: Scenario, candidate: CandidateAgent) -> EpisodeRe
         if decision.accept_reject != "RejectOffer":
             terminal = terminal_negotiation(rows, _config("negotiation", cfg))
             break
+        if live_hidden:
+            counter = decision.structured.get("counter_price") or decision.structured.get("product_price")
+            if counter is None:
+                order = float(cfg.get("product_price_order", 1.0))
+                own = float(cfg.get("seller_value" if receiver == "seller" else "buyer_value", 1.0))
+                normalized = own + 0.15 if receiver == "seller" else own - 0.15
+                counter = normalized * order
+            pending_counter = {
+                "role": receiver,
+                "action": AgentAction(
+                    action_id=f"{game_id}:{round_number}:live-counter",
+                    actor_role=receiver,
+                    round=round_number + 1,
+                    raw_text=str(counter),
+                    action_type="offer",
+                    numeric_action=float(counter),
+                    structured={"product_price": float(counter)},
+                ),
+            }
     if terminal is None:
         terminal = terminal_negotiation(rows, _config("negotiation", cfg))
     return _episode(scenario, candidate, game_id, transcript, records, terminal, roles)
@@ -264,7 +292,26 @@ def _run_persuasion(scenario: Scenario, candidate: CandidateAgent) -> EpisodeRes
         seller_row = {"player": "Alice", "round": round_number}
         seller_row.update(seller_action.structured)
         rows.append(seller_row)
-        transcript.append({"round": round_number, "role": "seller", "action_type": seller_action.action_type, "buy_no_buy": seller_action.buy_no_buy, "structured": seller_action.structured})
+        seller_event = {
+            "round": round_number,
+            "role": "seller",
+            "action_type": seller_action.action_type,
+            "buy_no_buy": seller_action.buy_no_buy,
+            "structured": seller_action.structured,
+        }
+        # Match the live contract at the candidate-buyer boundary. A live text
+        # message contains only text; it does not carry the simulator opponent's
+        # latent yes/no choice. The candidate must recover an explicit stance
+        # from the visible words. Keep the latent action for binary games and
+        # candidate-seller games so their existing trajectories are unchanged.
+        if scenario.candidate_role == "buyer" and cfg.get("seller_message_type") == "text":
+            seller_event.update(
+                action_type="message",
+                buy_no_buy=None,
+                structured={},
+                free_text_message=seller_action.message or seller_action.structured.get("message"),
+            )
+        transcript.append(seller_event)
         records.append(_decision_record(scenario, game_id, state, seller_action))
         state = _state(scenario, game_id, "buyer", round_number, horizon, transcript, "buy_decision")
         buyer_action = _policy_for_role(scenario, candidate, "buyer").decide(state)

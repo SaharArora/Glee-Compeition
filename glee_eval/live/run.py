@@ -10,15 +10,137 @@ documented shapes, which is what the observation log is for.
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import os
 import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from glee_eval.live.fixtures import sample_games
 from glee_eval.live.strategy import build_strategy
 from glee_eval.storage.trajectories import ensure_dir, write_json
+
+ClientT = TypeVar("ClientT")
+
+
+def _path_setting(name: str) -> dict[str, Any]:
+    raw = os.getenv(name)
+    if not raw:
+        return {"configured": False}
+    path = Path(raw).expanduser().resolve()
+    result: dict[str, Any] = {"configured": True, "path": str(path), "exists": path.is_file()}
+    if path.is_file():
+        result["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return result
+
+
+def _launch_manifest(agent_spec: str, families: list[str] | None, concurrency: int,
+                     max_games: int | None, max_time: float | None) -> dict[str, Any]:
+    """Record non-secret run inputs needed to reproduce which policy paths were active."""
+
+    return {
+        "schema_version": 1,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "agent": agent_spec,
+        "families": families,
+        "concurrency": concurrency,
+        "max_games": max_games,
+        "max_time": max_time,
+        "environment": {
+            name: _path_setting(name)
+            for name in ("GLEE_SUPPORT_INDEX", "GLEE_RESPONSE_MODEL", "GLEE_OPPONENT_POPULATION", "GLEE_CONFIG_CATALOGUE")
+        },
+    }
+
+
+def capturing_client_class(base: type[ClientT]) -> type[ClientT]:
+    """Add best-effort JSONL capture around a client's real ``move`` call.
+
+    The SDK decides whether a game ended inside ``_handle_game`` from the mapping
+    returned by ``move``.  Overriding that exact boundary records the same result
+    without duplicating or replacing any SDK run-loop logic.
+    """
+
+    class MoveResultCapturingClient(base):  # type: ignore[misc, valid-type]
+        def __init__(self, *args: Any, move_result_log: str | Path | None = None, **kwargs: Any):
+            super().__init__(*args, **kwargs)
+            self.move_result_log = Path(move_result_log) if move_result_log else None
+            self._move_result_lock = threading.Lock()
+            self._seen_game_ids: set[str] = set()
+            self._terminal_game_ids: set[str] = set()
+            self.move_result_counters = {
+                "moves": 0, "terminal_results": 0, "backfill_attempts": 0,
+                "backfill_terminal_results": 0, "backfill_errors": 0, "log_errors": 0,
+            }
+            if self.move_result_log:
+                try:
+                    self.move_result_log.parent.mkdir(parents=True, exist_ok=True)
+                except Exception:  # noqa: BLE001 - result capture must never block a move
+                    logging.getLogger("glee_eval.live").exception(
+                        "Cannot create %s; continuing without move-result capture", self.move_result_log
+                    )
+                    self.move_result_log = None
+
+        def move(self, game_id: str, action: dict[str, Any]) -> dict[str, Any]:
+            response = super().move(game_id, action)
+            record = {
+                "captured_at": datetime.now(timezone.utc).isoformat(),
+                "game_id": game_id,
+                "game_over": bool(response.get("game_over")) if isinstance(response, dict) else None,
+                "result": response.get("result") if isinstance(response, dict) else None,
+                "move_result": response,
+            }
+            with self._move_result_lock:
+                self.move_result_counters["moves"] += 1
+                self._seen_game_ids.add(game_id)
+                if record["game_over"]:
+                    self.move_result_counters["terminal_results"] += 1
+                    self._terminal_game_ids.add(game_id)
+                if self.move_result_log:
+                    try:
+                        with self.move_result_log.open("a", encoding="utf-8") as handle:
+                            handle.write(json.dumps(record, default=str, sort_keys=True) + "\n")
+                    except Exception:  # noqa: BLE001 - logging must never change SDK behavior
+                        self.move_result_counters["log_errors"] += 1
+                        logging.getLogger("glee_eval.live").exception(
+                            "Could not append move result for game %s", game_id
+                        )
+            return response
+
+        def backfill_terminal_results(self) -> None:
+            """Capture the final GET payload for games that ended after an opponent move."""
+
+            for game_id in sorted(self._seen_game_ids - self._terminal_game_ids):
+                self.move_result_counters["backfill_attempts"] += 1
+                try:
+                    response = self.game_state(game_id)
+                    record = {
+                        "captured_at": datetime.now(timezone.utc).isoformat(),
+                        "game_id": game_id,
+                        "source": "game_state_backfill",
+                        "game_over": response.get("game_over") if isinstance(response, dict) else None,
+                        "result": response.get("result") if isinstance(response, dict) else None,
+                        "move_result": response,
+                    }
+                    if record["game_over"] or record["result"] is not None:
+                        self.move_result_counters["backfill_terminal_results"] += 1
+                        self._terminal_game_ids.add(game_id)
+                    if self.move_result_log:
+                        with self._move_result_lock, self.move_result_log.open("a", encoding="utf-8") as handle:
+                            handle.write(json.dumps(record, default=str, sort_keys=True) + "\n")
+                except Exception:  # noqa: BLE001 - backfill is evidence capture, never gameplay
+                    self.move_result_counters["backfill_errors"] += 1
+                    logging.getLogger("glee_eval.live").exception(
+                        "Could not backfill terminal result for game %s", game_id
+                    )
+
+    MoveResultCapturingClient.__name__ = f"MoveResultCapturing{base.__name__}"
+    return MoveResultCapturingClient
 
 
 def dry_run(agent_spec: str, *, output_dir: str | Path = "reports/live", repeats: int = 1) -> dict[str, Any]:
@@ -42,6 +164,62 @@ def dry_run(agent_spec: str, *, output_dir: str | Path = "reports/live", repeats
     return summary
 
 
+def _run_strict(client: Any, strategy: Any, *, families: list[str], max_games: int,
+                poll_interval: float, concurrency: int) -> None:
+    """Play exactly ``max_games`` unique games in bounded matchmaking waves.
+
+    The upstream SDK's counter only sees games ended by our own move. One queue
+    entry per family creates at most one new game, so waves of distinct families
+    provide a hard upper bound while still draining every accepted game.
+    """
+
+    if max_games < 1:
+        raise ValueError("max_games must be >= 1")
+    if not families:
+        raise ValueError("at least one game family is required")
+    client._leave_queue_quietly()
+    completed = 0
+    family_cursor = 0
+    try:
+        while completed < max_games:
+            wave_size = min(len(families), max_games - completed)
+            wave_families = [families[(family_cursor + offset) % len(families)] for offset in range(wave_size)]
+            family_cursor = (family_cursor + wave_size) % len(families)
+            before = set(client._seen_game_ids)
+            for family in wave_families:
+                client.queue(family)
+            logging.getLogger("glee_sdk").info(
+                "Strict wave queued (%s/%s complete): %s", completed, max_games, wave_families
+            )
+            last_stats = 0.0
+            active = None
+            while True:
+                games = client.pending_games()
+                if games:
+                    with ThreadPoolExecutor(max_workers=min(concurrency, len(games))) as pool:
+                        futures = [pool.submit(client._handle_game, strategy, game) for game in games]
+                        for future in as_completed(futures):
+                            future.result()
+                seen = set(client._seen_game_ids) - before
+                now = time.monotonic()
+                if len(seen) >= wave_size and (active is None or now - last_stats >= max(5.0, poll_interval * 2)):
+                    active = int(client.stats().get("active_games") or 0)
+                    last_stats = now
+                if len(seen) == wave_size and active == 0:
+                    completed += wave_size
+                    logging.getLogger("glee_sdk").info(
+                        "Strict wave drained; unique games completed: %s/%s", completed, max_games
+                    )
+                    break
+                if len(seen) > wave_size:
+                    raise RuntimeError(
+                        f"Strict game cap violated inside wave: expected {wave_size}, observed {len(seen)}"
+                    )
+                time.sleep(poll_interval)
+    finally:
+        client._leave_queue_quietly()
+
+
 def play(
     agent_spec: str,
     *,
@@ -51,15 +229,19 @@ def play(
     max_time: float | None = None,
     poll_interval: float = 2.0,
     output_dir: str | Path = "reports/live",
+    client_class: type[Any] | None = None,
+    api_key: str | None = None,
 ) -> dict[str, Any]:
     """Queue and play live games. Requires GLEE_API_KEY in the environment."""
 
-    try:
-        from glee_sdk import GleeClient
-    except ImportError as exc:  # pragma: no cover - depends on the local env
-        raise SystemExit("glee-sdk is not installed. Run: python3 -m pip install glee-sdk") from exc
+    if client_class is None:
+        try:
+            from glee_sdk import GleeClient
+        except ImportError as exc:  # pragma: no cover - depends on the local env
+            raise SystemExit("glee-sdk is not installed. Run: python3 -m pip install glee-sdk") from exc
+        client_class = GleeClient
 
-    api_key = os.getenv("GLEE_API_KEY")
+    api_key = api_key or os.getenv("GLEE_API_KEY")
     if not api_key:
         raise SystemExit(
             "GLEE_API_KEY is not set. Create an agent at https://glee-competition.com, "
@@ -67,26 +249,40 @@ def play(
         )
 
     out = ensure_dir(output_dir)
+    write_json(out / "launch_manifest.json", _launch_manifest(agent_spec, families, concurrency, max_games, max_time))
     strategy = build_strategy(agent_spec, observation_log=out / "observations.jsonl")
-    client = GleeClient(api_key=api_key)
+    CapturingClient = capturing_client_class(client_class)
+    client = CapturingClient(api_key=api_key, move_result_log=out / "move_results.jsonl")
     logging.getLogger("glee_sdk").setLevel(logging.INFO)
 
+    selected_families = families or ["bargaining", "negotiation", "persuasion"]
     try:
-        client.run(
-            strategy,
-            game_families=families,
-            concurrency=concurrency,
-            max_games=max_games,
-            max_time=max_time,
-            poll_interval=poll_interval,
-        )
+        if max_games is not None:
+            if max_time is not None:
+                raise ValueError("strict --max-games cannot be combined with --max-time")
+            _run_strict(client, strategy, families=selected_families, max_games=max_games,
+                        poll_interval=poll_interval, concurrency=concurrency)
+        else:
+            client.run(
+                strategy,
+                game_families=selected_families,
+                concurrency=concurrency,
+                max_time=max_time,
+                poll_interval=poll_interval,
+            )
     finally:
         # Written even on Ctrl+C, since that is a normal way to stop a long run.
+        client.backfill_terminal_results()
         summary = strategy.summary()
         try:
             summary["stats"] = client.stats()
         except Exception as exc:  # noqa: BLE001
             summary["stats_error"] = str(exc)
+        summary["move_result_capture"] = dict(client.move_result_counters)
+        summary["move_result_coverage_note"] = (
+            "Captures every submitted-move response, then GET-backfills games without a "
+            "terminal move response. Inspect capture counters; never assume complete coverage."
+        )
         write_json(out / "run_summary.json", summary)
         print(json.dumps(summary, indent=2, sort_keys=True))
     return summary

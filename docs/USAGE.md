@@ -158,6 +158,12 @@ New experiment runs create this folder automatically when `data/processed/games.
 
 Read the family table first. A strong agent should improve mean percentile in all three families; one weak family will cap the overall score because missing or weak family ratings are averaged into the leaderboard result.
 
+Negotiation output also includes a separately labelled `trade_zone_stratified_percentile`.
+It compares an episode only with reference games in the same role and gains/no-trade zone and
+helps expose distortion when fallback buckets pool those regimes. It never changes the primary
+percentile or rating: the live formula is private, so this is a diagnostic rather than a claim
+about placement.
+
 ## 5. Run A/B Tests
 
 Use the same seed and run size so differences are mostly from the agent variant, not scenario sampling.

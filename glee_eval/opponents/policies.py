@@ -25,17 +25,20 @@ def _last_bargaining_offer_to_role(state: GameState) -> dict[str, Any] | None:
 class BargainingPolicy(OpponentPolicy):
     def decide(self, state: GameState) -> AgentAction:
         params = self.spec.parameters
+        joint = params.get("parameter_source") == "fitted_joint_population"
         rng = random.Random(self.spec.seed + state.round)
         money = float(state.public_parameters.get("money_to_divide", 100))
-        target_share = float(params.get("target_share", _target_share(self.spec.archetype)))
+        target_share = float(params.get("target_share", 0.58 if joint else _target_share(self.spec.archetype)))
         concession_rate = float(params.get("concession_rate", 0.04))
         threshold = float(params.get("accept_threshold", max(0.35, 1 - target_share - 0.05)))
         noise = float(params.get("action_noise", 0.0))
         if state.valid_action_schema.get("kind") == "offer":
-            share = target_share - concession_rate * max(state.round - 1, 0)
-            if self.spec.archetype in {"conceding", "soft"}:
-                share -= 0.05 * state.round
-            if self.spec.archetype in {"boulware", "late_conceding"} and state.round < state.horizon * 0.75:
+            # The fitted concession is the change between this player's
+            # successive offers. A player offers every other global round, so
+            # applying it to `round - 1` doubled the fitted temporal slope.
+            own_offer_index = max(0, (state.round - 1) // 2)
+            share = target_share - concession_rate * own_offer_index
+            if not joint and self.spec.archetype in {"boulware", "late_conceding"} and state.round < state.horizon * 0.75:
                 share = target_share
             share += rng.uniform(-noise, noise)
             share = min(0.95, max(0.05, share))
@@ -69,13 +72,14 @@ class NegotiationPolicy(OpponentPolicy):
         concession = float(params.get("concession_rate", 0.04))
         noise = float(params.get("action_noise", 0.0))
         if state.valid_action_schema.get("kind") == "offer":
+            own_offer_index = max(0, (state.round - 1) // 2) if role == "seller" else max(0, (state.round - 2) // 2)
             if role == "seller":
                 aspiration = float(params.get("aspiration_price", buyer_value if buyer_value else 1.1))
-                price = aspiration - concession * max(state.round - 1, 0)
+                price = aspiration - concession * own_offer_index
                 price = max(seller_value, price + rng.uniform(-noise, noise))
             else:
                 aspiration = float(params.get("aspiration_price", seller_value if seller_value else 0.7))
-                price = aspiration + concession * max(state.round - 1, 0)
+                price = aspiration + concession * own_offer_index
                 price = min(buyer_value, price + rng.uniform(-noise, noise))
             normalized = min(1.5, max(0.0, price))
             return _action(state, "offer", {"product_price": round(normalized * order, 2)}, numeric=round(normalized * order, 2))
@@ -113,30 +117,32 @@ class PersuasionPolicy(OpponentPolicy):
 
     def decide(self, state: GameState) -> AgentAction:
         params = self.spec.parameters
+        joint = params.get("parameter_source") == "fitted_joint_population"
         rng = random.Random(self.spec.seed + state.round)
         if state.role == "seller":
             quality = state.metadata.get("quality", "high-quality")
             if quality == "high-quality":
                 # Truthfulness on high quality is the residual of measured honesty.
-                honesty = float(params.get("honesty", _honesty(self.spec.archetype)))
+                honesty = float(params.get("honesty", 0.6 if joint else _honesty(self.spec.archetype)))
                 decision = "yes" if rng.random() < max(0.0, min(1.0, honesty)) else "no"
             else:
                 lie_rate = params.get("yes_on_low_rate")
                 if lie_rate is None:
-                    lie_rate = 1.0 - float(params.get("honesty", _honesty(self.spec.archetype)))
+                    lie_rate = 1.0 - float(params.get("honesty", 0.6 if joint else _honesty(self.spec.archetype)))
                 decision = "yes" if rng.random() < max(0.0, min(1.0, float(lie_rate))) else "no"
             if state.valid_action_schema.get("seller_message_type") == "text":
                 msg = "I recommend buying this product." if decision == "yes" else "I would pass on this product."
                 return _action(state, "message", {"message": msg}, message=msg, buy_no_buy=decision)
             return _action(state, "recommendation", {"decision": decision}, buy_no_buy=decision)
-        trust = float(params.get("trust_prior", _trust(self.spec.archetype)))
+        trust = float(params.get("trust_prior", 0.55 if joint else _trust(self.spec.archetype)))
         last = state.visible_transcript[-1] if state.visible_transcript else {}
         seller_decision = (last.get("buy_no_buy") or (last.get("structured") or {}).get("decision") or "yes")
         if seller_decision == "yes":
             buy = rng.random() < max(0.0, min(1.0, trust))
         else:
             # Real buyers almost never buy against a "no": 962 of 42,970.
-            buy = rng.random() < 0.022
+            buy_after_no = float(params.get("buy_after_no_rate", 0.022))
+            buy = rng.random() < max(0.0, min(1.0, buy_after_no))
         decision = "yes" if buy else "no"
         return _action(state, "buy_decision", {"decision": decision}, buy_no_buy=decision)
 
@@ -213,4 +219,3 @@ class PolicyFactory:
         if game_family == "persuasion":
             return PersuasionPolicy(spec)
         raise ValueError(f"Unsupported game family: {game_family}")
-

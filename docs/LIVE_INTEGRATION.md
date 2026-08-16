@@ -89,13 +89,30 @@ like the endgame and collapse the agent's accept floor.
 
 ## What is *not* verified
 
-The fixtures in `glee_eval/live/fixtures.py` are built by hand from the glee-sdk 0.0.5 README
-tables. They are a statement of what we believe the server sends, not a capture of a real
-game, because no API key exists yet. Two consequences:
+The fixtures in `glee_eval/live/fixtures.py` are built by hand from glee-sdk documentation.
+They are a statement of what we believe the server sends, not a capture of a real game. A
+2026-08-15 re-verification against the current official glee-sdk 0.0.5 documentation found
+that action vocabularies and scalar mappings agree, but the input fixtures are incomplete:
 
-- The adapter is tested end-to-end through the SDK's real `_handle_game`, but against our
-  fixtures. A field the docs describe differently from the live server would pass every test
-  and still be wrong.
+- Current docs say every `game_state` contains `history`; all seven fixtures omit it and the
+  adapter reconstructs only from `last_offer` or persuasion totals.
+- Documented history rows differ by family: bargaining has proposer/offer/decision;
+  negotiation has offer/decision/optional counteroffer/decider; persuasion has seller message,
+  buyer decision, purchase, optional quality, and both payoffs.
+- Persuasion fixtures omit documented `current_player`.
+- The current interpreter has no installed `glee_sdk`, so SDK integration tests skip.
+- Older claims that live persuasion has no per-round history, or that buyer knowledge of `p`
+  is optional, are stale under the current documentation.
+
+The mismatch was repaired immediately after the audit: all seven fixtures now carry documented
+history, persuasion fixtures carry `current_player`, contracts validate both, and the adapter
+consumes family-specific history while retaining `last_offer`/totals compatibility fallbacks.
+The adapter is now **docs-verified** but remains unverified against the real server. Two
+consequences:
+
+- The adapter can be tested through the SDK's real `_handle_game` only when the SDK is installed,
+  and still only against our fixtures. A field the live server describes differently would pass
+  every dry test and still be wrong.
 - `reports/live/observations.jsonl` exists precisely for this. **The first few real games are
   the cheapest chance to catch a mistranslation**, so check that log after the first run
   rather than after a hundred games.
@@ -112,8 +129,111 @@ for line in open('reports/live/observations.jsonl'):
 "
 ```
 
-Anything other than `ok` in that `status` column on a real game is a schema mismatch to fix
-before scaling up.
+Repository `--max-games` is a strict count of unique game IDs. It uses bounded matchmaking
+waves (at most one queued game per selected family), drains every accepted game, and does not
+use the upstream SDK's terminal-move-only counter. With all three families, a multiple of three
+gives an exactly balanced batch. Do not bypass this wrapper with `GleeClient.run(max_games=...)`.
+
+Anything other than `ok` in that `status` column on an expressly authorized real game is a
+schema mismatch to fix before scaling up. This documentation does not authorize such a game.
+
+### Reading the observation log
+
+Summarize the adapter log directly with:
+
+```bash
+python3 -m glee_eval stats --observations reports/live/observations.jsonl
+```
+
+`shadow-score` deliberately does not accept this turn log. Official-style percentiles require
+terminal candidate payoff, scenario/configuration, and reference episodes; the observation log
+contains pre-action turn payloads and omits terminal outcomes. Audit what can be reconstructed
+without inventing outcomes with:
+
+```bash
+python3 -m glee_eval live-episodes \
+  --observations reports/live/observations.jsonl \
+  --move-results reports/live/move_results.jsonl \
+  --output-dir reports/live/episode_audit
+```
+
+This writes one audit row per game plus a summary. Rows whose opponent acted after our final
+callback remain `indeterminate`; they are never coerced to zero or silently excluded from a
+family mean. Only a complete terminal episode export can be passed to `shadow-score`:
+
+```bash
+python3 -m glee_eval shadow-score \
+  --episodes RUN/datasets/episode_summary.jsonl \
+  --data-dir data
+```
+
+Both `python3 -m glee_eval stats --help` and
+`python3 -m glee_eval shadow-score --help` now show their command-specific options.
+
+The historical `schema_violation` totals reported by `stats` are intentionally unchanged after
+a contract fix: the observation log is an append-only record of what the adapter reported at
+the time. Replaying raw payloads against the current contract is a separate validation step.
+
+### Terminal-result coverage
+
+The first observation file contains 1,423 turns from 109 game IDs, consistent with the roughly
+30-games-per-family batch. It has no authoritative terminal-result or payoff fields. Conservative
+reconstruction finds bargaining 15 reconstructed / 21 indeterminate, negotiation 13 / 23,
+and persuasion 19 / 18; seven reconstructed negotiation acceptances also lack the normalization
+order. Consequently no unbiased family payoff mean, HANDOVER section 4 divergence, or
+official-style shadow rating can be computed from this file. Averaging only reconstructible
+games would select on which player made the terminal move.
+
+Future live runs capture every SDK `move` response in `reports/live/move_results.jsonl`, including
+the complete terminal result when our submitted move ends the game. After the run, games without
+such a response are read-only GET-backfilled into the same file. `run_summary.json` reports the
+direct/backfilled/error counts, and `launch_manifest.json` records whether the support index and
+other non-secret model paths were configured, plus file hashes. This capture is prospective and
+does not recover the existing observation file. It does not authorize a live run.
+
+The authorized confirmation run in `reports/live/confirmation_20260815` captured 31 distinct
+games: 15 terminal move responses and 16 successful GET backfills, with zero errors. All 31
+have authoritative terminal payoffs (100% reconstruction). Normalized family means were
+bargaining 0.383075 (n=11), negotiation 0.116996 (n=10), and persuasion 0.235000 (n=10), versus
+the section-4 offline predictions 0.4850, 0.0927, and 0.3993 respectively. The launch manifest
+records `GLEE_SUPPORT_INDEX` as not configured. The SDK/account counter advanced by 30 rated
+games (11/10/9), although 31 terminal game records were captured; preserve that discrepancy
+rather than silently dropping a terminal record.
+
+The subsequent authorized volume run in `reports/live/volume_20260815` verified the strict cap:
+exactly 75 unique games, 25 per family. It captured 36 direct terminal results plus 39 GET
+backfills with zero errors, fallbacks, or schema violations. `GLEE_SUPPORT_INDEX` was again
+recorded as not configured. The account counters advanced exactly 25 games per family.
+
+The second authorized volume run in `reports/live/volume2_20260815` repeated the check: exactly
+75 unique games, 25 per family, 35 direct terminal results plus 40 GET backfills, zero capture
+errors/fallbacks/schema violations, and 860/860 callbacks `ok`. Its manifest records
+`GLEE_SUPPORT_INDEX` as not configured. Comparable normalized means were bargaining .384421,
+negotiation .071503, and persuasion .525600. Ending ratings were 1138.91, 1003.47, and 1156.72.
+No further live run is authorized by this record; every future batch still needs explicit user
+authorization under HANDOVER §0.9.
+
+### Real-server value visibility correction (50-game batch)
+
+The first 50-game batch confirmed that persuasion `u/v` have no alternate live spelling. They
+are absent only when our role is seller and `is_seller_know_cv=false`: six games, all 20 rounds,
+for 120 affected turns. Buyer turns and informed-seller turns carry `u/v` normally. The contract
+now models that information boundary, and all 1,423 captured payloads replay with zero
+violations. No fallback occurred, so the contract report was a false-positive validation
+alert. Do not overstate the policy impact: the direct recommendation and response-model paths
+ignore `v/c`, but an optional `GLEE_SUPPORT_INDEX` coverage lookup includes them in its context
+key and can change strategic mode. The observation log does not record whether that index was
+active, so this batch proves no harm from validation/fallback behavior but does not prove full
+action equivalence or a zero rating effect through coverage.
+
+The 109-game run predates `launch_manifest.json`. Its saved summary does not record environment
+settings, and shell history records no `GLEE_SUPPORT_INDEX` assignment. The variable is unset in
+the current shell, but that is not evidence of its earlier value; activation for this batch is
+therefore **inconclusive**, not assumed false. Independently, missing hidden persuasion `v/c`
+values now remain missing in coarse coverage keys rather than aliasing genuine numeric-zero bins.
+
+Do not run further live games merely to verify this correction. Live/rated re-verification
+still requires explicit user authorization for that individual run.
 
 ## Volume, once it works
 

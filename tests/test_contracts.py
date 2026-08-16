@@ -5,6 +5,7 @@ import unittest
 from glee_eval.contracts import (
     INGESTED_EVENT,
     LIVE_PERSUASION,
+    LIVE_NEGOTIATION,
     TRANSCRIPT_DECISION_ROW,
     TRANSCRIPT_MESSAGE_ROW,
     TRANSCRIPT_QUALITY_ROW,
@@ -18,6 +19,7 @@ from glee_eval.contracts import (
     enforce,
     live_contract,
 )
+from glee_eval.live import fixtures
 
 
 def _problems(violations) -> set[str]:
@@ -25,6 +27,14 @@ def _problems(violations) -> set[str]:
 
 
 class HistoricalBugRegressionTests(unittest.TestCase):
+    def test_live_contracts_require_documented_history(self) -> None:
+        game = fixtures.negotiation_offer()
+        del game["game_state"]["history"]
+
+        violations = check(game, LIVE_NEGOTIATION)
+
+        self.assertIn(Problem.MISSING.value, _problems(violations))
+
     """The two shape bugs that actually happened, encoded as tests.
 
     Both produced confidently-wrong behaviour with nothing raising anywhere. If a
@@ -70,7 +80,8 @@ class HistoricalBugRegressionTests(unittest.TestCase):
             "game_id": "g",
             "game_family": "persuasion",
             "valid_actions": {"type": "buyer_decision"},
-            "game_state": {"product_price": 10000, "p": 0.5, "round": 1, "total_rounds": 20, "u": 0, "v": 12500},
+            "game_state": {"product_price": 10000, "p": 0.5, "round": 1, "total_rounds": 20,
+                           "current_player": "player_2", "history": [], "u": 0, "v": 12500},
         }
         reading_only_c = Contract(
             "broken.low_value",
@@ -245,6 +256,29 @@ class LivePersuasionUnitValueTests(unittest.TestCase):
     def test_a_missing_unit_value_is_caught(self):
         self.assertIn("u", self._violations(self._game(u=_DROP)))
         self.assertIn("v", self._violations(self._game(v=_DROP)))
+
+    def test_values_are_legitimately_absent_for_an_uninformed_seller(self):
+        from glee_eval.live import fixtures
+
+        game = fixtures.persuasion_seller_recommendation(is_seller_know_cv=False)
+        game["game_state"].pop("u")
+        game["game_state"].pop("v")
+
+        self.assertEqual(self._violations(game), [])
+
+    def test_values_remain_required_for_the_buyer_even_if_seller_is_uninformed(self):
+        game = self._game(is_seller_know_cv=False, u=_DROP, v=_DROP)
+
+        self.assertCountEqual(self._violations(game), ["u", "v"])
+
+    def test_values_remain_required_for_an_informed_seller(self):
+        from glee_eval.live import fixtures
+
+        game = fixtures.persuasion_seller_recommendation(is_seller_know_cv=True)
+        game["game_state"].pop("u")
+        game["game_state"].pop("v")
+
+        self.assertCountEqual(self._violations(game), ["u", "v"])
 
     def test_a_null_unit_value_is_caught(self):
         self.assertIn("u", self._violations(self._game(u=None)))

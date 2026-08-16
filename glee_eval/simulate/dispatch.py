@@ -11,6 +11,8 @@ from glee_eval.adapters.candidate_agent import load_agent
 from glee_eval.data.dataset_audit import support_lookup
 from glee_eval.data.schemas import AgentAction, EpisodeResult, GameState, Scenario, to_jsonable
 from glee_eval.population.sampler import sample_scenario
+from glee_eval.population.config_catalogue import ConfigCatalogue
+from glee_eval.population.opponent_fit import OpponentPopulation
 from glee_eval.simulate.coverage_gate import CoverageGate
 from glee_eval.storage.trajectories import ensure_dir, write_json, write_jsonl
 from glee_eval.tournament.metrics import summarize_episodes
@@ -41,12 +43,18 @@ class TargetedSimulationDispatcher:
         max_counterfactual_dispatches: int = 8,
         counterfactual_games: int = 25,
         counterfactual_output_root: str | Path | None = None,
+        population: OpponentPopulation | None = None,
+        catalogue: ConfigCatalogue | None = None,
+        artifact_provenance: dict[str, Any] | None = None,
     ):
         self.agent_spec = agent_spec
         self.support_index = support_index or {"buckets": {}}
         self.audit_report = audit_report or {}
         self.seed = seed
         self.ledger_path = Path(ledger_path)
+        self.population = population
+        self.catalogue = catalogue
+        self.artifact_provenance = artifact_provenance or {}
         self.entries: list[dict[str, Any]] = []
         self._counterfactual_active = False
         self.coverage_gate = CoverageGate(
@@ -85,6 +93,7 @@ class TargetedSimulationDispatcher:
             "reason": reason,
             "gap": gap,
             "dispatcher_seed": self.seed,
+            "artifact_provenance": self.artifact_provenance,
         }
         return replace(scenario, source="targeted_simulation", metadata=metadata)
 
@@ -105,7 +114,7 @@ class TargetedSimulationDispatcher:
         episodes = []
         for _ in range(games):
             family = rng.choice(families)
-            scenario = self._tag(sample_scenario(family, seed=rng.randrange(10**9)), "policy_optimization", reason, gap)
+            scenario = self._tag(sample_scenario(family, seed=rng.randrange(10**9), population=self.population, catalogue=self.catalogue), "policy_optimization", reason, gap)
             episodes.append(run_episode(scenario, agent))
         metrics = summarize_episodes(episodes)
         out = ensure_dir(output_dir)
@@ -155,6 +164,8 @@ class TargetedSimulationDispatcher:
             simulation_trigger="adversarial",
             simulation_reason=reason,
             simulation_gap=gap,
+            fitted_population=self.population,
+            config_catalogue=self.catalogue,
         )
         self._record(
             {
@@ -276,7 +287,7 @@ class TargetedSimulationDispatcher:
         rng = random.Random(self.seed + len(self.entries) + 1000)
         agent = self.build_agent()
         episodes = [
-            run_episode(self._tag(sample_scenario(family, seed=rng.randrange(10**9), candidate_role=role), trigger, reason, gap), agent)
+            run_episode(self._tag(sample_scenario(family, seed=rng.randrange(10**9), candidate_role=role, population=self.population, catalogue=self.catalogue), trigger, reason, gap), agent)
             for _ in range(games)
         ]
         out = ensure_dir(output_dir)

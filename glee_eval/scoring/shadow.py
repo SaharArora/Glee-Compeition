@@ -139,9 +139,25 @@ def build_reference_tables(games_path: str | Path) -> dict[str, list[float]]:
         family = str(game.get("game_family") or "")
         config = game.get("configuration") or {}
         for role, payoff in _role_payoffs(game):
-            for _, key in _bucket_keys(family, role, config):
+            keys = _bucket_keys(family, role, config)
+            for _, key in keys:
                 buckets[key].append(float(payoff))
+            zone = _negotiation_trade_zone(family, config)
+            if zone is not None:
+                for _, key in keys:
+                    buckets[f"{key}|trade_zone:{zone}"].append(float(payoff))
     return {key: sorted(values) for key, values in buckets.items()}
+
+
+def _negotiation_trade_zone(family: str, config_or_args: Any) -> str | None:
+    if family != "negotiation":
+        return None
+    args = _game_args(config_or_args)
+    seller = as_float(args.get("seller_value"))
+    buyer = as_float(args.get("buyer_value"))
+    if seller is None or buyer is None:
+        return None
+    return "no_trade_zone" if buyer <= seller else "gains_from_trade"
 
 
 def _choose_bucket(
@@ -154,6 +170,30 @@ def _choose_bucket(
 ) -> BucketChoice | None:
     fallback: BucketChoice | None = None
     for level, key in _bucket_keys(family, role, config_or_args):
+        support = len(reference.get(key, []))
+        if support <= 0:
+            continue
+        if fallback is None:
+            fallback = BucketChoice(level=level, key=key, support=support)
+        if support >= min_reference:
+            return BucketChoice(level=level, key=key, support=support)
+    return fallback
+
+
+def _choose_trade_zone_bucket(
+    reference: dict[str, list[float]],
+    family: str,
+    role: str,
+    config_or_args: Any,
+    zone: str | None,
+    *,
+    min_reference: int,
+) -> BucketChoice | None:
+    if zone is None:
+        return None
+    fallback: BucketChoice | None = None
+    for level, base_key in _bucket_keys(family, role, config_or_args):
+        key = f"{base_key}|trade_zone:{zone}"
         support = len(reference.get(key, []))
         if support <= 0:
             continue
@@ -182,25 +222,30 @@ def _stratification_warning(family: str, rows: list[dict]) -> dict | None:
 
     if family != "negotiation" or not rows:
         return None
-    zones: dict[str, int] = {}
+    zones: dict[str, list[dict]] = defaultdict(list)
     for row in rows:
-        config = row.get("config") or {}
-        seller = config.get("seller_value")
-        buyer = config.get("buyer_value")
-        if seller is None or buyer is None:
+        zone = row.get("trade_zone")
+        if (zone is None or row.get("trade_zone_stratified_percentile") is None
+                or abs(float(row["trade_zone_stratified_percentile"]) - float(row["percentile"])) < 1e-12):
             continue
-        zones["no_trade_zone" if buyer <= seller else "gains_from_trade"] = (
-            zones.get("no_trade_zone" if buyer <= seller else "gains_from_trade", 0) + 1
-        )
+        zones[str(zone)].append(row)
     if len(zones) < 2:
         return None
+    comparison = {}
+    for zone, zone_rows in sorted(zones.items()):
+        pooled = mean(float(row["percentile"]) for row in zone_rows)
+        stratified = mean(float(row["trade_zone_stratified_percentile"]) for row in zone_rows)
+        comparison[zone] = {
+            "episodes": len(zone_rows),
+            "mean_official_style_percentile": pooled,
+            "mean_trade_zone_stratified_percentile": stratified,
+            "difference": stratified - pooled,
+        }
     return {
-        "reason": "percentile pools no-trade-zone and gains-from-trade games",
-        "episodes_by_zone": zones,
-        "effect": "understates standing in no-trade games, overstates it in the rest",
-        "measured": {"no_trade_pooled": 0.385, "no_trade_stratified": 0.508,
-                     "gains_pooled": 0.769, "gains_stratified": 0.599},
-        "not_corrected_because": "the official formula is private and replicating it is out of scope",
+        "reason": "fallback buckets may pool no-trade-zone and gains-from-trade games",
+        "episodes_by_zone": {zone: len(zone_rows) for zone, zone_rows in zones.items()},
+        "run_specific_comparison": comparison,
+        "not_used_for_rating_because": "the official formula is private and replicating it is out of scope",
     }
 
 
@@ -263,6 +308,12 @@ def score_episodes(
             continue
         family, role, config, payoff, simulation_trigger = fields
         choice = _choose_bucket(reference, family, role, config, min_reference=min_reference)
+        trade_zone = _negotiation_trade_zone(family, config)
+        trade_zone_choice = _choose_trade_zone_bucket(
+            reference, family, role, config, trade_zone, min_reference=min_reference
+        )
+        trade_zone_values = reference.get(trade_zone_choice.key, []) if trade_zone_choice else []
+        trade_zone_percentile = percentile_rank(trade_zone_values, payoff) if trade_zone_values else None
         percentile = None
         rating = None
         eta = None
@@ -284,6 +335,10 @@ def score_episodes(
                 "role": role,
                 "candidate_payoff": payoff,
                 "percentile": percentile,
+                "trade_zone": trade_zone,
+                "trade_zone_stratified_percentile": trade_zone_percentile,
+                "trade_zone_reference_support": len(trade_zone_values),
+                "trade_zone_bucket_level": trade_zone_choice.level if trade_zone_choice else None,
                 "game_rating": rating,
                 "eta": eta,
                 "raw_family_rating_after": next_raw,
@@ -308,6 +363,15 @@ def score_episodes(
             "mean_percentile": mean([float(row["percentile"]) for row in rows]) if rows else None,
             "mean_game_rating": mean([float(row["game_rating"]) for row in rows]) if rows else None,
             "mean_payoff": mean([float(row["candidate_payoff"]) for row in rows]) if rows else None,
+            "mean_trade_zone_stratified_percentile": mean(
+                [float(row["trade_zone_stratified_percentile"]) for row in rows
+                 if row.get("trade_zone_stratified_percentile") is not None]
+            ) if any(row.get("trade_zone_stratified_percentile") is not None for row in rows) else None,
+            "low_support_trade_zone_games": sum(
+                1 for row in rows
+                if row.get("trade_zone_stratified_percentile") is not None
+                and int(row.get("trade_zone_reference_support") or 0) < min_reference
+            ),
             "bucket_levels": dict(levels),
             "low_support_games": sum(1 for row in rows if int(row.get("bucket_support") or 0) < min_reference),
             "percentile_stratification_warning": _stratification_warning(family, rows),
@@ -315,9 +379,10 @@ def score_episodes(
 
     overall_displayed = mean([families[family]["displayed_rating"] for family in FAMILIES])
     summary = {
-        "schema_version": 1,
+        "schema_version": 2,
         "scoring_basis": "official_style_raw_percentile",
         "opponent_adjustment": "not_available_locally",
+        "trade_zone_diagnostic": "reported_separately_and_never_used_for_rating",
         "formula": {
             "game_rating": "clamp(2000 + 8000 * (percentile - 0.5), 100, 5000)",
             "rating_update": "R_next = clamp(R + eta * (game_rating - R), 100, 5000)",
@@ -418,18 +483,24 @@ def shadow_score_markdown(summary: dict[str, Any]) -> str:
         "",
         "## Family Ratings",
         "",
-        "| Family | Games | Displayed Rating | Raw Rating | Mean Percentile | Mean Game Rating | Low-Support Games | Bucket Levels |",
-        "|---|---:|---:|---:|---:|---:|---:|---|",
+        "| Family | Games | Displayed Rating | Raw Rating | Mean Percentile | Trade-Zone Diagnostic | Mean Game Rating | Low-Support Games | Bucket Levels |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for family in FAMILIES:
         row = summary["families"][family]
         bucket_levels = ", ".join(f"{key}:{value}" for key, value in sorted((row.get("bucket_levels") or {}).items())) or ""
         lines.append(
             f"| {family} | {row['games_scored']} | {_fmt(row['displayed_rating'])} | {_fmt(row['raw_rating'])} | "
-            f"{_fmt(row['mean_percentile'])} | {_fmt(row['mean_game_rating'])} | {row['low_support_games']} | {bucket_levels} |"
+            f"{_fmt(row['mean_percentile'])} | {_fmt(row.get('mean_trade_zone_stratified_percentile'))} | "
+            f"{_fmt(row['mean_game_rating'])} | {row['low_support_games']} | {bucket_levels} |"
         )
     lines.extend(
         [
+            "",
+            "## Negotiation Trade-Zone Diagnostic",
+            "",
+            "`trade_zone_stratified_percentile` compares negotiation payoff within the same role and trade-zone only. "
+            "It is a run-specific skill diagnostic and is never used to derive the official-style rating because the live formula is private.",
             "",
             "## Formula",
             "",
@@ -445,7 +516,10 @@ def shadow_score_markdown(summary: dict[str, Any]) -> str:
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Estimate an official-style GLEE leaderboard score from local episodes.")
+    parser = argparse.ArgumentParser(
+        prog="python3 -m glee_eval shadow-score",
+        description="Estimate an official-style GLEE leaderboard score from local episodes.",
+    )
     parser.add_argument("--run-dir", help="Experiment run directory containing datasets/episode_summary.jsonl.")
     parser.add_argument("--episodes", help="Explicit episode_summary.jsonl path.")
     parser.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR))

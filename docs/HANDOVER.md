@@ -12,6 +12,11 @@ Current head at time of writing: `94ec99b`. Test suite: **309 tests, all passing
 > **Read §0 first if you are resuming after 14 August 2026.** That session shipped three
 > fixes, built four changes the gate rejected, and — most importantly — caught one of its own
 > passing results as a false positive. The method matters more than the numbers.
+>
+> **Read §0.9 regardless of when you are resuming.** It is the standing protocol for how any
+> future session — autonomous or not — is expected to work: parallel approach families, a
+> real status vocabulary, durable state files, and one hard boundary around live play. It
+> supersedes nothing in §1–§7; it wraps process discipline around them.
 
 ---
 
@@ -176,6 +181,12 @@ assertion that states why it is off.
 
 ### 0.7 What to do first next session
 
+> **Run these in parallel, not in sequence — see §0.9.** The numbering below is priority order
+> if you had to pick one, not a queue. With multiple approach families independently
+> actionable right now (the `minimum_effect` decision, `guarantee_own_margin`, persuasion's two
+> named leads, and H6), there is no reason to work them one at a time. §0.9 gives the rules for
+> running them concurrently without them contaminating each other's evidence.
+
 1. **Decide the `minimum_effect` question, before measuring anything else.** Four complete,
    tested changes are sitting off because they land at +0.007 to +0.010 while 1,422 of 1,600
    paired episodes are *ties* — the offline population barely exercises the code paths they
@@ -184,7 +195,8 @@ assertion that states why it is off.
    e.g. conditioning on pairs that reach the branch. **(b) is defensible but must be written
    into `docs/PROMOTION_CRITERIA.md` first**, because choosing it after seeing these numbers is
    the exact failure the gate exists to prevent. This is a human decision, not an autonomous
-   one.
+   one. It does not block the other items below — they can proceed while this is pending, and
+   simply cannot flip a default until it resolves.
 2. **`guarantee_own_margin` is the strongest candidate and deserves the decision first.** It is
    provably defective by arithmetic rather than by A/B: the old clip collapses to a single point
    once the believed counterpart value crosses our own, so the only legal offer is *exactly our
@@ -193,10 +205,15 @@ assertion that states why it is off.
 3. **Then play live games.** Every live claim in this repo is still unvalidated by anyone but
    the user's five games. Read `reports/live/observations.jsonl` for non-`ok` statuses and
    `schema_violations` keys. Rated volume takes calendar time that cannot be recovered, and the
-   deadline is 29 August 2026.
+   deadline is 29 August 2026. **Live games are never scheduled or run autonomously — see
+   §0.9 — this step always requires the user's explicit go-ahead**, independent of how the
+   parallel work above is proceeding.
 4. **Persuasion remains the weakest family** (§4.3). The two named leads are unchanged: the
-   deceptive-seller regression and the under-confident 0.5–0.8 calibration bins.
-5. **Decide the H6 percentile question** (§6.4). Reported, not corrected.
+   deceptive-seller regression and the under-confident 0.5–0.8 calibration bins. These are
+   independent of the negotiation work above and can run as their own concurrent family.
+5. **Decide the H6 percentile question** (§6.4). Reported, not corrected. Also independent and
+   parallelizable; it touches scoring/reporting, not agent policy, so it cannot collide with
+   the negotiation or persuasion work.
 
 ### 0.8 Still open or uncertain after this session
 
@@ -210,6 +227,121 @@ assertion that states why it is off.
   distinguishable going forward; it does not retroactively prove which happened.
 - Unchanged from before: whether the official metric clamps negative negotiation payoffs, and
   the H6 shadow-percentile distortion (§6.4).
+
+### 0.9 Standing protocol for future sessions — parallel by default
+
+This section governs how every future session works, autonomous or not, starting now and for
+the remainder of the project. It does not replace the promotion gate in
+`docs/PROMOTION_CRITERIA.md` — it wraps process discipline around it, because the gate tests
+effect size and significance, not reasoning, and this project has already shipped one overclaim
+(§0.4) that a numeric gate alone would not have caught.
+
+**Work in parallel. Do not self-restrict to one approach family at a time.** There is
+essentially always more than one independently actionable thread available — right now that's
+the `minimum_effect` policy decision, `guarantee_own_margin`, the two named persuasion leads,
+and H6 — and there is no reason implemented, tested, gated work on one family should wait on
+another finishing. Run as many approach families concurrently as there is real, independent
+work to do; a practical ceiling is about **6 concurrent threads**, mirroring the concurrency
+limit most agent harnesses default to, but treat that as a starting point to raise, not a rule
+to justify sitting idle below it. The only two constraints on parallelism are:
+
+- **No two concurrent threads may ship a default-flipping change to the same code path without
+  the coordination in "Shared surfaces" below.** §0.2 already shows why: three negotiation
+  flags measured independently would each have stayed rejected forever, and the real result
+  only appeared once they were understood as one path. Parallel work on a shared surface must
+  stay *aware* of that surface, not necessarily merged into one thread.
+- **Live/rated games are never a parallel thread.** They are the one activity in this project
+  that consumes an irreplaceable, un-rerunnable resource (calendar time against the 29 August
+  deadline) and cannot be run speculatively alongside other work — see the hard boundary below.
+
+**Durable state — the memory of the project, not this doc and not any one session's context.**
+Before starting new work, ensure these exist:
+
+- `docs/REGISTRY.md` — one row per approach family (`theory_anchor`, `time_concession`,
+  `guarantee_own_margin`, `debias_counterpart_value`, `persuasion_explore`, `message_mode`,
+  `minimum_effect_policy`, `h6_percentile`, ...): exact change, exact remaining gap, last gate
+  result with numbers, status (active / paused / blocked / shipped), which concurrent thread
+  owns it, dependencies, evidence links. Seed it once from §0.2/§0.6, then keep it current
+  instead of relying on this doc's prose tables, which will drift.
+- `docs/FAILED.md` — append-only. Every gate-rejected or retracted change: what was tried, the
+  exact numeric failure, and what would make a retry materially new. §0.2 and §0.4 are the seed
+  content. Read the relevant entries here before starting *any* new approach family — state
+  explicitly which entry is closest and why the new attempt differs, or write "no close prior
+  entry."
+- `docs/PROCESS_LESSONS.md` — transferable lessons only (e.g. "grouping honestly matters more
+  than individual effect size," "declare confirmation runs before seeing results," "check
+  round-1/horizon edge cases before trusting a curve," "don't let three related flags stay
+  siloed"). Never mathematical or empirical *claims* about the game — those belong in
+  REGISTRY.md and FAILED.md.
+
+**Status vocabulary — every flag or change carries exactly one label, and a label never
+outruns its weakest supporting run:**
+
+- `candidate` — implemented, not yet gated.
+- `gate-passed` — cleared `minimum_effect`, significance, downside, subgroup, and holdout on
+  one sample. Counts the same as `candidate` for shipping purposes — see the next line. §0.3 is
+  the proof of why: two checks passed by a hair (0.0109 vs 0.0100; 0.4985 vs 0.5000) and both
+  evaporated on confirmation.
+- `confirmed` — gate-passed **and** cleared an independent-sample confirmation run that was
+  declared, in writing, before that run executed. Only `confirmed` changes may flip a default
+  in `JordanStrategicAgent.__init__`.
+- `shipped` — confirmed and merged with its default flipped.
+- `retracted` — previously shipped or confirmed, later found defective by new evidence. Stays
+  in FAILED.md, is never cited as working, and every downstream change that depended on it gets
+  re-flagged in REGISTRY.md.
+
+**Before any thread ships a change that flips a default:**
+1. Check FAILED.md and state the closest prior entry and the material difference, or "no close
+   prior entry."
+2. Declare the confirmation-run sample size and seed *in REGISTRY.md, before running it.*
+3. Run it. If it holds, promote to `shipped`, update REGISTRY.md, and note it in this doc's §0
+   history for the next session. If not, log it to FAILED.md as `retracted` with the numbers,
+   unchanged — do not resubmit the same candidate to a fresh gate run hoping for variance.
+
+**Adversarial check before believing your own diagnosis.** Before writing a claim like "the bug
+guarantees X" or "the root cause is Y" into REGISTRY.md, try to break it against real logged
+data the same session — the way §0.4 did, but before shipping rather than after. A diagnosis
+that hasn't been checked against `reports/live/observations.jsonl` or a gate run is a
+hypothesis, not a finding, and should be labelled as such until checked.
+
+**Kill-check before starting a new approach family.** One pass, cheap: does the smallest real
+example in `observations.jsonl` already contradict the premise? Log the result in REGISTRY.md
+even if inconclusive. This is what would have caught the concession-curve horizon-1 bug (§0.4)
+before it consumed a full gate run.
+
+**Shared surfaces.** If two concurrent threads touch the same function, flag, or scoring path,
+they do not need to merge into one thread, but each must record the other in REGISTRY.md's
+dependency field, and neither ships a default flip on that surface without checking the other's
+latest REGISTRY.md status first. Diagnosing coupled defects together, even when investigated in
+parallel, is what turned three individually-rejected negotiation flags into one gate-passing
+change — don't let parallelism re-fragment something that's actually one mechanism.
+
+**Reporting gate.** Only interrupt the user unsolicited for: a change reaching `shipped`, a
+retraction of a previously shipped change, or a live game result outside expectations. Routine
+gate rejections, in-progress parallel threads, and process notes go in the files, not as
+interruptions — regardless of how many threads are running at once.
+
+**Persistence, with one hard, non-negotiable boundary.** Do not stop working a
+rejected-but-promising family (e.g. `guarantee_own_margin`) just because one gate run failed —
+keep iterating per the cadence above, and keep other threads moving in parallel rather than
+waiting on it. But **no session, autonomous or otherwise, may run or schedule a live/rated game
+without the user's explicit authorization in that specific instance.** This is not a
+conservatism default to be relaxed under deadline pressure — it is the opposite of every other
+rule in this section. Everywhere else in this document, "don't restrict yourself, run more
+threads, keep going" is the instruction. Live play is the one exception, because a live game
+consumes real, un-rerunnable calendar time against the 29 August deadline and a bad one can move
+a rating ~400 points early on (§2, live integration). Parallelize the offline work as
+aggressively as there is real work to do; never parallelize into live play.
+
+**Web policy.** Background research on negotiation, bargaining, or persuasion game theory,
+standard mechanism design, or general ML/statistics literature is fine and encouraged where it
+helps a thread. Do not search for the competition's other entrants, its leaderboard, or public
+writeups of solutions to this specific competition.
+
+**On stop or pause.** Reconcile every in-flight thread into REGISTRY.md/FAILED.md before
+stopping. Any thread mid-confirmation-run that hasn't finished gets marked `candidate`, not a
+stronger label, even if the gate run so far looks good. Append anything transferable to
+PROCESS_LESSONS.md.
 
 ---
 
@@ -470,6 +602,96 @@ All from `runs/step5_final` (200 games, real configs, calibrated opponents) unle
 Overall shadow rating **1401.9**; agreement/sale rate **0.79**; probes **1000/1000** legal and
 parseable, format-failure rate 0.0.
 
+**Live confirmation, 15 August 2026.** An authorized terminal-capture run produced 31 complete
+game records (15 direct terminal move results plus 16 GET backfills; 100% terminal payoff
+coverage). The comparable normalized means were bargaining **0.383075** (n=11, −0.101925 vs
+offline), negotiation **0.116996** (n=10, +0.024296), and persuasion **0.235000** (n=10,
+−0.164300). These small live cells reflect live matchmaking rather than the fitted-population
+sampling target, so the differences are measurements, not causal policy regressions. The
+account counter advanced by 30 rated games while capture recorded 31 terminal games. Ending
+ratings were bargaining 1063.52, negotiation 1028.02, and persuasion 1072.86.
+
+**Strict rated-volume run, 15 August 2026.** The repaired wrapper completed exactly 75/75
+unique games, balanced 25 per family, with 36 direct terminal results and 39 GET backfills,
+zero capture errors, zero fallbacks, and a clean schema. Means were bargaining **0.441103**
+(−0.043897 vs offline), negotiation **0.072562** (−0.020138), and persuasion **0.382000**
+(−0.017300). Ending ratings were 1115.66, 1022.51, and 1108.86 respectively. The earlier
+large bargaining/persuasion shortfalls did not replicate at volume; both offline targets remain
+inside normal-approximation live intervals. Do not promote a policy change from the original
+31-game discrepancy.
+
+**Second strict rated-volume run, 15 August 2026.** A separately authorized batch again
+completed exactly 75/75 games, 25 per family, with 35 direct terminal results and 40 GET
+backfills. All 860 callbacks were `ok`; there were zero capture errors, fallbacks, or schema
+violations, and the launch manifest again records `GLEE_SUPPORT_INDEX` as not configured.
+Means were bargaining **0.384421** (−0.100579 vs offline), negotiation **0.071503**
+(−0.021197), and persuasion **0.525600** (+0.126300). Ending account ratings were 1138.91,
+1003.47, and 1156.72 respectively. Bargaining player-1/player-2 means were .382355/.386329,
+and persuasion seller/buyer means were .567857/.471818, so the earlier large role splits did
+not replicate. The bargaining and negotiation offline targets remain inside descriptive
+normal-approximation intervals; these matchmaker samples are not causal policy comparisons.
+
+**Live text-persuasion diagnosis and rejected candidate, 15 August 2026.** Across the complete
+confirmation and strict-volume logs, every one of 180 text-mode buyer turns defaulted to no.
+The server supplied 101 unequivocally positive and 79 negative messages, but unlike the
+simulator it supplied no hidden structured stance beside the text. A conservative default-off
+parser passed the frozen 420-turn replay with zero polarity errors and zero binary changes.
+Its prospectively declared structural-holdout payoff gate measured **+0.1390**, t=13.04,
+n=1600, but failed config-regime concentration at **0.5437 > 0.50**. It remains a candidate;
+the default is off and no post-fix live batch is authorized for it. See REGISTRY/FAILED for the
+exact gate and no-retry constraint.
+
+The completed three-batch audit narrows this further. Across 60 persuasion games, binary
+buyers purchased 164/320=.5125 versus .4994 offline and obeyed 164/209=.7847 positive
+recommendations versus the fitted .78. Text buyers purchased 0/300. Binary buyer payoff
+(.590) exceeded binary seller payoff (.480), so neither the purchase-rate gap nor the pooled
+role asymmetry survives message-mode conditioning. All 620 live buyer histories were persistent
+and no payload exposed a myopic flag. This adds evidence to the rejected text-parser diagnosis;
+it does not create a materially new buyer policy or permit its unchanged candidate to rerun.
+
+**Live negotiation attribution audit, 15 August 2026.** Across 60 authoritative complete
+games, 37 identifiable gains-from-trade cells averaged .127264, two known no-trade/equality
+cells averaged .031414, and 21 zero-payoff incomplete-information cells have hidden counterpart
+values, so their true zone cannot be recovered. The live no-trade explicit-outside rate has a
+sharp sample bound of 0%--84.62%; treating every hidden cell as no-trade gives 11/23=47.83%,
+but that is a sensitivity assumption, not an estimate comparable with offline 86%/real 88%.
+The offline zero-responder-gain boundary reproduces at .3298; live remains 0/4, underpowered,
+with 210/446 response gains hidden. Own-margin harm was absent in 37 openings and 38 agreements,
+and counterpart de-biasing was truth-checkable only twice. One materially new mechanism was
+proved: in hidden-horizon game `f29a…`, the adapter replaced the seller's 16950 opening with a
+worse static 17250 counter for 49 turns, ending at zero. A prospectively declared, isolated
+live-contract fallback candidate nevertheless measured only **+0.000307**, t=1.964, 4W/0L/
+1596T at n=1600 and failed minimum effect plus config concentration (.5980). It remains off;
+none of the older negotiation flags was revived.
+
+**Live bargaining root-cause audit, 15 August 2026.** The three terminal-complete batches
+contain 61 games, all agreements, with mean normalized payoff .407409. The candidate's gross
+agreed share was .54511; waiting/discounting removed .13770 on average. The 97 logged unique
+bargaining games use the released delta grid and nearly match historical horizon, information,
+and message marginals. Pot=100 is overweight (43.3% live versus 32.6% historical), but payoff
+normalization removes a mechanical scale effect. In 42 incomplete-information games the
+opponent delta is correctly hidden, and unbounded live games expose no numeric `max_rounds`;
+neither was imputed.
+
+The exact fitted-simulator defect was temporal units. Fitting records `concession_rate` between
+successive offers by the same player; runtime multiplied it by global `round-1`, applying two
+fitted transitions by that player's second offer, and separately accelerated `conceding`
+opponents by an unfitted `.05*round`. Runtime now uses own-offer index `(round-1)//2` and removes
+that acceleration. Under the corrected model, unchanged theory-on versus isolated theory-off
+passed seed-112358 n=1600 at **+.0551, t=10.95**, then its prospectively declared seed-2718281
+n=3200 confirmation at **+.0601, t=16.77**; every ordinary gate check passed twice. The theory
+anchor remains shipped.
+
+This corrects the evidence model, not the live agent. Live action replay matched 475/475
+callbacks, and a theory-off immediate-accept diagnostic was mixed (+.00484 per 61 games; four
+improve, seven regress). A low-delta/stagnation rule was killed by two opposite-sign examples
+and a matched reversal. The deeper design limitation is that the fitted population samples
+target share, acceptance threshold, and concession independently within stipulated archetype
+bands, losing real player-level joint behavior; live opponents also concede much less smoothly
+(successive-offer mean .00657, median 0). That is genuine model risk, but not a diagnosed
+production-visible policy repair. Because no production candidate changed, the user's
+conditional one-batch live authorization was not triggered or consumed; no live game ran.
+
 ### Bargaining — strongest
 
 - Tournament payoff **+0.4850**, 95% CI [+0.4794, +0.4906], n=69, median +0.5000
@@ -619,6 +841,9 @@ fairness are recorded but do not affect rank.
 | **`docs/POST_GAP_FIX_REPORT.md`** | The first pass. Wired the counterfactual trigger and the coverage gate |
 | **`docs/USAGE.md`** | How to run the harness day to day |
 | **`docs/GLEE_AUDIT.md`** | Audit of the upstream GLEE repository itself |
+| **`docs/REGISTRY.md`** | *(New, §0.9.)* Live status of every approach family, across however many parallel threads are running |
+| **`docs/FAILED.md`** | *(New, §0.9.)* Append-only record of every rejected or retracted change and what would make a retry materially new |
+| **`docs/PROCESS_LESSONS.md`** | *(New, §0.9.)* Transferable process lessons only, never mathematical/empirical claims |
 
 > **Read the two pass reports with care.** Each was superseded in part by the next.
 > `POST_GAP_FIX_REPORT.md` calls a negotiation finding "a confirmed, live bug… not a testbed
@@ -671,18 +896,23 @@ remaining-rounds variant.
 
 ## Immediate next steps, in order
 
-> **Superseded by §0.7 for anyone resuming after 14 August 2026.** The list below is the
-> pre-session ordering and is kept for continuity. The one change: an API key now exists and
+> **Superseded by §0.7 and §0.9 for anyone resuming after 14 August 2026.** The list below is
+> the pre-session ordering and is kept for continuity. The one change: an API key now exists and
 > five real games have been played, so item 1 is partly done — but no games have been played or
 > validated by the agent author, and none were run in the 14 August session by instruction.
 
 1. **Get an API key and play five real games.** Then read
    `reports/live/observations.jsonl` for non-`ok` statuses and `schema_violations` keys. Nothing
    else is worth more right now — every live claim is currently unvalidated, and rated volume
-   takes calendar time we cannot recover.
+   takes calendar time we cannot recover. **Still always requires explicit user authorization
+   per §0.9 — never run autonomously regardless of what else is in progress.**
 2. **Persuasion is the weakest family and its policy is barely touched.** The two named leads
    are the deceptive-seller regression and the under-confident 0.5–0.8 calibration bins.
 3. **Decide the H6 question** (§6.4): stratify the shadow percentile for a better skill
    measure, or leave it aligned with a presumed-pooling official formula.
 4. **Commit `AGENT_CONTEXT.md` and the design memo** if you have them. Their absence from the
    repo is a real single point of failure.
+
+Items 2–4 above, and the items in §0.7, are independently actionable and should run as
+concurrent threads per §0.9 rather than in this numbered order — the numbering here is
+priority, not a queue.
