@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import random
 import unittest
 from collections import OrderedDict
 
@@ -75,19 +74,38 @@ def _action(state: GameState, decision: str, numeric: float | None = None) -> Ag
 class _NoopAgent(CandidateAgent):
     agent_id = "factorial-shared-core"
 
-    def __init__(self, context: ArmContext, *, extra_language_draws: int = 0, contaminated: bool = False) -> None:
+    def __init__(
+        self,
+        context: ArmContext,
+        *,
+        extra_language_draws: int = 0,
+        extra_eprocess_draws: int = 0,
+        contaminated: bool = False,
+    ) -> None:
         self.context = context
-        self.economic_rng = random.Random(context.economic_seed)
-        self.language_rng = random.Random(context.language_seed)
+        self.economic_rng = context.randomness.claim("economic_policy")
+        self.language_rng = (
+            context.randomness.claim("language_treatment") if context.use_language else None
+        )
+        self.eprocess_rng = (
+            context.randomness.claim("eprocess_treatment") if context.use_eprocess else None
+        )
         self.extra_language_draws = extra_language_draws
+        self.extra_eprocess_draws = extra_eprocess_draws
         self.contaminated = contaminated
 
     def decide(self, state: GameState) -> AgentAction:
         for _ in range(self.extra_language_draws if self.context.use_language else 0):
+            assert self.language_rng is not None
             if self.contaminated:
+                # Spoofing the public owner string is not enough to evade the
+                # paired trace/projection canary.
                 self.economic_rng.random()
             else:
                 self.language_rng.random()
+        for _ in range(self.extra_eprocess_draws if self.context.use_eprocess else 0):
+            assert self.eprocess_rng is not None
+            self.eprocess_rng.random()
         economic_draw = self.economic_rng.random()
         if state.game_family == "bargaining" and state.valid_action_schema.get("kind") == "offer":
             return _action(state, "yes", 55.0 if economic_draw < 0.5 else 60.0)
@@ -95,14 +113,39 @@ class _NoopAgent(CandidateAgent):
             return _action(state, "yes", 85.0 if economic_draw < 0.5 else 90.0)
         return _action(state, "yes" if economic_draw < 0.5 else "no")
 
+    def factorial_capability_bindings(self):
+        bindings = {"economic_policy": self.economic_rng}
+        if self.eprocess_rng is not None:
+            bindings["eprocess_treatment"] = self.eprocess_rng
+        if self.language_rng is not None:
+            bindings["language_treatment"] = self.language_rng
+        return bindings
 
-def _factories(*, extra_language_draws: int = 0, contaminated: bool = False, reverse: bool = False):
+
+class _WrongBindingAgent(_NoopAgent):
+    def factorial_capability_bindings(self):
+        bindings = super().factorial_capability_bindings()
+        if self.context.use_language:
+            bindings["language_treatment"] = self.economic_rng
+        return bindings
+
+
+def _factories(
+    *,
+    extra_language_draws: int = 0,
+    extra_eprocess_draws: int = 0,
+    contaminated: bool = False,
+    reverse: bool = False,
+):
     names = list(reversed(FACTORIAL_ARMS)) if reverse else list(FACTORIAL_ARMS)
     return OrderedDict(
         (
             name,
-            lambda context, draws=extra_language_draws, bad=contaminated: _NoopAgent(
-                context, extra_language_draws=draws, contaminated=bad
+            lambda context, ldraws=extra_language_draws, edraws=extra_eprocess_draws, bad=contaminated: _NoopAgent(
+                context,
+                extra_language_draws=ldraws,
+                extra_eprocess_draws=edraws,
+                contaminated=bad,
             ),
         )
         for name in names
@@ -163,7 +206,12 @@ def _scenario(family: str, seed: int, role: str) -> Scenario:
     )
 
 
-def _run(factories, *, require_inert_parity: bool = True):
+def _run(
+    factories,
+    *,
+    require_inert_parity: bool = True,
+    require_active_isolation_canary: bool = False,
+):
     return run_factorial(
         factories,
         families=["bargaining", "negotiation", "persuasion"],
@@ -176,6 +224,7 @@ def _run(factories, *, require_inert_parity: bool = True):
             "source": scenario.source,
         },
         require_inert_parity=require_inert_parity,
+        require_active_isolation_canary=require_active_isolation_canary,
     )
 
 
@@ -187,11 +236,24 @@ class FactorialEvaluatorIntegrityTests(unittest.TestCase):
             self.assertEqual(len({arm.candidate_payoff for arm in row.arms}), 1)
 
     def test_treatment_random_draws_do_not_change_environment_or_opponent(self) -> None:
-        baseline = _run(_factories(extra_language_draws=0))
-        extra = _run(_factories(extra_language_draws=19))
+        baseline = _run(_factories(extra_language_draws=0), require_inert_parity=False)
+        extra = _run(_factories(extra_language_draws=101), require_inert_parity=False)
         self.assertEqual(
-            [[item.unlabeled_record_hash for item in row.arms] for row in baseline],
-            [[item.unlabeled_record_hash for item in row.arms] for row in extra],
+            [[item.non_language_record_hash for item in row.arms] for row in baseline],
+            [[item.non_language_record_hash for item in row.arms] for row in extra],
+        )
+        for left, right in zip(baseline, extra, strict=True):
+            self.assertEqual(
+                [(arm.environment_stream_hash, arm.opponent_stream_hash) for arm in left.arms],
+                [(arm.environment_stream_hash, arm.opponent_stream_hash) for arm in right.arms],
+            )
+
+    def test_eprocess_draws_do_not_change_environment_or_opponent(self) -> None:
+        baseline = _run(_factories(extra_eprocess_draws=0), require_inert_parity=False)
+        extra = _run(_factories(extra_eprocess_draws=73), require_inert_parity=False)
+        self.assertEqual(
+            [[item.non_eprocess_record_hash for item in row.arms] for row in baseline],
+            [[item.non_eprocess_record_hash for item in row.arms] for row in extra],
         )
         for left, right in zip(baseline, extra, strict=True):
             self.assertEqual(
@@ -200,7 +262,7 @@ class FactorialEvaluatorIntegrityTests(unittest.TestCase):
             )
 
     def test_inert_language_has_exact_zero_paired_effect(self) -> None:
-        rows = _run(_factories(extra_language_draws=7))
+        rows = _run(_factories(extra_language_draws=7), require_inert_parity=False)
         for row in rows:
             self.assertEqual(row.contrasts()["language_main_effect"], 0.0)
             self.assertEqual(row.contrasts()["interaction"], 0.0)
@@ -235,9 +297,57 @@ class FactorialEvaluatorIntegrityTests(unittest.TestCase):
         for row in rows:
             self.assertEqual(len({arm.unlabeled_record_hash for arm in row.arms}), 1)
 
-    def test_shared_rng_contamination_is_rejected_before_scoring(self) -> None:
+    def test_shared_rng_contamination_is_rejected_in_active_mode(self) -> None:
         with self.assertRaises(FactorialIntegrityError):
-            _run(_factories(extra_language_draws=1, contaminated=True))
+            _run(
+                _factories(extra_language_draws=1, contaminated=True),
+                require_inert_parity=False,
+                require_active_isolation_canary=True,
+            )
+
+    def test_wrong_treatment_capability_binding_is_rejected_without_parity_mode(self) -> None:
+        factories = {
+            name: (lambda context: _WrongBindingAgent(context))
+            for name in FACTORIAL_ARMS
+        }
+        with self.assertRaisesRegex(FactorialIntegrityError, "issued capability"):
+            _run(factories, require_inert_parity=False)
+
+    def test_shared_agent_instance_is_rejected(self) -> None:
+        shared = None
+
+        def factory(context):
+            nonlocal shared
+            if shared is None:
+                shared = _NoopAgent(context)
+            return shared
+
+        with self.assertRaises(FactorialIntegrityError):
+            _run({name: factory for name in FACTORIAL_ARMS}, require_inert_parity=False)
+
+    def test_duplicate_scenario_ids_are_rejected(self) -> None:
+        def duplicate(family: str, seed: int, role: str) -> Scenario:
+            original = _scenario(family, seed, role)
+            return Scenario(
+                scenario_id="duplicate",
+                game_family=original.game_family,
+                config_id=original.config_id,
+                public_parameters=original.public_parameters,
+                candidate_role=original.candidate_role,
+                opponent_role=original.opponent_role,
+                opponent_spec=original.opponent_spec,
+                seed=original.seed,
+                metadata=original.metadata,
+            )
+
+        with self.assertRaisesRegex(FactorialIntegrityError, "duplicate scenario_id"):
+            run_factorial(
+                _factories(),
+                families=["bargaining"],
+                games=2,
+                seed=20260829,
+                scenario_factory=duplicate,
+            )
 
 
 if __name__ == "__main__":

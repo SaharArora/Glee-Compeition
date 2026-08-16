@@ -1,5 +1,22 @@
 # R4 — paired factorial evaluation
 
+## Wave 3 capability repair
+
+Wave 3 replaces raw candidate seeds with owner-bound, auditable RNG capabilities and derives
+scenario/config, environment, opponent, economic, e-process, and language streams separately.
+Environment and opponent seeds remain inside the frozen scenario and are never exposed to the
+candidate factory. The evaluator now rejects duplicate scenario IDs, shared agent instances,
+missing/wrong capability bindings, disabled treatment claims, cross-arm manifest changes, and
+active-canary non-treatment trajectory or economic-RNG divergence.
+
+Eleven evaluator canaries and twelve four-agent behavioral/isolation tests pass. The exact
+version and hostile boundaries are in
+`research/AUDITS/R4_FACTORIAL_WAVE3_VERIFICATION.md`.
+
+Verdict: **named-stream repair passes at self-audited maturity; final R4 remains blocked.**
+The required independent verifier was not delegated in this task, and the frozen 3,600-row
+estimand/uncertainty/Holm report validator is still absent. No payoff study is eligible.
+
 ## Wave 2 implementation and hostile verdict
 
 Status: **blocked for active-treatment scoring; usable only as an inert-parity

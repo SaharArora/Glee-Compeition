@@ -1,0 +1,67 @@
+{
+  "schema": "glee.research.wave3_implementation.v1",
+  "base_commit": "fd05023de6ef87bb9d9e8f0f20044052569041b6",
+  "outcome": "four_real_agents_implemented_rng_repair_self_audited_final_payoff_blocked",
+  "artifacts": {
+    "factorial_evaluator": {
+      "path": "glee_eval/experiments/factorial.py",
+      "sha256": "1ca9d360073cb59fa7df972ae140796f1585cae6d27ec7d5229ba9670be4bbb3"
+    },
+    "factorial_evaluator_tests": {
+      "path": "tests/test_factorial_evaluator.py",
+      "sha256": "85055f533b0ad9079cc0bb10162e0d5b233d0ed5191555ab39d3662a3b7067b5",
+      "tests": 11,
+      "result": "PASS"
+    },
+    "four_agents": {
+      "path": "research/CANDIDATES/wave3_factorial_agents.py",
+      "sha256": "b0c3f286e6e9ef5a28c209cd11b11d0dd0092105fd52d49ed96554a45b84c319",
+      "entrypoints": [
+        "Factorial00Agent",
+        "Factorial10Agent",
+        "Factorial01Agent",
+        "Factorial11Agent"
+      ]
+    },
+    "agent_tests": {
+      "path": "tests/test_wave3_factorial_agents.py",
+      "sha256": "141cf032488ef8ee43a9b4c3eee153decddd36e86e6d08395edefc3e6622a72a",
+      "tests": 12,
+      "result": "PASS"
+    },
+    "r2_contract": {
+      "path": "research/ROUTES/R2_EPROCESS_WAVE3.md",
+      "sha256": "c8e2ef8c5a4028bc22cafe6456dea5c384eb6aee3b0c8369dfdf13123140ce28"
+    },
+    "r3_contract": {
+      "path": "research/ROUTES/R3_LANGUAGE_WAVE3.md",
+      "sha256": "9ba2984f4f1839c066800078e017d10b8179ee670ea06ddcfd593381f826521b"
+    },
+    "r4_hostile_audit": {
+      "path": "research/AUDITS/R4_FACTORIAL_WAVE3_VERIFICATION.md",
+      "sha256": "756d41f371876d8f549a1b9c084793e6dee95f575c6d0b1599dd18c1a68610dd",
+      "verdict": "rng_and_active_canary_contract_pass_self_audited_final_r4_blocked"
+    }
+  },
+  "r2_validity_scope": {
+    "supported": "persuasion seller, buyer follows a prior completed recommendation, relative to a fixed SHA-locked Model-C conditional reference",
+    "unsupported": [
+      "bargaining terminal acceptances",
+      "negotiation terminal acceptances",
+      "persuasion buyer self-outcomes",
+      "continuous offer/concession evidence",
+      "across-game multiplicity control"
+    ],
+    "smallest_gap": "Model-C supplies a fitted point reference, not a certified conditional upper bound for the real population."
+  },
+  "r3_population": "persuasion candidate-seller turns with seller_message_type=text and a completed yes/no economic recommendation",
+  "boundaries": {
+    "holdout_inspected": false,
+    "fit_run": false,
+    "factorial_payoff_run": false,
+    "large_text_responsive_simulator_built": false,
+    "live_or_rated_games": 0,
+    "r4_independently_verifier_backed": false,
+    "wave4_authorized": false
+  }
+}

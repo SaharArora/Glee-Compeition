@@ -27,3 +27,11 @@
 - Green canaries can certify a narrow constructor while a hostile counterexample blocks the
   study. Record both claims at their exact scope instead of promoting the implementation as a
   whole.
+- Capability separation is a composition property as well as an RNG property: centrally issue
+  streams, pass each treatment only its own object, and verify the exact object binding before
+  an episode. Seed equality alone remains inadequate.
+- Online evidence opportunities must survive the acting callback boundary. If successes end the
+  game before another callback, a callback-only updater sees a rejection-selected sample.
+- Constructing a genuine treatment and identifying its effect are separate milestones. A fixed
+  language policy can be implementation-complete while its text-responsive evaluation population
+  remains empty.

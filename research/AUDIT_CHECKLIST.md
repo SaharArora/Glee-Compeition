@@ -84,3 +84,18 @@ to the exact revision used.
   multiplicity design; it is not evidence that the null describes economic opponents.
 - Empty candidate-language-to-responsive-receiver cells are reported as an identification
   obstruction, never as a zero language effect.
+
+## Wave-3 additions
+
+- Candidate factories receive no environment or opponent seed. Treatment objects receive the
+  exact issued capability for their declared stream, and a binding mismatch fails before play.
+- Active isolation canaries compare treatment-stripped trajectories and the economic RNG trace;
+  they are not reused to erase a genuine mediated response in an outcome study.
+- A fixed fitted response probability creates only a reference-relative e-process guarantee.
+  It is not called a certified population upper bound without separate evidence.
+- Terminal acceptances absent before another candidate callback are censored, not silently
+  treated as an all-rejection online stream.
+- Language-on unsupported cells are exact action/message matches to control, with no treatment
+  metadata or RNG draw. Eligible text changes preserve numeric decisions byte-for-byte.
+- Four entrypoints force their treatment assignments and reject even matching-value override
+  attempts; no optional default can silently turn an active arm off.

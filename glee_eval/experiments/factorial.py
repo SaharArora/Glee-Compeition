@@ -10,7 +10,8 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-from dataclasses import dataclass
+import random
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping
 
 from glee_eval.adapters.candidate_agent import CandidateAgent
@@ -39,26 +40,159 @@ class FactorialIntegrityError(RuntimeError):
     """Raised before scoring when the pairing/isolation contract is violated."""
 
 
+class RandomStreamCapability:
+    """A single named RNG capability with an auditable draw transcript.
+
+    The capability deliberately exposes no seed-reset or underlying ``Random``
+    object.  Treatment objects receive only their own capability, so ordinary
+    composition cannot accidentally consume the economic stream.
+    """
+
+    __slots__ = ("name", "owner", "seed", "_rng", "_trace")
+
+    def __init__(self, name: str, owner: str, seed: int) -> None:
+        self.name = name
+        self.owner = owner
+        self.seed = int(seed)
+        self._rng = random.Random(self.seed)
+        self._trace: list[dict[str, Any]] = []
+
+    def _record(self, method: str, value: Any, arguments: Any) -> Any:
+        self._trace.append(
+            {
+                "index": len(self._trace),
+                "method": method,
+                "arguments": arguments,
+                "value": value,
+            }
+        )
+        return value
+
+    def random(self) -> float:
+        return self._record("random", self._rng.random(), [])
+
+    def randrange(self, stop: int) -> int:
+        if int(stop) <= 0:
+            raise ValueError("stop must be positive")
+        return self._record("randrange", self._rng.randrange(int(stop)), [int(stop)])
+
+    def choice(self, values: tuple[Any, ...] | list[Any]) -> Any:
+        items = tuple(values)
+        if not items:
+            raise IndexError("cannot choose from an empty sequence")
+        index = self.randrange(len(items))
+        return items[index]
+
+    def audit(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "owner": self.owner,
+            "seed_hash": _hash({"stream": self.name, "seed": self.seed}),
+            "draws": len(self._trace),
+            "trace_sha256": _hash(self._trace),
+        }
+
+
+class CandidateRandomness:
+    """Capability-separated candidate RNG streams for one arm and scenario."""
+
+    _OWNER_STREAM = {
+        "economic_policy": "economic",
+        "eprocess_treatment": "eprocess",
+        "language_treatment": "language",
+    }
+
+    def __init__(
+        self,
+        *,
+        scenario_id: str,
+        economic_seed: int,
+        eprocess_seed: int,
+        language_seed: int,
+        use_eprocess: bool,
+        use_language: bool,
+    ) -> None:
+        self.scenario_id = str(scenario_id)
+        self._seeds = {
+            "economic": int(economic_seed),
+            "eprocess": int(eprocess_seed),
+            "language": int(language_seed),
+        }
+        self._enabled = {
+            "economic": True,
+            "eprocess": bool(use_eprocess),
+            "language": bool(use_language),
+        }
+        self._claims: dict[str, RandomStreamCapability] = {}
+
+    def claim(self, owner: str, stream: str | None = None) -> RandomStreamCapability:
+        expected = self._OWNER_STREAM.get(str(owner))
+        requested = str(stream or expected or "")
+        if expected is None:
+            raise FactorialIntegrityError(f"unknown RNG capability owner: {owner}")
+        if requested != expected:
+            raise FactorialIntegrityError(
+                f"{owner} may access only the {expected} stream, not {requested}"
+            )
+        if not self._enabled[expected]:
+            raise FactorialIntegrityError(f"{owner} requested disabled {expected} treatment stream")
+        prior = self._claims.get(owner)
+        if prior is not None:
+            return prior
+        capability = RandomStreamCapability(expected, owner, self._seeds[expected])
+        self._claims[owner] = capability
+        return capability
+
+    def seed_manifest(self) -> dict[str, int]:
+        return dict(self._seeds)
+
+    def audit(self) -> dict[str, Any]:
+        return {
+            "schema": "glee.factorial.candidate_randomness.v2",
+            "scenario_id": self.scenario_id,
+            "enabled": dict(self._enabled),
+            "claims": {
+                owner: capability.audit()
+                for owner, capability in sorted(self._claims.items())
+            },
+        }
+
+    def validate_complete(self) -> dict[str, Any]:
+        expected = {"economic_policy"}
+        if self._enabled["eprocess"]:
+            expected.add("eprocess_treatment")
+        if self._enabled["language"]:
+            expected.add("language_treatment")
+        observed = set(self._claims)
+        if observed != expected:
+            raise FactorialIntegrityError(
+                f"candidate RNG claims differ from enabled treatments: expected {sorted(expected)}, "
+                f"observed {sorted(observed)}"
+            )
+        return self.audit()
+
+    def validate_bindings(self, bindings: Mapping[str, Any]) -> None:
+        expected = set(self._claims)
+        if set(bindings) != expected:
+            raise FactorialIntegrityError(
+                f"agent capability bindings differ from claims: expected {sorted(expected)}, "
+                f"observed {sorted(bindings)}"
+            )
+        for owner in expected:
+            if bindings[owner] is not self._claims[owner]:
+                raise FactorialIntegrityError(f"agent did not bind {owner} to its issued capability")
+
+
 @dataclass(frozen=True)
 class ArmContext:
     arm: str
     use_eprocess: bool
     use_language: bool
     scenario_id: str
-    economic_seed: int
-    eprocess_seed: int
-    language_seed: int
-    environment_seed: int
-    opponent_seed: int
+    randomness: CandidateRandomness
 
     def seed_manifest(self) -> dict[str, int]:
-        return {
-            "economic": self.economic_seed,
-            "eprocess": self.eprocess_seed,
-            "language": self.language_seed,
-            "environment": self.environment_seed,
-            "opponent": self.opponent_seed,
-        }
+        return self.randomness.seed_manifest()
 
 
 @dataclass(frozen=True)
@@ -75,8 +209,12 @@ class ArmResult:
     environment_stream_hash: str
     opponent_stream_hash: str
     economic_stream_hash: str
+    randomness_audit_hash: str
+    randomness_audit: dict[str, Any]
     episode_hash: str
     unlabeled_record_hash: str
+    non_language_record_hash: str
+    non_eprocess_record_hash: str
     episode: EpisodeResult
 
 
@@ -128,12 +266,12 @@ def _hash(value: Any) -> str:
 
 
 def _named_seed(master_seed: int, scenario_id: str, stream: str) -> int:
-    payload = f"glee.factorial.v1|{master_seed}|{scenario_id}|{stream}".encode("utf-8")
+    payload = f"glee.factorial.v2|{master_seed}|{scenario_id}|{stream}".encode("utf-8")
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big") & ((1 << 63) - 1)
 
 
 def _scenario_seed(master_seed: int, family: str, family_index: int) -> int:
-    payload = f"glee.factorial.v1|{master_seed}|scenario|{family}|{family_index}".encode("utf-8")
+    payload = f"glee.factorial.v2|{master_seed}|scenario|{family}|{family_index}".encode("utf-8")
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big") & ((1 << 63) - 1)
 
 
@@ -149,8 +287,8 @@ def _initial_state_manifest(scenario: Scenario) -> dict[str, Any]:
         "environment_seed": scenario.seed,
         "source": scenario.source,
         "metadata": scenario.metadata,
-        "termination_rule": "glee.tournament.runner.run_episode@factorial-v1",
-        "scoring_rule": "terminal-normalized-candidate-payoff@factorial-v1",
+        "termination_rule": "glee.tournament.runner.run_episode@factorial-v2",
+        "scoring_rule": "terminal-normalized-candidate-payoff@factorial-v2",
     }
 
 
@@ -163,7 +301,6 @@ def _unlabeled_episode_record(episode: EpisodeResult) -> dict[str, Any]:
 
     return {
         "scenario": episode.scenario,
-        "candidate_agent_id": episode.candidate_agent_id,
         "opponent_spec": episode.opponent_spec,
         "full_transcript": episode.full_transcript,
         "decision_records": episode.decision_records,
@@ -173,6 +310,45 @@ def _unlabeled_episode_record(episode: EpisodeResult) -> dict[str, Any]:
         "metrics": episode.metrics,
         "failure_diagnostics": episode.failure_diagnostics,
     }
+
+
+def _treatment_projection(value: Any, treatment: str) -> Any:
+    """Remove only a declared treatment's rendering/audit fields.
+
+    The projection is used by canaries, not by payoff scoring.  Economic
+    decisions, opponent actions, nature outcomes, termination, and payoffs stay
+    present, so direct RNG contamination still changes the hash.
+    """
+
+    payload = to_jsonable(value)
+
+    def walk(item: Any) -> Any:
+        if isinstance(item, list):
+            return [walk(child) for child in item]
+        if not isinstance(item, dict):
+            return item
+        action_type = str(item.get("action_type") or "")
+        out: dict[str, Any] = {}
+        for key, child in item.items():
+            if key == "candidate_agent_id":
+                continue
+            if treatment == "language" and key in {
+                "message",
+                "free_text_message",
+                "language_treatment",
+            }:
+                continue
+            if treatment == "language" and key == "raw_text" and action_type in {
+                "message",
+                "recommendation",
+            }:
+                continue
+            if treatment == "eprocess" and key == "eprocess_treatment":
+                continue
+            out[str(key)] = walk(child)
+        return out
+
+    return walk(payload)
 
 
 def _validate_arm_definitions(factories: Mapping[str, AgentFactory]) -> None:
@@ -196,6 +372,35 @@ def _assert_paired_manifests(results: list[ArmResult]) -> None:
             raise FactorialIntegrityError(f"arm-dependent {field}: {sorted(values)}")
 
 
+def _claim_audit(result: ArmResult, owner: str) -> dict[str, Any] | None:
+    value = (result.randomness_audit.get("claims") or {}).get(owner)
+    return value if isinstance(value, dict) else None
+
+
+def _assert_active_isolation_canary(results: list[ArmResult]) -> None:
+    by_arm = {result.arm: result for result in results}
+    for left_name, right_name in (("e0_l0", "e0_l1"), ("e1_l0", "e1_l1")):
+        left, right = by_arm[left_name], by_arm[right_name]
+        if left.non_language_record_hash != right.non_language_record_hash:
+            raise FactorialIntegrityError(
+                f"language treatment changed a non-language trajectory: {left_name}/{right_name}"
+            )
+        if _claim_audit(left, "economic_policy") != _claim_audit(right, "economic_policy"):
+            raise FactorialIntegrityError(
+                f"language treatment perturbed economic RNG trace: {left_name}/{right_name}"
+            )
+    for left_name, right_name in (("e0_l0", "e1_l0"), ("e0_l1", "e1_l1")):
+        left, right = by_arm[left_name], by_arm[right_name]
+        if left.non_eprocess_record_hash != right.non_eprocess_record_hash:
+            raise FactorialIntegrityError(
+                f"inert e-process changed an economic trajectory: {left_name}/{right_name}"
+            )
+        if _claim_audit(left, "economic_policy") != _claim_audit(right, "economic_policy"):
+            raise FactorialIntegrityError(
+                f"e-process treatment perturbed economic RNG trace: {left_name}/{right_name}"
+            )
+
+
 def run_factorial(
     factories: Mapping[str, AgentFactory],
     *,
@@ -208,13 +413,15 @@ def run_factorial(
     eligibility_fn: MaskFactory | None = None,
     scenario_factory: ScenarioFactory | None = None,
     require_inert_parity: bool = False,
+    require_active_isolation_canary: bool = False,
 ) -> list[FactorialRow]:
     """Run four arms on one frozen scenario manifest per paired row.
 
-    Factories receive named seeds.  Economic, environment, opponent, e-process,
-    and language streams are derived independently of arm order.  A candidate is
-    freshly instantiated per scenario, preventing treatment-specific state or RNG
-    consumption from leaking into later paired rows.
+    Scenario, environment, opponent, economic, e-process, and language streams
+    are named and independently derived. Candidate factories receive only the
+    three capability-separated candidate streams; environment/opponent seeds
+    remain inside the frozen scenario. A candidate is freshly instantiated per
+    arm and scenario.
 
     ``require_inert_parity`` is the hard canary mode.  It is used for treatment-off
     wrappers and deliberately inert treatments; every unlabeled episode record must
@@ -232,6 +439,7 @@ def run_factorial(
     eligibility_fn = eligibility_fn or (lambda scenario: {"language_eligible": False})
     family_counts = {family: 0 for family in families}
     rows: list[FactorialRow] = []
+    seen_scenario_ids: set[str] = set()
 
     for index in range(games):
         family = families[index % len(families)]
@@ -253,7 +461,27 @@ def run_factorial(
         if scenario.game_family != family or scenario.candidate_role != candidate_role:
             raise FactorialIntegrityError("scenario factory changed family or balanced role")
 
-        frozen_scenario = copy.deepcopy(scenario)
+        if scenario.scenario_id in seen_scenario_ids:
+            raise FactorialIntegrityError(f"duplicate scenario_id: {scenario.scenario_id}")
+        seen_scenario_ids.add(scenario.scenario_id)
+
+        environment_seed = _named_seed(seed, scenario.scenario_id, "environment")
+        opponent_seed = _named_seed(seed, scenario.scenario_id, "opponent-policy")
+        opponent_spec = copy.deepcopy(scenario.opponent_spec)
+        opponent_spec["seed"] = opponent_seed
+        metadata = copy.deepcopy(scenario.metadata)
+        metadata["factorial_randomness"] = {
+            "schema": "glee.factorial.stream_manifest.v2",
+            "scenario_seed_hash": _stream_hash(scenario.scenario_id, "scenario", scenario_seed),
+            "environment_seed_hash": _stream_hash(scenario.scenario_id, "environment", environment_seed),
+            "opponent_seed_hash": _stream_hash(scenario.scenario_id, "opponent-policy", opponent_seed),
+        }
+        frozen_scenario = replace(
+            copy.deepcopy(scenario),
+            seed=environment_seed,
+            opponent_spec=opponent_spec,
+            metadata=metadata,
+        )
         scenario_hash = _hash(frozen_scenario)
         initial_state_hash = _hash(_initial_state_manifest(frozen_scenario))
         support_mask = copy.deepcopy(support_mask_fn(copy.deepcopy(frozen_scenario)))
@@ -261,28 +489,39 @@ def run_factorial(
         support_mask_hash = _hash(support_mask)
         eligibility_hash = _hash(eligibility)
 
-        common = {
-            "scenario_id": frozen_scenario.scenario_id,
+        candidate_seeds = {
             "economic_seed": _named_seed(seed, frozen_scenario.scenario_id, "candidate-economic"),
             "eprocess_seed": _named_seed(seed, frozen_scenario.scenario_id, "candidate-eprocess"),
             "language_seed": _named_seed(seed, frozen_scenario.scenario_id, "candidate-language"),
-            "environment_seed": int(frozen_scenario.seed),
-            "opponent_seed": int(frozen_scenario.opponent_spec.get("seed", 0)),
         }
         arm_results: list[ArmResult] = []
         for arm in FACTORIAL_ARMS:
             use_eprocess, use_language = ARM_FLAGS[arm]
+            randomness = CandidateRandomness(
+                scenario_id=frozen_scenario.scenario_id,
+                use_eprocess=use_eprocess,
+                use_language=use_language,
+                **candidate_seeds,
+            )
             context = ArmContext(
                 arm=arm,
                 use_eprocess=use_eprocess,
                 use_language=use_language,
-                **common,
+                scenario_id=frozen_scenario.scenario_id,
+                randomness=randomness,
             )
             arm_scenario = copy.deepcopy(frozen_scenario)
             if _hash(arm_scenario) != scenario_hash:
                 raise FactorialIntegrityError("scenario copy changed before episode")
             agent = factories[arm](context)
+            binding_fn = getattr(agent, "factorial_capability_bindings", None)
+            if not callable(binding_fn):
+                raise FactorialIntegrityError(
+                    f"arm {arm} agent lacks factorial_capability_bindings()"
+                )
+            randomness.validate_bindings(binding_fn())
             episode = run_episode(arm_scenario, agent)
+            randomness_audit = randomness.validate_complete()
             if _hash(arm_scenario) != scenario_hash:
                 raise FactorialIntegrityError(f"arm {arm} mutated its scenario")
             unlabeled = _unlabeled_episode_record(episode)
@@ -297,16 +536,28 @@ def run_factorial(
                     initial_state_hash=initial_state_hash,
                     support_mask_hash=support_mask_hash,
                     eligibility_hash=eligibility_hash,
-                    environment_stream_hash=_stream_hash(frozen_scenario.scenario_id, "environment", context.environment_seed),
-                    opponent_stream_hash=_stream_hash(frozen_scenario.scenario_id, "opponent", context.opponent_seed),
-                    economic_stream_hash=_stream_hash(frozen_scenario.scenario_id, "candidate-economic", context.economic_seed),
+                    environment_stream_hash=_stream_hash(
+                        frozen_scenario.scenario_id, "environment", environment_seed
+                    ),
+                    opponent_stream_hash=_stream_hash(frozen_scenario.scenario_id, "opponent-policy", opponent_seed),
+                    economic_stream_hash=_stream_hash(
+                        frozen_scenario.scenario_id,
+                        "candidate-economic",
+                        candidate_seeds["economic_seed"],
+                    ),
+                    randomness_audit_hash=_hash(randomness_audit),
+                    randomness_audit=randomness_audit,
                     episode_hash=_hash(episode),
                     unlabeled_record_hash=_hash(unlabeled),
+                    non_language_record_hash=_hash(_treatment_projection(episode, "language")),
+                    non_eprocess_record_hash=_hash(_treatment_projection(episode, "eprocess")),
                     episode=episode,
                 )
             )
 
         _assert_paired_manifests(arm_results)
+        if require_active_isolation_canary:
+            _assert_active_isolation_canary(arm_results)
         if require_inert_parity and len({item.unlabeled_record_hash for item in arm_results}) != 1:
             raise FactorialIntegrityError(
                 f"inert treatment changed an unlabeled episode in {frozen_scenario.scenario_id}"
@@ -334,7 +585,7 @@ def integrity_certificate(rows: list[FactorialRow]) -> dict[str, Any]:
     for row in rows:
         _assert_paired_manifests(list(row.arms))
     return {
-        "schema": "glee.factorial.integrity.v1",
+        "schema": "glee.factorial.integrity.v2",
         "rows": len(rows),
         "families": sorted({row.family for row in rows}),
         "roles": sorted({f"{row.family}:{row.candidate_role}" for row in rows}),

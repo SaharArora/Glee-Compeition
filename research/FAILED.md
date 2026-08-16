@@ -100,3 +100,32 @@
 - Materially new retry: enforce capability-separated RNG objects or realized draw traces during
   active treatment and independently validate the frozen estimands/Holm report. More inert
   equality tests, a new seed, or merely hashing the declared seed again are not new.
+
+## R2 Wave 3 unsupported-channel substitution — rejected
+
+- Closest prior route: the valid Wave 2 fixed-half theorem and historical invalid `E_*` fields.
+- Tempting attempt rejected before implementation: create bargaining/negotiation online
+  acceptance streams by counting every observed next callback as a rejection, or fill continuous
+  offer evidence with the historical multipliers.
+- Obstruction: an acceptance terminates those games, so the candidate does not receive a later
+  callback containing the success. The apparent online sample would be selected on rejection.
+  No accepted Model-C continuous density supplies an offer/concession e-factor.
+- Classification: filtration/censoring obstruction, not evidence that acceptance modeling is
+  useless. Wave 3 therefore implements only the persuasion-seller obedience stream.
+- Materially new retry: a callback/observer contract that records every terminal response before
+  acting-state closure, or a separately proved continuous-time/value e-process. Relabeling
+  observed rejections or restoring `E_*` is prohibited.
+
+## R4 Wave 3 verifier-backed promotion — withheld
+
+- The named-stream/capability repair is materially new and its 11 evaluator plus 12 agent
+  canaries pass. The Wave 2 active contamination fixture is now rejected.
+- Promotion is nevertheless withheld: the hostile audit was performed by the implementation
+  owner in this task rather than a separately delegated verifier, and the frozen 3,600-row
+  estimand/uncertainty/Holm report validator is not implemented.
+- Classification: exact remaining verification/reporting obstruction, not failure of the RNG
+  repair and not a treatment result.
+- Reopen-only-if: a fresh independent audit of SHA
+  `1ca9d360073cb59fa7df972ae140796f1585cae6d27ec7d5229ba9670be4bbb3`
+  plus a report validator bound to the frozen research question. Another self-run canary or new
+  seed is insufficient.
