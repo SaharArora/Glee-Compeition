@@ -20,12 +20,14 @@ model (Model B) that remains deliberately deferred.
 from __future__ import annotations
 
 import json
+import hashlib
+import math
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from math import sqrt
 from statistics import mean, pstdev
-from typing import Any
+from typing import Any, Callable, Iterable
 
 from glee_eval.config import DEFAULT_DATA_DIR
 from glee_eval.data.ingest import as_float
@@ -41,6 +43,7 @@ from glee_eval.data.transcripts import (
 )
 from glee_eval.population.splits import DEFAULT_HOLDOUT_FRACTION, add_split_arguments, is_holdout_key, keeps, split_provenance
 from glee_eval.population.config_keys import canonical_config, canonical_config_key
+from glee_eval.population.crossfit import row_fold
 from glee_eval.storage.trajectories import ensure_dir, iter_jsonl, write_json
 
 
@@ -73,6 +76,238 @@ INVERTED_PARAMETERS = {"concession_rate", "accept_margin", "trust_prior"}
 
 _MIN_BUCKET = 25
 _QUANTILE_POINTS = tuple(round(0.01 * i, 2) for i in range(1, 100))
+_RIDGE_GRID = (0.1, 1.0, 10.0, 100.0)
+
+
+def _sigmoid(value: float) -> float:
+    if value >= 0:
+        term = math.exp(-min(value, 40.0))
+        return 1.0 / (1.0 + term)
+    term = math.exp(max(value, -40.0))
+    return term / (1.0 + term)
+
+
+def _game_fold(game_id: str, folds: int = 3) -> int:
+    return int(hashlib.sha256(game_id.encode("utf-8")).hexdigest()[:16], 16) % folds
+
+
+def _fit_response_coefficients(
+    rows: list[dict[str, Any]],
+    ridge: float,
+    *,
+    max_iterations: int = 300,
+    tolerance: float = 1e-7,
+    aggregate: bool = True,
+) -> dict[str, Any]:
+    """Deterministic projected-gradient ridge logistic fit on aggregated rows."""
+
+    if aggregate:
+        grouped: dict[tuple[Any, ...], list[int]] = defaultdict(lambda: [0, 0])
+        for row in rows:
+            key = (str(row["channel"]), row.get("x"), str(row["player_model"]), str(row["config_signature"]))
+            grouped[key][0] += 1
+            grouped[key][1] += int(row["outcome"])
+        work_rows = [
+            {"channel": key[0], "x": key[1], "player_model": key[2], "config_signature": key[3],
+             "count": counts[0], "positive": counts[1]}
+            for key, counts in sorted(grouped.items(), key=lambda item: tuple(str(value) for value in item[0]))
+        ]
+    else:
+        work_rows = [
+            {"channel": str(row["channel"]), "x": row.get("x"), "player_model": str(row["player_model"]),
+             "config_signature": str(row["config_signature"]), "count": 1, "positive": int(row["outcome"])}
+            for row in rows
+        ]
+    channels = sorted({str(row["channel"]) for row in work_rows})
+    x_values = {
+        channel: [(float(row["x"]), int(row["count"])) for row in work_rows if row["channel"] == channel and row.get("x") is not None]
+        for channel in channels
+    }
+    x_scale = {}
+    for channel, values in x_values.items():
+        total = sum(count for _, count in values)
+        x_mean = sum(value * count for value, count in values) / total if total else 0.0
+        variance = sum(count * (value - x_mean) ** 2 for value, count in values) / total if total else 0.0
+        x_scale[channel] = {
+            "mean": x_mean,
+            "sd": max(1e-9, sqrt(variance)) if total > 1 else 1.0,
+            "min": min((value for value, _ in values), default=None),
+            "max": max((value for value, _ in values), default=None),
+        }
+    coefficients: dict[str, float] = {}
+    for channel in channels:
+        channel_rows = [row for row in work_rows if row["channel"] == channel]
+        channel_count = sum(int(row["count"]) for row in channel_rows)
+        rate = (sum(int(row["positive"]) for row in channel_rows) + 0.5) / (channel_count + 1.0)
+        coefficients[f"intercept|{channel}"] = math.log(rate / (1.0 - rate))
+        if x_values[channel]:
+            coefficients[f"slope|{channel}"] = 0.1
+    for row in work_rows:
+        channel = str(row["channel"])
+        coefficients.setdefault(f"model|{channel}|{row['player_model']}", 0.0)
+        coefficients.setdefault(f"config|{channel}|{row['config_signature']}", 0.0)
+
+    converged = False
+    n = max(1, sum(int(row["count"]) for row in work_rows))
+    step = 0.25
+    for iteration in range(1, max_iterations + 1):
+        gradient = defaultdict(float)
+        for row in work_rows:
+            channel = str(row["channel"])
+            keys = [
+                f"intercept|{channel}",
+                f"model|{channel}|{row['player_model']}",
+                f"config|{channel}|{row['config_signature']}",
+            ]
+            features = [1.0, 1.0, 1.0]
+            if row.get("x") is not None:
+                keys.append(f"slope|{channel}")
+                scale = x_scale[channel]
+                features.append((float(row["x"]) - scale["mean"]) / scale["sd"])
+            linear = sum(coefficients[key] * feature for key, feature in zip(keys, features))
+            error = int(row["count"]) * _sigmoid(linear) - int(row["positive"])
+            for key, feature in zip(keys, features):
+                gradient[key] += error * feature
+        max_change = 0.0
+        for key, old in list(coefficients.items()):
+            penalty = ridge * old if key.startswith(("model|", "config|")) else 0.0
+            change = step * (gradient[key] + penalty) / n
+            new = old - change
+            if key.startswith("slope|"):
+                new = max(1e-8, new)
+            coefficients[key] = new
+            max_change = max(max_change, abs(new - old))
+        if max_change < tolerance:
+            converged = True
+            break
+    return {
+        "coefficients": coefficients,
+        "x_scale": x_scale,
+        "converged": converged,
+        "iterations": iteration,
+        "max_iterations": max_iterations,
+        "tolerance": tolerance,
+        "ridge": ridge,
+        "aggregated_rows": len(work_rows),
+        "raw_rows": len(rows),
+    }
+
+
+def _response_probability(fit: dict[str, Any], row: dict[str, Any]) -> float:
+    channel = str(row["channel"])
+    coefficients = fit["coefficients"]
+    linear = coefficients.get(f"intercept|{channel}", 0.0)
+    linear += coefficients.get(f"model|{channel}|{row['player_model']}", 0.0)
+    linear += coefficients.get(f"config|{channel}|{row['config_signature']}", 0.0)
+    if row.get("x") is not None:
+        scale = fit["x_scale"][channel]
+        standardized = (float(row["x"]) - scale["mean"]) / scale["sd"]
+        linear += coefficients.get(f"slope|{channel}", 0.0) * standardized
+    return _sigmoid(linear)
+
+
+def response_probability(
+    fit: dict[str, Any],
+    *,
+    channel: str,
+    player_model: str,
+    signature: str,
+    x: float | None,
+) -> float:
+    """Public decision-level probability for OOF log-loss/Brier scoring."""
+
+    if fit.get("status") != "ok" or channel not in fit.get("x_scale", {}):
+        raise ValueError(f"response channel unavailable: {channel}")
+    return _response_probability(fit, {
+        "channel": channel,
+        "player_model": player_model,
+        "config_signature": signature,
+        "x": x,
+    })
+
+
+def fit_hierarchical_responses(
+    rows: Iterable[dict[str, Any]],
+    *,
+    ridge_grid: tuple[float, ...] = _RIDGE_GRID,
+) -> dict[str, Any]:
+    """Fit response channels with training-only game-hash ridge selection."""
+
+    materialized = [dict(row) for row in rows]
+    if not materialized:
+        return {"status": "unavailable", "reason": "no_training_rows", "ridge_grid": list(ridge_grid)}
+    cv: dict[str, float] = {}
+    for ridge in ridge_grid:
+        losses = []
+        for fold in range(3):
+            training = [row for row in materialized if _game_fold(str(row["game_id"])) != fold]
+            validation = [row for row in materialized if _game_fold(str(row["game_id"])) == fold]
+            if not training or not validation:
+                continue
+            fitted = _fit_response_coefficients(training, ridge)
+            for row in validation:
+                probability = min(1 - 1e-12, max(1e-12, _response_probability(fitted, row)))
+                outcome = int(row["outcome"])
+                losses.append(-(outcome * math.log(probability) + (1 - outcome) * math.log(1 - probability)))
+        cv[str(ridge)] = mean(losses) if losses else float("inf")
+    selected = min(ridge_grid, key=lambda ridge: (cv[str(ridge)], -ridge))
+    fitted = _fit_response_coefficients(materialized, selected)
+    channel_support = {}
+    for channel in sorted({str(row["channel"]) for row in materialized}):
+        channel_rows = [row for row in materialized if row["channel"] == channel]
+        channel_support[channel] = {
+            "rows": len(channel_rows),
+            "positive": sum(int(row["outcome"]) for row in channel_rows),
+            "games": len({str(row["game_id"]) for row in channel_rows}),
+            "models": len({str(row["player_model"]) for row in channel_rows}),
+            "config_signatures": len({str(row["config_signature"]) for row in channel_rows}),
+        }
+    fitted.update({
+        "status": "ok",
+        "ridge_grid": list(ridge_grid),
+        "cv_log_loss": cv,
+        "selected_ridge": selected,
+        "selection": "three_fold_sha256_game_id; minimum log loss; ties choose larger ridge",
+        "training_rows": len(materialized),
+        "training_games": len({str(row["game_id"]) for row in materialized}),
+        "training_models": len({str(row["player_model"]) for row in materialized}),
+        "training_config_signatures": len({str(row["config_signature"]) for row in materialized}),
+        "channel_support": channel_support,
+    })
+    return fitted
+
+
+def response_parameter(
+    fit: dict[str, Any],
+    *,
+    channel: str,
+    player_model: str,
+    signature: str,
+) -> tuple[float | None, dict[str, Any]]:
+    """Return a fitted probability or monotone p=.5 threshold with provenance."""
+
+    provenance = {
+        key: fit.get(key)
+        for key in ("status", "selected_ridge", "converged", "iterations", "training_rows", "training_games", "training_models", "training_config_signatures")
+    }
+    provenance["channel_support"] = (fit.get("channel_support") or {}).get(channel)
+    if fit.get("status") != "ok" or channel not in fit.get("x_scale", {}):
+        return None, provenance
+    scale = fit["x_scale"][channel]
+    row = {"channel": channel, "player_model": player_model, "config_signature": signature, "x": None}
+    if scale.get("min") is None:
+        probability = _response_probability(fit, row)
+        provenance["parameter_kind"] = "probability"
+        return probability, provenance
+    coefficients = fit["coefficients"]
+    intercept = coefficients.get(f"intercept|{channel}", 0.0)
+    intercept += coefficients.get(f"model|{channel}|{player_model}", 0.0)
+    intercept += coefficients.get(f"config|{channel}|{signature}", 0.0)
+    slope = max(1e-8, coefficients.get(f"slope|{channel}", 1e-8))
+    raw = scale["mean"] - intercept * scale["sd"] / slope
+    clipped = min(float(scale["max"]), max(float(scale["min"]), raw))
+    provenance.update({"parameter_kind": "p50_threshold", "raw_threshold": raw, "fit_min": scale["min"], "fit_max": scale["max"], "clipped": clipped != raw, "monotone_slope": slope})
+    return clipped, provenance
 
 
 def config_signature(family: str, config: dict[str, Any], *, coarse: bool = False) -> str:
@@ -119,6 +354,111 @@ def _actor_model(event: dict[str, Any], role: str) -> str:
     first_roles = {"player_1", "seller"}
     field = "player_1_model" if role in first_roles else "player_2_model"
     return str(event.get(field) or "unknown")
+
+
+def _keeps_outer_event(
+    event: dict[str, Any],
+    *,
+    outer_keep: Callable[[dict[str, Any]], bool] | None,
+    crossfit_manifest: Any,
+    excluded_fold: int | None,
+    crossfit_axis: str | None,
+) -> bool:
+    if outer_keep is not None and not outer_keep(event):
+        return False
+    if crossfit_manifest is not None and excluded_fold is not None:
+        return row_fold(event, str(crossfit_axis), crossfit_manifest) != excluded_fold
+    return True
+
+
+def extract_response_observations(
+    events: Iterable[dict[str, Any]],
+    *,
+    outer_keep: Callable[[dict[str, Any]], bool] | None = None,
+    crossfit_manifest: Any = None,
+    excluded_fold: int | None = None,
+    crossfit_axis: str | None = None,
+) -> list[dict[str, Any]]:
+    """Project legal decisions into production response-model units.
+
+    `outer_keep` is the preferred fold hook. The manifest arguments are accepted
+    for the shared crossfit router and require it to expose `fold_for_event`;
+    the excluded fold is routed through `crossfit.row_fold` and never inspected
+    by any fitting statistic.
+    """
+
+    rows = []
+    for event in events:
+        if not _keeps_outer_event(event, outer_keep=outer_keep, crossfit_manifest=crossfit_manifest,
+                                  excluded_fold=excluded_fold, crossfit_axis=crossfit_axis):
+            continue
+        family = str(event.get("game_family") or "")
+        role = str(event.get("role") or "")
+        action_type = str(event.get("action_type") or "")
+        config = as_dict(event.get("configuration") or event.get("public_parameters"))
+        raw = as_dict(event.get("raw_record"))
+        outcome: int | None = None
+        x: float | None = None
+        channel: str | None = None
+        if family == "bargaining" and action_type == "decision":
+            offer = last_transcript_action(event, "offer") or {}
+            money = as_float(config.get("money_to_divide")) or 100.0
+            x = bargaining_share_to_responder(offer, role, money)
+            decision = str(raw.get("decision") or event.get("accept_reject") or "").lower()
+            if x is not None and decision:
+                outcome = int(decision == "accept")
+                channel = f"bargaining|{role}"
+        elif family == "negotiation" and action_type == "decision":
+            offer = last_transcript_action(event, "offer") or {}
+            order = as_float(config.get("product_price_order")) or 1_000_000.0
+            price = as_float(offer.get("numeric_action"))
+            if price is None:
+                price = as_float(as_dict(offer.get("raw")).get("product_price"))
+            own = as_float(config.get("seller_value" if role == "seller" else "buyer_value"))
+            decision = str(raw.get("decision") or event.get("accept_reject") or "")
+            if price is not None and own is not None and decision:
+                normalized = price / order
+                x = normalized - own if role == "seller" else own - normalized
+                outcome = int(decision == "AcceptOffer")
+                channel = f"negotiation|{role}"
+        elif family == "persuasion" and role == "seller" and action_type in {"recommendation", "message"}:
+            quality = persuasion_round_quality(event)
+            decision = persuasion_recommendation(event) or raw.get("decision")
+            if quality in {"high-quality", "low-quality"} and decision in {"yes", "no"}:
+                channel = "persuasion|seller_high" if quality == "high-quality" else "persuasion|seller_low"
+                outcome = int(decision == "yes")
+        elif family == "persuasion" and role == "buyer" and action_type == "buy_decision":
+            recommendation = persuasion_recommendation(same_round_transcript_item(event, role="seller"))
+            decision = raw.get("decision") or event.get("buy_no_buy")
+            if recommendation in {"yes", "no"} and decision in {"yes", "no"}:
+                channel = "persuasion|buyer_yes" if recommendation == "yes" else "persuasion|buyer_no"
+                outcome = int(decision == "yes")
+        if channel is not None and outcome is not None:
+            event_identity = event.get("event_id")
+            if not event_identity:
+                identity_payload = {
+                    "game_id": event.get("game_id"), "round": event.get("round"), "role": role,
+                    "action_type": action_type, "raw_record": raw,
+                }
+                event_identity = hashlib.sha256(
+                    json.dumps(identity_payload, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+                ).hexdigest()[:24]
+            rows.append({
+                "decision_id": str(event_identity),
+                "family": family,
+                "game_family": family,
+                "role": role,
+                "channel": channel,
+                "outcome": outcome,
+                "x": x,
+                "game_id": str(event.get("game_id") or "unknown"),
+                "player_model": _actor_model(event, role),
+                "player_1_model": event.get("player_1_model"),
+                "player_2_model": event.get("player_2_model"),
+                "configuration": canonical_config(family, config),
+                "config_signature": config_signature(family, config),
+            })
+    return rows
 
 
 def extract_joint_bundle_observations(events: Any) -> list[dict[str, Any]]:
@@ -350,6 +690,10 @@ def fit_opponent_population(
     split_mode: str = "none",
     split: str | None = None,
     holdout_fraction: float = DEFAULT_HOLDOUT_FRACTION,
+    outer_keep: Callable[[dict[str, Any]], bool] | None = None,
+    crossfit_manifest: Any = None,
+    excluded_fold: int | None = None,
+    crossfit_axis: str | None = None,
 ) -> dict[str, Any]:
     events_path = Path(data_dir) / "processed" / "events.jsonl"
     if not events_path.exists():
@@ -373,6 +717,10 @@ def fit_opponent_population(
     skipped_by_split = 0
     for event in iter_jsonl(events_path):
         if not keeps(event, mode=split_mode, split=split, holdout_fraction=holdout_fraction):
+            skipped_by_split += 1
+            continue
+        if not _keeps_outer_event(event, outer_keep=outer_keep, crossfit_manifest=crossfit_manifest,
+                                  excluded_fold=excluded_fold, crossfit_axis=crossfit_axis):
             skipped_by_split += 1
             continue
         scanned += 1
@@ -489,8 +837,48 @@ def fit_opponent_population(
         event
         for event in iter_jsonl(events_path)
         if keeps(event, mode=split_mode, split=split, holdout_fraction=holdout_fraction)
+        and _keeps_outer_event(event, outer_keep=outer_keep, crossfit_manifest=crossfit_manifest,
+                               excluded_fold=excluded_fold, crossfit_axis=crossfit_axis)
     )
     raw_bundles = extract_joint_bundle_observations(filtered_events)
+    response_events = (
+        event
+        for event in iter_jsonl(events_path)
+        if keeps(event, mode=split_mode, split=split, holdout_fraction=holdout_fraction)
+    )
+    response_rows = extract_response_observations(
+        response_events,
+        outer_keep=outer_keep,
+        crossfit_manifest=crossfit_manifest,
+        excluded_fold=excluded_fold,
+        crossfit_axis=crossfit_axis,
+    )
+    response_fits = {
+        family: fit_hierarchical_responses([row for row in response_rows if row["family"] == family])
+        for family in ("bargaining", "negotiation", "persuasion")
+    }
+    channel_parameters = {
+        ("bargaining", "player_1"): (("accept_threshold", "bargaining|player_1"),),
+        ("bargaining", "player_2"): (("accept_threshold", "bargaining|player_2"),),
+        ("negotiation", "seller"): (("accept_margin", "negotiation|seller"),),
+        ("negotiation", "buyer"): (("accept_margin", "negotiation|buyer"),),
+        ("persuasion", "seller"): (("honesty", "persuasion|seller_high"), ("yes_on_low_rate", "persuasion|seller_low")),
+        ("persuasion", "buyer"): (("trust_prior", "persuasion|buyer_yes"), ("buy_after_no_rate", "persuasion|buyer_no")),
+    }
+    for row in raw_bundles:
+        attached = {}
+        for parameter, channel in channel_parameters.get((row["family"], row["role"]), ()):
+            value, provenance = response_parameter(
+                response_fits[row["family"]], channel=channel,
+                player_model=row["player_model"], signature=row["config_signature"],
+            )
+            attached[parameter] = provenance
+            if value is not None:
+                row["parameters"][parameter] = value
+                support = provenance.get("channel_support") or {}
+                row["parameter_observations"][parameter] = int(support.get("rows") or 0)
+                row["parameter_game_counts"][parameter] = int(support.get("games") or 0)
+        row["response_estimator"] = attached
     parameter_names = {
         ("bargaining", "*"): {"target_share", "concession_rate", "accept_threshold", "action_noise"},
         ("negotiation", "*"): {"aspiration_price", "concession_rate", "accept_margin", "action_noise"},
@@ -573,6 +961,16 @@ def fit_opponent_population(
             "sampling_prior": "distinct-game weighted empirical bundles; archetype label derived after draw",
             "missing_parameter_handling": "explicitly absent; opponent policy uses its existing default",
             "fit_partition_only": True,
+            # Full coefficients are required for leak-free OOF decision scoring;
+            # summary-only serialization would make the fitted response model
+            # impossible to reproduce from the frozen artifact.
+            "response_estimators": response_fits,
+            "outer_crossfit": {
+                "axis": crossfit_axis,
+                "excluded_fold": excluded_fold,
+                "manifest_supplied": crossfit_manifest is not None,
+                "outer_keep_supplied": outer_keep is not None,
+            },
         },
         "joint_bundles": dict(joint_bundles),
         "joint_bundle_observations": {
@@ -591,6 +989,18 @@ def fit_opponent_population(
             "within a segment; segments without a crossing are excluded rather than imputed.",
         ],
     }
+    if crossfit_manifest is not None and excluded_fold is not None:
+        axis = str(crossfit_axis)
+        declared = crossfit_manifest["folds_manifest"][axis][str(excluded_fold)]
+        payload["crossfit_provenance"] = {
+            "axis": axis,
+            "fold": int(excluded_fold),
+            "folds": 4,
+            "holdout_fraction": 0.25,
+            "manifest_sha256": crossfit_manifest["manifest_sha256"],
+            "training_key_hashes": list(declared["training_key_hashes"]),
+            "evaluation_key_hashes": list(declared["evaluation_key_hashes"]),
+        }
 
     out = ensure_dir(output_dir)
     write_json(out / "opponent_population.json", payload)

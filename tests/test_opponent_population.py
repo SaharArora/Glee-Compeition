@@ -14,6 +14,7 @@ from glee_eval.population.opponent_fit import (
     fit_opponent_population,
 )
 from glee_eval.population.sampler import ARCHETYPES, sample_opponent_spec
+from glee_eval.population.crossfit import build_manifest, row_fold
 from glee_eval.storage.trajectories import write_json, write_jsonl
 
 
@@ -281,6 +282,45 @@ class PersuasionRateSemanticsTests(unittest.TestCase):
 
 
 class FitSmokeTests(unittest.TestCase):
+    def test_outer_fold_is_excluded_from_marginals_observations_and_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            events = []
+            for model_index in range(16):
+                for game_index in range(3):
+                    events.append({
+                        "event_id": f"e-{model_index}-{game_index}",
+                        "game_family": "bargaining", "game_id": f"g-{model_index}-{game_index}",
+                        "config_id": f"c-{model_index}-{game_index}", "role": "player_1",
+                        "player_1_model": f"m{model_index:02d}", "player_2_model": "opponent",
+                        "action_type": "offer", "round": 1,
+                        "configuration": {"money_to_divide": 100, "max_rounds": 12,
+                                          "delta_1": .9, "delta_2": .9},
+                        "numeric_action": 50.0,
+                        "raw_record": {"alice_gain": 50.0, "bob_gain": 50.0},
+                    })
+            manifest = build_manifest(events)
+            excluded_fold = 0
+            for event in events:
+                if row_fold(event, "actor", manifest) == excluded_fold:
+                    event["numeric_action"] = 99.0
+                    event["raw_record"] = {"alice_gain": 99.0, "bob_gain": 1.0}
+            write_jsonl(root / "processed" / "events.jsonl", events)
+            payload = fit_opponent_population(
+                root, root / "out", crossfit_manifest=manifest,
+                excluded_fold=excluded_fold, crossfit_axis="actor",
+            )
+            self.assertEqual(payload["events_scanned"], 36)
+            self.assertEqual(payload["events_skipped_by_split"], 12)
+            self.assertTrue(all(value == 0.5 for value in payload["families"]["bargaining"]["target_share"].values()))
+            expected = manifest["folds_manifest"]["actor"][str(excluded_fold)]
+            self.assertEqual(payload["crossfit_provenance"], {
+                "axis": "actor", "fold": excluded_fold, "folds": 4, "holdout_fraction": .25,
+                "manifest_sha256": manifest["manifest_sha256"],
+                "training_key_hashes": expected["training_key_hashes"],
+                "evaluation_key_hashes": expected["evaluation_key_hashes"],
+            })
+
     def test_fit_runs_and_reports_unfitted_parameters_on_thin_data(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
