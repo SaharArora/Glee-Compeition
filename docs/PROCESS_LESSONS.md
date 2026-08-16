@@ -108,3 +108,14 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
   numbers. Declare an ULP-scaled ambiguity band before measurement and use higher precision only
   to reevaluate the identical objective and inequality inside that band. Do not turn higher
   precision into a new step, tolerance, search direction or post hoc acceptance rule.
+- A conditional empirical bundle is not automatically a latent type. Segment means combine
+  finite-game estimation noise, endpoint missingness and configuration selection; resampling the
+  whole row can preserve correlations that are less predictive out of fold than shuffling the
+  same conditional marginals. Validate dependence against that same-support shuffle and learn or
+  shrink residual dependence separately from marginal conditioning before calling the result a
+  joint opponent model.
+- Keep a compact verdict separate from high-cardinality scored rows. The exhaustive Model-B
+  validator successfully completed, but materializing a sorted 1.86 GB report spent a long final
+  phase in JSON encoding and garbage collection before the atomic write. Future validators should
+  stream a content-addressed row artifact and atomically write a small summary that records its
+  hash; report layout must not change the frozen metrics or expose partial results.

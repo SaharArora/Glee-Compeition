@@ -30,7 +30,8 @@ Durable status for policy, scoring, and evidence work. Statuses follow
 | `live_simulator_alignment` | Diagnose live/offline payoff differences against fitted opponent/config assumptions without changing policy. | Bargaining's deterministic simulator timing defect is fixed, but it explains only part of the live gap and produced no acting-policy candidate. Persuasion's residual buyer-rate/role premise is killed after message-mode conditioning. Negotiation's true no-trade exit rate remains unidentified. | Bargaining authoritative n=61 mean .407409; all agreed, gross share .54511 minus .13770 mean discount loss. Live opponent offer-transition mean .00657/median 0 versus fitted concession median .025. Corrected theory audit +.0551 and confirmation +.0601 both pass. A production-visible low-delta/stagnation override is killed at n=2 with opposite signs; flat theory-off replay is only +.00484/61 with 4 gains/7 losses. | `candidate` | unassigned | Fitted opponent marginals are independently sampled and do not preserve real joint player/config behavior; this is model risk, not an identified live policy fix. Persuasion/negotiation conclusions remain as recorded in FAILED. | `bargaining_opponent_timing_parity`; `docs/FAILED.md`; three terminal-complete live batches |
 | `model_b_joint_opponents` | Fit and empirically sample one correlated opponent-parameter bundle per stable `(player_model, config_id, role)` segment instead of independently drawing marginal quantiles. | Frozen predictive validation failed. Config-holdout whole bundles were significantly worse than the same-support conditional shuffle for bargaining and negotiation; persuasion was below the declared coverage floor. This exact fit/validation formulation may not be retried. | Model axis: all families unreportable at 4 actor-model clusters; retention B/N/P .680/.499/.202. Config axis: energy delta joint-minus-shuffle B +.003458, CI upper +.004512; N +.001593, upper +.002490; P retention .374. | `retracted` | none | The v2 sampler remains an experimental compatibility surface only and is not trusted for payoff gates. | `reports/model_b_validation`; `docs/FAILED.md`; declaration below |
 | `model_b_crossfit_joint_opponents` | Four-by-four actor/config out-of-fold joint opponent model with hierarchical decision-level response estimates. | Retracted at the mandatory pre-fit kill-check: the corpus contains 15 acting-model identities, not the declared 16, so four balanced actor folds of four cannot exist. No fold artifact or predictive score was produced. | Streaming full-corpus manifest scan stopped before actor fold 0 with `actor cross-fit requires exactly 16 identities, found 15`. | `retracted` | none | The hierarchical estimator remains reusable, but this exact manifest/fold declaration may not be repaired in place. | `docs/FAILED.md`; declaration below |
-| `model_b_mixed_fold_crossfit` | Exhaustive three-fold actor-model OOF (5 of the 15 real identities per fold) plus four-fold canonical-config OOF, retaining hierarchical response estimates and joint-bundle validation. | Run the already-declared mixed-fold holdout validation exactly as frozen; predictive status remains untested until that verdict exists. | All seven repaired FIT artifacts are frozen. All 21 family fits are `status=ok`; solver and compact-reference audits report zero errors; worst final/inner original-coordinate KKT is `9.990772298351658e-08` <= `1e-7`; both actor and config routers pass. Manifest logical SHA256 is `44fe77cb413a182b741b81115876bd9eeae15a4b83d80126ae9542fab03c0fc2`. Code checkpoint `55abea0`; 79 combined local tests and 69 focused independent tests pass. No holdout has been extracted or scored, so no predictive success is claimed. | `candidate` | unassigned | Rows/objective/ridge/folds/PCG/raw-KKT/endpoints remain frozen. FIT-instrument success authorizes only the declared holdout validation, not payoff gates, defaults or live play. | Actor SHAs `d8767e442e3c20d2d554ecdf8847e211f53c7160109f6207be8be38723072239`, `5c78e0182c0276b3b226e394da11895257bd45ec37eab070c5ce455a48842875`, `0ba5468e5d8a66bea863535be3cb45e9e1b9a8babf7684d6ef179ac77fe644e2`; config SHAs `7eb4e104af7fe70397aa1f76b2632a1630b29db623087b0e180fa5c90ffe231f`, `d47763694db27c83c7549b82e5fae7f76caacfd5657b16e6e229809397be9cd1`, `e32dfe036267e6fc7fdddcda35caa6300c0cdd33977b36e1e05fd15526f56aae`, `f3ec0b1b136654a319a2fa218e43489113aa7855e45a59cb00494a9cddb4bea2`; declarations below |
+| `model_b_mixed_fold_crossfit` | Exhaustive three-fold actor-model OOF (5 of the 15 real identities per fold) plus four-fold canonical-config OOF, retaining hierarchical response estimates and joint-bundle validation. | Frozen predictive validation failed both axes. Do not use these artifacts for tournaments, policy gates, defaults or live play, and do not retry this empirical whole-bundle sampler unchanged. | Joint-minus-same-pool-shuffle energy was worse on both axes: model B `+.009718` CI `[+.008504,+.010911]`, N `+.005895` `[+.004780,+.006871]`; config B `+.003199` `[+.002681,+.003684]`, N `+.001164` `[+.000651,+.001675]`. Persuasion bundle retention was only `.330520`. Config decision cells all passed and model B/N decision cells passed, but all four model-axis persuasion channels failed. | `retracted` | none | The response estimator is partial diagnostic evidence only; it cannot rescue a failed joint latent-type model. The bargaining comparison and all four negotiation Model-B re-gates are ineligible. A retry must materially change the joint-dependence estimator, not the seed, folds, thresholds or comparator. | Report SHA256 `1a86cac280b1cd6b0049bc9429a6662f9d33b754dcfb23b4044e5b04ebbdacec` (`1,862,860,839` bytes); `reports/model_b_crossfit_validation`; `docs/FAILED.md`; declarations below |
+| `model_b_hierarchical_actor_factor` | Fit every production-visible offer/response channel with hierarchical actor/config likelihoods, then learn a persistent actor-effect correlation matrix with measurement-error correction and prospective shrinkage toward independence. | Prospectively declared; implementation and predictive status are untested. No payoff comparison, policy gate, default, or live play is eligible until all six family-by-axis validation cells pass. | Closest failures are both empirical whole-bundle Model B formulations. Their conditional marginals were adequate but copied dependence was worse than same-pool shuffling, and persuasion complete-bundle retention was only `.330520`. This formulation changes the statistical unit, missingness mechanism, and dependence estimator. | `candidate` | root / parallel Model-B threads | Shares the existing mixed actor/config folds and audited response likelihood, but may not reuse empirical segment bundles as latent types. A pass on the exposed corpus is iterative structural-OOF evidence, not independent confirmation. | Prospective declaration below; `docs/FAILED.md` mixed-fold rejection |
 | `persuasion_text_stance` | Default-off buyer parser for unequivocal natural-language recommendations when the live text payload contains no structured yes/no stance; ambiguous text remains a conservative decline and binary inputs are unchanged. | Gate rejected; do not rerun unchanged and do not flip the default. Production mechanism remains diagnosed: 180/180 text buyer turns across nine complete live games defaulted to no despite 101 clearly positive and 79 clearly negative messages. | Frozen 420-turn replay: 0 polarity errors, 420 raw messages preserved, 240/240 binary actions unchanged, 84 text actions reached. Seed 314159, n=1600 structural holdout: +0.1390, t=13.04, 241W/12L/1347T; all archetypes nonnegative, but config-regime concentration 0.5437 > 0.50. | `candidate` | unassigned | Default remains false. Shares persuasion transcript parsing with the live adapter, synthetic runner, fitted opponent policy, and buyer decision path. No live payoff claim is allowed from declined rounds because their qualities are unobserved. | `reports/promotion/persuasion_text_stance_seed314159`; `reports/live/confirmation_20260815`; `reports/live/volume_20260815`; `docs/FAILED.md` |
 | `h6_percentile` | Preserve official-style percentile/rating and add a separate run-specific trade-zone diagnostic using the identical exact-to-family fallback ladder. | Candidate implemented; real-log replay unavailable locally. | Adversarial review caught and corrected an initial family-wide comparison that dropped config conditioning. Zone-suffixed buckets now mirror primary fallback/min-support semantics; exact-bucket equality and fallback divergence are tested. | `candidate` | root | Scoring/reporting only; primary percentile/rating contract unchanged. | `glee_eval/scoring/shadow.py`; `tests/test_shadow_scoring.py`; `docs/HANDOVER.md` §2/§6 |
 
@@ -267,6 +268,295 @@ Add sample size and seed here before executing any independent confirmation run.
   No threshold is relaxed. Any failed/unreportable family, role, channel or axis retracts this
   mixed-fold formulation. A predictive pass still authorizes only
   later prospectively declared payoff work and no live play.
+
+- `model_b_hierarchical_actor_factor` materially-new predictive declaration (declared
+  2026-08-16 after the frozen mixed-fold whole-bundle verdict failed, and before code, fitting,
+  or scoring for this formulation): the closest failures are `model_b_joint_opponents` and
+  `model_b_mixed_fold_crossfit`. Both treated an unshrunk `(model, config, role)` vector of
+  finite-sample endpoint estimates as a player type. The latter proved that its conditional
+  marginals were broadly adequate while copying their empirical dependence made multivariate
+  energy significantly worse than independently shuffling the identical conditional pool; it
+  also selected only `.330520` of persuasion games. A new seed, a softer coverage threshold,
+  dropping persuasion, reusing a complete segment bundle, or retaining only the successful
+  response cells is not materially new. This formulation changes the statistical unit to every
+  legal production-visible action, changes missingness to observed-channel likelihood omission,
+  separates configuration effects from persistent actor effects, and estimates actor dependence
+  with independent game replicates plus prospective shrinkage toward independence.
+
+  **Outer isolation and status.** Reuse exactly the frozen three SHA-sorted actor folds of the 15
+  acting identities and four hash-modulo canonical-configuration folds identified by logical
+  manifest SHA256 `44fe77cb413a182b741b81115876bd9eeae15a4b83d80126ae9542fab03c0fc2`.
+  The acting role selects the actor fold; the canonical public configuration selects the config
+  fold. Every fitted coefficient, category, scale, transform/support bound, missingness rule,
+  covariance, shrinkage
+  choice and support bound must exclude the routed outer fold. Duplicate OOF action or game-role
+  IDs, a held-out actor/config coefficient, or a provenance/hash mismatch is fatal. Because the
+  sole released corpus has already informed this redesign, a pass is labelled **iterative
+  structural-OOF evidence**, not independent confirmation; it may authorize only separately
+  declared payoff experiments and may not by itself ship a default or authorize live play.
+
+  The read-only pre-fit feasibility census used no holdout score. All 15 identities occur in both
+  persuasion roles. Every bargaining/negotiation endpoint and persuasion informed-high,
+  informed-low, buyer-yes and buyer-no channel has all 15 actors with at least five distinct games
+  in both A and B; the sparsest minima are buyer-yes `8/9` and the others `9/9`. The uninformed-
+  seller pooled channel has 13/15 eligible actors (two actors have `3/13` and `0/0`) and therefore
+  clears the prospectively required eight-actor floor without pretending complete support. Actor
+  assignment still covers 100% of the 33,739 bargaining, 33,627 negotiation and 13,506 persuasion
+  games through their applicable channels. These counts justify testing the frozen support rules;
+  they are not a predictive result and may not relax them.
+
+  **Production-semantic observation channels.** Use one stable-ID row for every legally
+  observable action/response and only fields visible before that actor's action. Bargaining
+  player-1/player-2 offers are normalized self shares. Per game-role, the first offer identifies
+  `target_share`; oriented consecutive-own-offer changes identify `concession_rate`; and with at
+  least three own offers, `action_noise` is the uniform half-width estimator
+  `sqrt(3*SSE/(n-2))` around that game's fitted first-offer/mean-concession line. Negotiation uses
+  prices divided by `product_price_order`, the first normalized own price for `aspiration_price`,
+  seller decreases or buyer increases for `concession_rate`, and the identical degrees-of-freedom
+  corrected uniform-noise estimator. Every offer contributes to its game-role summaries, but a
+  game missing a sufficient sequence omits only that channel. Bargaining decisions use responder
+  share and map to `accept_threshold`;
+  negotiation decisions use role-oriented normalized own gain and map to `accept_margin`, with
+  `AcceptOffer` positive and `RejectOffer`, `SellToJhon` and `BuyFromJhon` negative. Persuasion
+  has five binomial channels with exact visibility: informed-seller P(yes|high) -> `honesty`,
+  informed-seller P(yes|low) -> `yes_on_low_rate`, uninformed-seller P(yes) pooled without using
+  realized quality and delivered identically to both seller runtime rates, buyer P(buy|yes) ->
+  `trust_prior`, and buyer P(buy|no) -> `buy_after_no_rate`. Public `p/v/c`, price and message
+  mode remain visible to both roles; realized product quality is a seller predictor/channel
+  selector only when `is_seller_know_cv` is true and is never a buyer predictor. Text stance is
+  used only when the frozen production parser yields an
+  unequivocal current-message stance; ambiguous text is missing, not `no`. Structural
+  non-applicability and absent opponent-ended callbacks contribute no likelihood term; outside
+  options remain observed nonacceptances. Declined persuasion quality, future transcript,
+  terminal payoff and any hidden counterpart value may never be features or labels.
+
+  Missingness has three serialized classes: `structural_not_applicable` (wrong role, informed
+  versus uninformed seller channel, or recommendation-conditioned buyer channel never at risk),
+  `right_censored` (the actor receives no later callback because the opponent/server ended the
+  game), and `unknown_observation` (for example ambiguous text stance). None is converted to a
+  zero/negative label. The game-role denominator is every routed game in which that role can act;
+  channel denominators are only configurations/rounds where the channel is structurally
+  applicable. Permuting terminal payoff, future transcript or revealed-after-action fields must
+  leave rows, masks and features byte-identical. Report every applicable-channel mask; the 75%
+  concentration ceiling below applies only to a pattern omitting at least one applicable channel,
+  not to a complete-observation pattern.
+
+  **Hierarchical conditional marginals.** First-offer, oriented-concession and log-noise summaries
+  each use a Gaussian likelihood per bargaining/negotiation role;
+  response/recommendation/purchase channels use the frozen monotone or intercept-only binomial
+  likelihood as applicable. Fit in fixed production-aligned transformed units: bargaining target
+  is `logit(clip(share,1e-6,1-1e-6))`; negotiation aspiration is
+  `asinh((normalized_price-own_value)/s)`; concession is `asinh(change/s)`; action noise is
+  `log1p(noise/s)`, where every endpoint scale is the FIT-only
+  `s=max(1.4826*MAD,1e-6)` and is serialized. Binary actor effects remain log odds, not sparse
+  per-segment threshold crossings. Inverse transforms, legal policy clipping and support checks
+  are deterministic.
+
+  Predictors are a per-channel intercept, zero-sum actor effects and a fixed compact role-visible
+  configuration design with no duplicate intercept or role column. After canonical numeric
+  normalization the bargaining columns are `[delta_self, visible_delta_other,
+  delta_self*visible_delta_other, log10(money_to_divide), I(max_rounds=99),
+  complete_information, messages_allowed]`; negotiation uses `[own_value_normalized,
+  visible_counterpart_value_normalized,
+  own_value_normalized*visible_counterpart_value_normalized, log10(product_price_order),
+  log1p(max_rounds), complete_information, messages_allowed]`; and persuasion uses
+  `[p, v, c, p*v, log10(product_price), is_myopic, is_seller_know_cv, I(text_message)]`.
+  A counterpart delta/value is zeroed unless complete information makes it visible; its complete-
+  information indicator distinguishes a real zero from hidden. Public persuasion `v/c` are never
+  hidden, while realized quality is governed by the preceding visibility rule. Normalize
+  nonconstant numeric columns by FIT mean/scale. For each fitted fold, a fixed candidate column
+  that is constant in FIT is deterministically omitted, recorded with value/support and included
+  in the feature-order hash; it may not be selected using holdout behavior. Semantically equal
+  numeric spellings such as `1/3`
+  canonicalize identically. Omitted-default and explicit-default configurations also canonicalize
+  identically. No exact-config identity, source/matchup string, hidden value, terminal field or
+  future state is a predictor.
+
+  Negotiation units are fixed before feature construction. In the released processed schema,
+  `seller_value` and `buyer_value` are dimensionless ratios in the same units as
+  `numeric_price/product_price_order`; validate them in the legal normalized domain and never
+  subtract an absolute currency amount from a ratio. Any external/live absolute value must first
+  pass through the existing translation layer that divides values and prices by its declared
+  scale and sets the internal order consistently. The response x, aspiration transform, config
+  fields and inverse threshold all use these normalized ratios. Multiplying every source currency
+  amount and its source order by the same positive constant must leave model observations,
+  features, parameters and decisions identical.
+
+  For every channel use ridge grid `[0.1, 1, 10, 100]`, three game-SHA training-only inner folds,
+  pooled validation-observation negative log likelihood, and exact ties choosing the larger
+  ridge. The penalty is `.5*ridge*(||actor_offsets||^2 + ||nonintercept_config_beta||^2)`;
+  intercepts and the bargaining/negotiation response slope are unpenalized. Gaussian models use
+  the exact ridge-penalized normal equations in a zero-sum actor basis. Bargaining/negotiation
+  response logits are `intercept + monotone_slope*x + config_beta*x_config + actor_offset`; their
+  runtime threshold solves `p=.5` in production x. Persuasion logits omit the response-x slope.
+  Binary models retain the audited zero-sum Newton-PCG/Decimal-Armijo solver, slope bounds,
+  300-iteration ceiling and original-coordinate KKT `1e-7` contract. Gaussian and binary FIT
+  location/observation-error scale, legal clipping and actor-effect uncertainty are learned from
+  FIT only. Serialize
+  row/game support, feature/category hashes, folds, objective/CV selection, coefficients,
+  residual scales, convergence/KKT and clipping. Any unavailable, nonfinite or provenance-failed
+  mandatory marginal fails the formulation.
+
+  **Persistent actor dependence, not segment covariance.** Split FIT games deterministically
+  into replicate A/B by `int(SHA256(game_id),16) % 2`. With the selected marginal form fixed,
+  estimate each actor/channel effect independently in A and B. The family-wide actor vector has
+  eight coordinates for bargaining (four parameters x two roles), eight for negotiation, and
+  five for persuasion (informed-seller high/low, uninformed-seller yes, and buyer yes/no); all
+  roles for a persistent identity
+  share one latent actor. A channel/actor enters factor fitting only with at least five distinct
+  games in each replicate; require at least eight eligible FIT actors for every mandatory channel.
+  Missing coordinates are masked and never imputed.
+
+  Every replicate actor effect must serialize its original-coordinate Hessian-derived standard
+  error. For channel pair `(i,j)`, estimate signal covariance as the symmetric cross-replicate product
+  `0.5 * (Cov(u_i_A,u_j_B) + Cov(u_i_B,u_j_A))` over eligible actors; shared same-game residuals
+  never enter this covariance. Nonpositive signal variance makes the coordinate independent.
+  Standardize supported coordinates to a correlation matrix and project deterministically to
+  positive semidefinite with eigenvalue floor `1e-6`. The mandatory correction diagnostic is the
+  scale-invariant relative Frobenius change
+  `||R_PSD-R_raw||F / max(||R_raw||F,1e-12)`. Because each
+  outer FIT has only ten actor identities, the only permissible ranks are `{0,1}`. Rank 1 keeps
+  the leading correlation eigenvector with loadings
+  `l_i=sqrt(max(eigenvalue_1-1,0))*eigenvector_i` plus diagonal uniqueness; rank 0 is the exact
+  conditional-independence model. For rank 1 use shrinkage grid `{0,0.25,0.50,0.75,0.90}` and
+  `l_i(shrink)=sqrt(1-shrink)*l_i`, with uniqueness `1-l_i(shrink)^2`, preserving every marginal
+  variance. Full diagonal is represented only by rank 0, never a duplicate rank-1 candidate.
+
+  Select rank/shrinkage by leave-one-actor-out within outer FIT. For each held-in candidate fit
+  every nuisance marginal, transform scale, configuration coefficient and actor effect from the
+  other actors only, then construct covariance/loadings from those actors' A/B effects and score
+  the untouched actor's conditionally estimated A and B masked effects under the candidate actor
+  covariance convolved with that replicate's diagonal effect-estimation variance. The scored actor
+  may not enter nuisance fitting, covariance, scale, loading or shrinkage; mutating its actions
+  must leave the candidate bytes unchanged. Pool both replicate log densities over all eligible
+  actors; exact ties choose lower
+  rank and then larger shrinkage. Only after selection is frozen may the final covariance refit all
+  outer-FIT actors. Serialize
+  both replicate actor vectors/masks/hashes, pair support, raw and PSD covariance, correction norm,
+  eigenvalues/loadings/uniqueness, every selection loss and the independence nesting. Fewer than
+  eight actors for a channel, fewer than two supported off-diagonal pairs, relative PSD correction
+  greater than `.25`, unavailable/nonfinite effect uncertainty, or rank 0 selection kills the
+  correlated-type claim before outer scoring.
+
+  A model-axis held-out actor is drawn from the FIT actor-effect population prior. A config-axis
+  held-out configuration may use that actor's posterior learned only from its other FIT configs.
+  Operational sampling with no known actor draws exactly one standard-normal factor coordinate
+  plus one independent diagonal residual per endpoint from the same FIT prior, adds the role-
+  visible configuration means, and reuses that persistent vector for every runtime parameter in
+  the game (and across roles only when the simulator identity itself persists). No archetype-first
+  selection, empirical tuple, game-count weighting or policy-active derived label is permitted;
+  any derived label is metadata only. The same-marginal independence comparator uses identical
+  marginal models, actor/config conditioning, total endpoint variance, support, clipping and
+  residual laws, but draws a direct diagonal actor vector with the candidate's exact total
+  per-endpoint variance and fixed endpoint RNG substreams; it changes cross-endpoint covariance
+  only and does not permute coordinates. Scenario metadata records factor/draw ID,
+  configuration-design hash, loading
+  artifact hash, actor source, masks and default/fallback counts, which must both be zero.
+
+  The runtime equation is exact in transformed endpoint units:
+  `theta_i = config_mean_i(x) + sigma_actor_i * (loading_i*z +
+  sqrt(uniqueness_i)*epsilon_i)`, with one shared `z` and fixed
+  endpoint-specific independent `epsilon` substreams. Known-actor sampling replaces the zero actor
+  mean with its training-only shrinkage posterior and adds its posterior covariance; it never
+  looks up a held-out actor/config effect. `sigma_actor_i` is the serialized positive square root
+  of the measurement-error-corrected signal variance; a zero-signal coordinate has
+  `sigma_actor_i=0`, loading zero and no invented actor variance. Deterministic inverse transforms yield target/
+  aspiration, concession, noise half-width and response threshold/probability, then clip only to
+  the serialized intersection of FIT support and the runtime policy's legal domain. No Gaussian
+  observation residual is drawn into a latent runtime parameter. `action_noise` alone supplies
+  the policy's per-round uniform offer perturbation, so trajectory variance is not counted twice.
+  An uninformed persuasion seller receives one sampled yes probability copied to both high/low
+  runtime keys, preventing realized-quality access; an informed seller receives the two distinct
+  parameters.
+
+  **Frozen iterative OOF validation.** Use master seed **20260817**, exactly **256** predictive
+  draws per game-role and sampler, and **2,000** deterministic split-unit cluster-bootstrap
+  replicates. Cluster by held-out `player_model` on the actor axis and canonical
+  `config_signature` on the config axis. The observed validation unit is one game-role trajectory.
+  Score its actually observed runtime-semantic channel summaries: first offer, successive-own-
+  offer change, residual scale and response/recommendation/purchase channel. Two or more observed
+  channels use masked multivariate energy; one channel uses CRPS; no channel is excluded and
+  counted. Repeated actions fit the likelihood but never become independent joint-score units.
+
+  Mandatory comparators are (1) the identical hierarchical marginals with rank 0 and (2) the
+  operational schema-v1 independent sampler. Every one of the six family-by-axis cells must have
+  candidate-minus-comparator masked-energy mean `<0` and 95% cluster-bootstrap upper bound `<0`
+  against **both**. The frozen rejected whole-empirical-bundle sampler is reported only on its
+  original common-support game-role/channel subset with missing/default counts; it is diagnostic,
+  because manufacturing values for its unsupported persuasion channels or restricting the new
+  model to its behavior-rich subset would change either comparator or the declared coverage unit.
+  Against independence, mean marginal CRPS delta must be `<= +.005` and every channel-specific
+  CRPS upper bound `<= +.010`. There must be zero nonfinite draws, FIT-support violations,
+  cross-fold leakage, or provenance errors. Report rank/shrinkage and factor diagnostics, but a favorable
+  pooled correlation cannot replace the energy endpoints. Rank 1 must additionally have lower
+  held-out cross-replicate covariance error than rank 0. For that outer endpoint, estimate each
+  validation actor's A/B channel effects and standard errors solely from its routed validation
+  actions under the already-frozen marginal form; those effects are observed scoring targets and
+  never feed predictions. Form the same symmetric A/B correlation estimator on pairs supported by
+  at least eight validation actors. Effects are transported only by the routed artifact's exact
+  standardized actor coordinate `w_i=u_i/sigma_actor_i`; a zero-signal coordinate is masked.
+  On the model axis, each actor belongs to exactly one outer artifact: pool the 15 routed
+  standardized actor vectors, freeze their original-sample common pair mask, and compare their
+  pooled A/B correlation with the equal-one-third arithmetic mean of the three routed candidate
+  correlation matrices on that same mask. On the config axis do **not** pool an actor across
+  incompatible fold bases: within each of the four folds, estimate that fold's A/B standardized
+  actor vectors only from its heldout-config actions under its own artifact, require at least
+  eight actors for every frozen supported pair, and compare its observed correlation with that
+  fold's candidate and identity matrices. Every config fold must be reportable; combine its four
+  paired squared-Frobenius error deltas with fixed equal weight `1/4`.
+
+  For each of 2,000 deterministic replicates, resample actors with replacement once; use those
+  identical actor weights to reconstruct the model-axis pooled target or every config-fold-local
+  target, recompute candidate and identity errors on the already-frozen masks, and retain the
+  corresponding pooled/equal-fold paired delta. No Fisher-z averaging is used. A resample with
+  zero/nonfinite variance on a frozen-mask coordinate is deterministically redrawn until 2,000
+  valid replicates exist, with a hard 20,000-attempt failure ceiling. The model and config axes
+  both bootstrap actors for this special factor endpoint; ordinary predictive scores still
+  bootstrap actor or canonical-config clusters respectively.
+  Candidate-minus-rank0 mean and 95% upper bound must both be `<0` in every family/axis cell. If
+  inner selection chooses rank 0/full
+  diagonal, the conditional marginal model may remain diagnostic, but the joint Model-B claim
+  fails because it cannot be strictly better than its independence nesting.
+
+  Coverage is mandatory in each family/axis cell: actor assignment must cover at least 90% of
+  eligible distinct games with one observed channel and at least 50% with two or more; require at
+  least 25 scored game-role units per role,
+  and each mandatory channel in at least 25 games and three outer clusters per fold. Require at
+  least 12 actor clusters overall on the model axis and 20 canonical signatures on the config
+  axis, with at least three per fold. No non-complete missingness pattern may exceed 75% of its
+  applicable family-role cell;
+  config-axis exact-identity fallback is zero, model/config role fallback remains `<=.25/.50`,
+  and neutral-default delivery remains `<=.25`.
+
+  One-step action prediction is independently mandatory. Every bargaining/negotiation offer role
+  must beat both v1 and a training-only history-independent conditional marginal in sample CRPS
+  with paired mean and 95% upper bound `<0`; no density/NLL is invented for v1's clipped uniform
+  mixture and atoms. All nine response channels (bargaining P1/P2, negotiation seller/buyer,
+  persuasion informed-seller-high/informed-seller-low/uninformed-seller-yes/buyer-yes/buyer-no)
+  must beat both
+  neutral and operational v1 in clustered log loss and Brier with paired mean and upper bound
+  `<0`, at 100% of legally extractable decision reach. First-action, own-offer-increment,
+  action-count, agreement/buy/recommendation-rate and missingness-pattern diagnostics are reported
+  per role/config but cannot waive a mandatory failure. Any failed or unreportable family, role,
+  channel, axis, coverage assertion or comparator retracts this formulation without an unchanged
+  retry. A full pass authorizes only prospectively declared payoff comparisons/gates; confirmation,
+  shipping and live play retain their separate requirements.
+
+  Before any corpus fit, focused tests must cover: per-role feature rank and deterministic
+  constant-column omission in every outer/inner fold; public persuasion `v/c` versus hidden
+  quality and incomplete-information counterpart visibility; mutation invariance to future/
+  terminal fields; disjoint A/B masks and a leave-one-actor-out nuisance/covariance leakage
+  sentinel in which changing the omitted actor cannot change candidate bytes; Hessian/SE recovery
+  and factor-density convolution; endpoint-scale/zero-signal and diagonal-comparator variance
+  equality; negotiation currency/order scale equivariance; relative PSD correction; rank-0 versus
+  rank-1 selection on null and known-factor generators; the absence of a rank1/full-diagonal
+  duplicate; exact univariate/RNG equality of factor and direct-diagonal comparators; game-level
+  noise recovery without in-sample residual reuse; mask/censor/ambiguous-text/outside-option
+  semantics; inverse-transform round trips and legal clipping atoms; unseen actor/config routing;
+  persistent factor reuse across rounds and roles; compact whole-bundle comparator missing-support
+  diagnostics; deterministic artifact bytes/hashes; and rejection of any tampered fold, scale,
+  loading, uncertainty, support or provenance field. Tests passing authorizes FIT construction
+  only, not outer scoring.
 
 - `model_b_response_newton_pcg` numerical-instrument declaration (declared 2026-08-15 after
   the stationarity-certified coordinate solver failed actor FIT fold 0, and before code or a

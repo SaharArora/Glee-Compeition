@@ -573,6 +573,49 @@ append a correction and update `docs/REGISTRY.md` instead.
   fixed eight-ULP Decimal-Armijo ambiguity resolver and canonical source-of-truth attachment while
   preserving the statistical estimator and every predictive endpoint.
 
+## Mixed-fold empirical-bundle Model B — predictive validation rejected
+
+- Closest prior entries: `model_b_joint_opponents`, whose one-shot validation was
+  unreportable on the model axis and failed the same-pool shuffle comparator on the config
+  axis, and `model_b_crossfit_joint_opponents`, whose impossible four-by-four fold declaration
+  was killed before fitting. This attempt was materially different: all 15 actor identities
+  were evaluated exactly once through three actor folds, canonical configurations through four
+  folds, all seven FIT artifacts were frozen, all 21 family fits were stationarity-certified,
+  and the exhaustive holdout validator scored 69,440 raw bundles and 452,797 decisions on both
+  axes.
+- Artifact/instrument acceptance did not imply predictive acceptance. All seven routers,
+  compact references and solver audits passed; worst final/inner raw KKT was
+  `9.990772298351658e-08` under the frozen `1e-7` ceiling. The final validation report is
+  `1,862,860,839` bytes with SHA256
+  `1a86cac280b1cd6b0049bc9429a6662f9d33b754dcfb23b4044e5b04ebbdacec`.
+- Primary joint-dependence kill-check failed decisively. Whole-bundle minus same-conditional-
+  pool shuffled energy was positive on both reportable families and both axes: model
+  bargaining `+.009718` with 95% CI `[+.008504,+.010911]`, model negotiation `+.005895`
+  `[+.004780,+.006871]`, config bargaining `+.003199` `[+.002681,+.003684]`, and config
+  negotiation `+.001164` `[+.000651,+.001675]`. The declared success condition required both
+  mean and CI upper bound below zero. Persuasion was unreportable on both axes because only
+  `4,464 / 13,506 = .330520` distinct games retained a supported two-parameter bundle, below
+  the frozen `.50` floor.
+- The decision-level hierarchical model is useful but cannot waive the family-level failure.
+  All eight config-axis response cells passed, and bargaining/negotiation passed both model-axis
+  roles. All four model-axis persuasion channels failed: buyer-no was worse than neutral in mean
+  log loss (`+.004515`, CI upper `+.023229`); seller-low was worse than neutral (`+.111560`,
+  upper `+.318440`); buyer-yes and seller-high failed the required v1 log-loss upper bounds
+  (`+.024244` and `+.000891`). Partial response success is not validation of correlated latent
+  parameter bundles.
+- Consequence: no corrected-timing bargaining tournament comparison, negotiation candidate
+  re-gate, confirmation, default change or live game was authorized by this result. In
+  particular, `guarantee_own_margin`, `debias_counterpart_value`, `use_time_concession`, and the
+  exact counteroffer-preservation repair remain at their prior statuses; a new population seed
+  cannot make them eligible when the population itself failed its prerequisite.
+- Materially new work must replace empirical segment-bundle resampling with a joint estimator
+  whose dependence is learned and regularized separately from its conditional marginals and
+  whose missing endpoints do not select only behavior-rich segments. It must retain the
+  same-support independent conditional comparator, exhaustive actor/config OOF isolation and
+  hard coverage rules. A new seed, relaxed coverage, dropping persuasion after seeing its
+  failure, or merely keeping the successful response surface while calling it Model B is not a
+  valid retry.
+
 ## Retracted claims from the 14 August session
 
 ### Frozen persuasion posterior guarantees zero payoff — retracted claim
