@@ -494,6 +494,30 @@ append a correction and update `docs/REGISTRY.md` instead.
   weakening tolerance, accepting relative gradients, or scoring the unavailable artifact is
   forbidden.
 
+## List-materialized stable summation in Newton-PCG — instrument retracted before artifact write
+
+- Closest prior entry: the sparse coordinate-Newton numerical failure above. The zero-sum
+  Newton-PCG solver was materially new and passed dense-Hessian, PCG, projected-Armijo,
+  raw-coordinate KKT, multi-channel and failure-path preflights. Its statistical model and
+  validation contract remain eligible; this entry concerns only the corpus implementation's
+  peak-memory complexity.
+- Kill-check: the preregistered actor-fold-0 run stayed in its first fold and was terminated by
+  the OS with exit code 137 after sustained computation. It printed no Python exception and did
+  not advance to fold 1. The existing `actor_fold_0/opponent_population.json` retained timestamp
+  `2026-08-15 23:52:36` and is the already-rejected coordinate-solver artifact, so the PCG run
+  wrote no new fold and produced no holdout score.
+- Mechanism: stable objective/gradient/HVP/raw-KKT evaluation collected every row contribution
+  in per-coordinate Python lists before `math.fsum`. Repeated PCG Hessian-vector products thus
+  allocated large nested lists at corpus scale, and zero-sum last-level contrasts made some rows
+  dense. This makes peak memory grow with nonzero row-feature contributions instead of only the
+  coefficient dimension.
+- Materially new repair: replace term lists with deterministic compensated streaming
+  accumulators (or fixed-size pairwise blocks) shared by production and tests. Require dense/
+  fsum agreement to at least `1e-12` on adversarial cancellation, identical convergence/status
+  on existing fixtures, and a memory-scaling test proving accumulator storage is O(parameters)
+  rather than O(row-feature nonzeros). The statistical objective, folds, ridge grid, PCG forcing/
+  cap/shifts, Armijo constants, 300 outer limit and raw KKT `1e-7` may not change.
+
 ## Retracted claims from the 14 August session
 
 ### Frozen persuasion posterior guarantees zero payoff — retracted claim

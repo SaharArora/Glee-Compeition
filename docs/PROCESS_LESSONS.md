@@ -87,3 +87,7 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
   coordinate-wise descent on a coupled actor/config system may be exact yet too ill-conditioned
   to reach an absolute KKT target. Keep numerical-instrument failures separate from predictive
   failures, and never score an artifact whose training status is unavailable.
+- Numerically stable accumulation must also be memory-stable. Materializing every contribution
+  for exact summation can turn a sparse matrix-free optimizer into an O(nonzeros) temporary-
+  allocation loop; use deterministic compensated or fixed-block accumulation and test peak
+  storage before the full corpus run.
