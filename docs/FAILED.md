@@ -441,6 +441,32 @@ append a correction and update `docs/REGISTRY.md` instead.
   raw/aggregated equality, deterministic coefficients, and demonstrated convergence before the
   unchanged full fit restarts. No holdout result may inform the repair.
 
+## Diagonal-Newton response solver — instrument retracted before fold completion
+
+- Closest prior entry: the globally scaled response-gradient failure immediately above. The
+  diagonal-curvature formulation was materially new as a numerical instrument, but it preserved
+  the same penalized-logistic objective, ridge grid, folds, monotone slope, iteration ceiling and
+  tolerance. It was therefore eligible for a FIT-only convergence preflight, not a changed
+  predictive endpoint.
+- Kill-check: 10/10 deterministic, nonseparable mixed model/config fixtures failed to converge in
+  300 iterations, with final coordinate changes roughly `3e-5` to `3.5e-4`, well above the frozen
+  `1e-7` tolerance. Ignoring intercept/model/config Hessian cross-terms did not cure the actual
+  geometry that stalled the first corpus fit.
+- A second correctness defect made apparent passes unsafe: convergence used only accepted step
+  size. Extreme backtracking could accept an effectively stationary step and set
+  `converged=true` even with a large projected gradient. Inner-CV ridge selection also admitted
+  nonconverged fits. Objective history and a diagnostic gradient were serialized, but neither
+  constrained artifact acceptance.
+- The full-corpus rerun was interrupted during actor fold 0 as soon as the adversarial preflight
+  returned. It completed no new fold artifact and produced no holdout score, tournament, policy
+  gate or live game. Commit `888bf95` is retained as an auditable failed instrument checkpoint,
+  not accepted evidence.
+- Materially new repair: keep the exact declared statistical objective and data split, but use an
+  identifiable/full-curvature or coordinate solver with a projected-KKT stopping rule; mark
+  line-search stagnation nonconverged; serialize stop reason/damping/backtracks/stationarity; and
+  make every inner-CV fit converge before its ridge is eligible. Raising iterations, loosening
+  tolerance or trusting a small step alone is not an allowed retry.
+
 ## Retracted claims from the 14 August session
 
 ### Frozen persuasion posterior guarantees zero payoff — retracted claim

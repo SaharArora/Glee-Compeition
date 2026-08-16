@@ -80,3 +80,6 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
 - Sparse segment crossings select behavior-rich players and silently turn missing response
   parameters into defaults. Use leak-free decision-level partial pooling and validate all held-
   out decisions rather than claiming population validity from retained crossings alone.
+- A descent step is not a convergence certificate. For hierarchical logistic fits, require a
+  projected-KKT/stationarity check, treat backtracking stagnation as failure, and disqualify
+  nonconverged inner-CV fits before an outer-fold artifact can be accepted.
