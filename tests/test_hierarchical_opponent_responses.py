@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import unittest
+from unittest.mock import patch
 
 from glee_eval.population.opponent_fit import (
     _response_probability,
     _fit_response_coefficients,
+    _game_fold,
     extract_response_observations,
     fit_hierarchical_responses,
     response_probability,
@@ -46,7 +48,9 @@ class HierarchicalResponseFitTests(unittest.TestCase):
             json.dumps(second, sort_keys=True, separators=(",", ":")),
         )
         self.assertEqual(first["final_objective"], first["objective_history"][-1])
-        self.assertLess(first["final_max_change"], first["tolerance"])
+        self.assertTrue(first["projected_kkt_pass"])
+        self.assertLessEqual(first["final_max_gradient"], first["projected_kkt_tolerance"])
+        self.assertEqual(first["stop_reason"], "projected_kkt")
 
     def test_sparse_model_offsets_recover_direction_with_ridge_shrinkage(self) -> None:
         rows = []
@@ -61,6 +65,37 @@ class HierarchicalResponseFitTests(unittest.TestCase):
                                           "player_model": "low", "config_signature": "c"})
         self.assertGreater(high, low)
         self.assertTrue(all(abs(value) < 2.0 for key, value in fit["coefficients"].items() if key.startswith("model|")))
+
+    def test_mixed_model_config_cross_terms_are_recovered_by_coordinate_newton(self) -> None:
+        rows = []
+        hits = {("high_model", "high_config"): 9, ("high_model", "low_config"): 7,
+                ("low_model", "high_config"): 6, ("low_model", "low_config"): 2}
+        for (model, config), positives in hits.items():
+            for index in range(10):
+                rows.append({"channel": "persuasion|buyer_yes", "x": None, "outcome": int(index < positives),
+                             "game_id": f"{model}-{config}-{index}", "player_model": model,
+                             "config_signature": config})
+        fit = _fit_response_coefficients(rows, 1.0)
+        self.assertTrue(fit["projected_kkt_pass"])
+        probability = lambda model, config: _response_probability(
+            fit, {"channel": "persuasion|buyer_yes", "x": None,
+                  "player_model": model, "config_signature": config})
+        self.assertGreater(probability("high_model", "low_config"), probability("low_model", "low_config"))
+        self.assertGreater(probability("low_model", "high_config"), probability("low_model", "low_config"))
+
+    def test_nonconverged_inner_fold_disqualifies_ridge(self) -> None:
+        rows = _rows("bargaining|player_1", 0.5)
+        failed_fit = {"converged": False, "stop_reason": "iteration_limit", "final_max_gradient": 1.0,
+                      "projected_kkt_tolerance": 1e-7, "projected_kkt_pass": False, "iterations": 300}
+        with patch("glee_eval.population.opponent_fit._fit_response_coefficients", return_value=failed_fit):
+            fit = fit_hierarchical_responses(rows, ridge_grid=(1.0,))
+        self.assertEqual(fit["status"], "unavailable")
+        self.assertEqual(fit["reason"], "no_ridge_with_all_inner_folds_converged")
+        records = fit["inner_cv_convergence"]["1.0"]
+        self.assertEqual([record["fold"] for record in records], [0, 1, 2])
+        self.assertTrue(all(not record["converged"] and not record["projected_kkt_pass"] for record in records))
+        self.assertTrue(all(record["fold_logloss"] == float("inf") for record in records))
+        self.assertEqual(fit["eligible_ridges"], [])
 
     def test_aggregated_gradient_is_equivalent_to_raw_fixture(self) -> None:
         rows = _rows("bargaining|player_1", 0.5)[:30]
@@ -88,9 +123,44 @@ class HierarchicalResponseFitTests(unittest.TestCase):
         self.assertLessEqual(threshold, provenance["fit_max"])
         self.assertEqual(fit["ridge_grid"], [0.1, 1.0, 10.0, 100.0])
         self.assertIn("three_fold_sha256_game_id", fit["selection"])
+        self.assertTrue(fit["eligible_ridges"])
+        selected_records = fit["inner_cv_convergence"][str(fit["selected_ridge"])]
+        self.assertEqual(len(selected_records), 3)
+        self.assertTrue(all(record["converged"] and record["projected_kkt_pass"]
+                            and record["finite_validation_probability"]
+                            and record["finite_validation_loss"] for record in selected_records))
+        self.assertEqual(fit["ridge_tie_rule"], "minimum pooled validation-decision logloss; exact ties choose larger ridge")
         self.assertIn("converged", provenance)
         self.assertIn("final_objective", provenance)
         self.assertIn("final_max_gradient", provenance)
+
+    def test_cv_logloss_is_pooled_over_unequal_fold_sizes(self) -> None:
+        game_ids = {fold: [] for fold in range(3)}
+        candidate = 0
+        targets = {0: 10, 1: 20, 2: 30}
+        while any(len(game_ids[fold]) < targets[fold] for fold in range(3)):
+            game = f"unequal-{candidate}"
+            fold = _game_fold(game)
+            if len(game_ids[fold]) < targets[fold]:
+                game_ids[fold].append(game)
+            candidate += 1
+        rows = []
+        rates = {0: 0.2, 1: 0.5, 2: 0.8}
+        for fold, games in game_ids.items():
+            positives = int(round(10 * rates[fold]))
+            for game_index, game in enumerate(games):
+                for index in range(10):
+                    rows.append({"channel": "persuasion|buyer_yes", "x": None,
+                                 "outcome": int(index < positives), "game_id": game,
+                                 "player_model": f"m{game_index % 4}",
+                                 "config_signature": f"c{game_index % 5}"})
+        fit = fit_hierarchical_responses(rows, ridge_grid=(10.0,))
+        records = fit["inner_cv_convergence"]["10.0"]
+        pooled = sum(record["fold_logloss"] * record["validation_rows"] for record in records) / sum(
+            record["validation_rows"] for record in records)
+        unweighted = sum(record["fold_logloss"] for record in records) / 3
+        self.assertAlmostEqual(fit["cv_log_loss"]["10.0"], pooled, places=15)
+        self.assertNotAlmostEqual(pooled, unweighted, places=6)
 
     def test_threshold_clips_only_to_training_x_range(self) -> None:
         rows = _rows("negotiation|seller", 2.0)

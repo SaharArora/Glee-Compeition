@@ -162,71 +162,99 @@ def _fit_response_coefficients(
         )
         return total
 
+    encoded_rows = []
+    affected: dict[str, list[tuple[int, float]]] = defaultdict(list)
+    linear_predictor = []
+    for index, row in enumerate(work_rows):
+        channel = str(row["channel"])
+        keys = [f"intercept|{channel}", f"model|{channel}|{row['player_model']}", f"config|{channel}|{row['config_signature']}"]
+        features = [1.0, 1.0, 1.0]
+        if row.get("x") is not None:
+            keys.append(f"slope|{channel}")
+            features.append((float(row["x"]) - x_scale[channel]["mean"]) / x_scale[channel]["sd"])
+        encoded_rows.append((row, keys, features))
+        linear_predictor.append(sum(coefficients[key] * feature for key, feature in zip(keys, features)))
+        for key, feature in zip(keys, features):
+            affected[key].append((index, feature))
+
+    def softplus(value: float) -> float:
+        return value + math.log1p(math.exp(-value)) if value >= 0 else math.log1p(math.exp(value))
+
+    def projected_kkt() -> float:
+        maximum = 0.0
+        for key in sorted(coefficients):
+            gradient = ridge * coefficients[key] if key.startswith(("model|", "config|")) else 0.0
+            for index, feature in affected[key]:
+                row = work_rows[index]
+                gradient += (int(row["count"]) * _sigmoid(linear_predictor[index]) - int(row["positive"])) * feature
+            if key.startswith("slope|") and coefficients[key] <= 1e-8 + 1e-14 and gradient >= 0:
+                gradient = 0.0
+            maximum = max(maximum, abs(gradient))
+        return maximum
+
     converged = False
+    stop_reason = "iteration_limit"
     objective_history = [objective(coefficients)]
     final_max_change = float("inf")
-    final_max_gradient = float("inf")
+    final_max_gradient = projected_kkt()
+    total_backtracks = 0
+    last_damping = 1.0
     for iteration in range(1, max_iterations + 1):
-        gradient = defaultdict(float)
-        curvature = defaultdict(float)
-        for row in work_rows:
-            channel = str(row["channel"])
-            keys = [
-                f"intercept|{channel}",
-                f"model|{channel}|{row['player_model']}",
-                f"config|{channel}|{row['config_signature']}",
-            ]
-            features = [1.0, 1.0, 1.0]
-            if row.get("x") is not None:
-                keys.append(f"slope|{channel}")
-                scale = x_scale[channel]
-                features.append((float(row["x"]) - scale["mean"]) / scale["sd"])
-            linear = sum(coefficients[key] * feature for key, feature in zip(keys, features))
-            probability = _sigmoid(linear)
-            error = int(row["count"]) * probability - int(row["positive"])
-            variance = int(row["count"]) * probability * (1.0 - probability)
-            for key, feature in zip(keys, features):
-                gradient[key] += error * feature
-                curvature[key] += variance * feature * feature
-        direction = {}
-        projected_gradients = []
-        for key, old in coefficients.items():
-            penalized_gradient = gradient[key]
-            penalized_curvature = curvature[key]
-            if key.startswith(("model|", "config|")):
-                penalized_gradient += ridge * old
-                penalized_curvature += ridge
-            penalized_curvature = max(1e-12, penalized_curvature)
-            proposed = penalized_gradient / penalized_curvature
-            if key.startswith("slope|") and old <= 1e-8 and proposed > 0:
-                proposed = 0.0
-                projected_gradients.append(0.0)
-            else:
-                projected_gradients.append(abs(penalized_gradient))
-            direction[key] = proposed
-        final_max_gradient = max(projected_gradients, default=0.0)
-        old_objective = objective_history[-1]
-        damping = 1.0
-        accepted = None
-        while damping >= 2 ** -30:
-            candidate = {}
-            for key, old in coefficients.items():
-                value = old - damping * direction[key]
-                candidate[key] = max(1e-8, value) if key.startswith("slope|") else value
-            candidate_objective = objective(candidate)
-            if candidate_objective <= old_objective + 1e-12:
-                accepted = (candidate, candidate_objective)
+        sweep_max_change = 0.0
+        stagnated = False
+        for key in sorted(coefficients):
+            old = coefficients[key]
+            gradient = ridge * old if key.startswith(("model|", "config|")) else 0.0
+            curvature = ridge if key.startswith(("model|", "config|")) else 0.0
+            for index, feature in affected[key]:
+                row = work_rows[index]
+                probability = _sigmoid(linear_predictor[index])
+                gradient += (int(row["count"]) * probability - int(row["positive"])) * feature
+                curvature += int(row["count"]) * probability * (1.0 - probability) * feature * feature
+            if key.startswith("slope|") and old <= 1e-8 + 1e-14 and gradient >= 0:
+                continue
+            step = -gradient / max(curvature, 1e-12)
+            if key.startswith("slope|"):
+                step = max(1e-8 - old, step)
+            if step == 0.0:
+                continue
+            local_old = 0.5 * ridge * old * old if key.startswith(("model|", "config|")) else 0.0
+            for index, _ in affected[key]:
+                row = work_rows[index]
+                eta = linear_predictor[index]
+                local_old += int(row["count"]) * softplus(eta) - int(row["positive"]) * eta
+            damping = 1.0
+            accepted_step = None
+            while damping >= 2 ** -30:
+                delta = damping * step
+                candidate_value = old + delta
+                local_new = 0.5 * ridge * candidate_value * candidate_value if key.startswith(("model|", "config|")) else 0.0
+                for index, feature in affected[key]:
+                    row = work_rows[index]
+                    eta = linear_predictor[index] + delta * feature
+                    local_new += int(row["count"]) * softplus(eta) - int(row["positive"]) * eta
+                if local_new <= local_old:
+                    accepted_step = delta
+                    break
+                damping *= 0.5
+                total_backtracks += 1
+            last_damping = damping
+            if accepted_step is None:
+                stagnated = True
                 break
-            damping *= 0.5
-        if accepted is None:
-            final_max_change = 0.0
+            coefficients[key] = old + accepted_step
+            for index, feature in affected[key]:
+                linear_predictor[index] += accepted_step * feature
+            sweep_max_change = max(sweep_max_change, abs(accepted_step))
+        final_max_change = sweep_max_change
+        objective_history.append(objective(coefficients))
+        final_max_gradient = projected_kkt()
+        if stagnated:
+            stop_reason = "line_search_stagnation"
             break
-        candidate, candidate_objective = accepted
-        final_max_change = max(abs(candidate[key] - coefficients[key]) for key in coefficients)
-        coefficients = candidate
-        objective_history.append(candidate_objective)
-        if final_max_change < tolerance:
+        if final_max_gradient <= tolerance:
             converged = True
+            stop_reason = "projected_kkt"
             break
     return {
         "coefficients": coefficients,
@@ -236,11 +264,16 @@ def _fit_response_coefficients(
         "max_iterations": max_iterations,
         "tolerance": tolerance,
         "ridge": ridge,
-        "optimizer": "diagonal_newton_with_deterministic_backtracking",
+        "optimizer": "sparse_coordinate_newton_with_deterministic_backtracking",
         "final_objective": objective_history[-1],
         "objective_history": objective_history,
         "final_max_change": final_max_change,
         "final_max_gradient": final_max_gradient,
+        "projected_kkt_tolerance": tolerance,
+        "projected_kkt_pass": final_max_gradient <= tolerance,
+        "stop_reason": stop_reason,
+        "last_damping": last_damping,
+        "total_backtracks": total_backtracks,
         "aggregated_rows": len(work_rows) if aggregate else len(rows),
         "numerical_sufficient_statistic_rows": len(work_rows),
         "aggregation_enabled": aggregate,
@@ -292,20 +325,82 @@ def fit_hierarchical_responses(
     if not materialized:
         return {"status": "unavailable", "reason": "no_training_rows", "ridge_grid": list(ridge_grid)}
     cv: dict[str, float] = {}
+    inner_cv_convergence: dict[str, list[dict[str, Any]]] = {}
     for ridge in ridge_grid:
         losses = []
+        fold_records = []
         for fold in range(3):
             training = [row for row in materialized if _game_fold(str(row["game_id"])) != fold]
             validation = [row for row in materialized if _game_fold(str(row["game_id"])) == fold]
+            record = {
+                "fold": fold,
+                "training_rows": len(training),
+                "validation_rows": len(validation),
+                "training_games": len({str(row["game_id"]) for row in training}),
+                "validation_games": len({str(row["game_id"]) for row in validation}),
+            }
             if not training or not validation:
+                record.update({
+                    "converged": False, "stop_reason": "missing_training_or_validation_partition",
+                    "projected_kkt_norm": float("inf"), "projected_kkt_tolerance": 1e-7,
+                    "projected_kkt_pass": False, "iterations": 0,
+                    "finite_validation_probability": False, "finite_validation_loss": False,
+                    "fold_logloss": float("inf"),
+                })
+                fold_records.append(record)
                 continue
             fitted = _fit_response_coefficients(training, ridge)
+            record.update({
+                "converged": bool(fitted["converged"]),
+                "stop_reason": fitted["stop_reason"],
+                "projected_kkt_norm": fitted["final_max_gradient"],
+                "projected_kkt_tolerance": fitted["projected_kkt_tolerance"],
+                "projected_kkt_pass": bool(fitted["projected_kkt_pass"]),
+                "iterations": fitted["iterations"],
+            })
+            if not fitted["converged"] or not fitted["projected_kkt_pass"]:
+                record.update({
+                    "finite_validation_probability": False, "finite_validation_loss": False,
+                    "fold_logloss": float("inf"),
+                })
+                fold_records.append(record)
+                continue
+            fold_losses = []
+            finite_probability = True
             for row in validation:
-                probability = min(1 - 1e-12, max(1e-12, _response_probability(fitted, row)))
+                raw_probability = _response_probability(fitted, row)
+                finite_probability = finite_probability and math.isfinite(raw_probability)
+                probability = min(1 - 1e-12, max(1e-12, raw_probability))
                 outcome = int(row["outcome"])
-                losses.append(-(outcome * math.log(probability) + (1 - outcome) * math.log(1 - probability)))
-        cv[str(ridge)] = mean(losses) if losses else float("inf")
-    selected = min(ridge_grid, key=lambda ridge: (cv[str(ridge)], -ridge))
+                fold_losses.append(-(outcome * math.log(probability) + (1 - outcome) * math.log(1 - probability)))
+            finite_loss = bool(fold_losses) and all(math.isfinite(value) for value in fold_losses)
+            fold_logloss = mean(fold_losses) if finite_probability and finite_loss else float("inf")
+            record.update({
+                "finite_validation_probability": finite_probability,
+                "finite_validation_loss": finite_loss,
+                "fold_logloss": fold_logloss,
+            })
+            fold_records.append(record)
+            if math.isfinite(fold_logloss):
+                losses.extend(fold_losses)
+        inner_cv_convergence[str(ridge)] = fold_records
+        eligible_record = len(fold_records) == 3 and all(
+            record["converged"] and record["projected_kkt_pass"]
+            and record["finite_validation_probability"] and record["finite_validation_loss"]
+            and math.isfinite(record["fold_logloss"])
+            for record in fold_records
+        )
+        cv[str(ridge)] = mean(losses) if losses and eligible_record else float("inf")
+    eligible = [ridge for ridge in ridge_grid if math.isfinite(cv[str(ridge)])]
+    if not eligible:
+        return {
+            "status": "unavailable", "reason": "no_ridge_with_all_inner_folds_converged",
+            "ridge_grid": list(ridge_grid), "cv_log_loss": cv,
+            "inner_cv_convergence": inner_cv_convergence,
+            "eligible_ridges": [],
+            "ridge_tie_rule": "minimum pooled validation-decision logloss; exact ties choose larger ridge",
+        }
+    selected = min(eligible, key=lambda ridge: (cv[str(ridge)], -ridge))
     fitted = _fit_response_coefficients(materialized, selected)
     channel_support = {}
     for channel in sorted({str(row["channel"]) for row in materialized}):
@@ -318,11 +413,15 @@ def fit_hierarchical_responses(
             "config_signatures": len({str(row["config_signature"]) for row in channel_rows}),
         }
     fitted.update({
-        "status": "ok",
+        "status": "ok" if fitted["converged"] else "unavailable",
+        "reason": None if fitted["converged"] else "selected_ridge_final_fit_nonconverged",
         "ridge_grid": list(ridge_grid),
         "cv_log_loss": cv,
+        "inner_cv_convergence": inner_cv_convergence,
+        "eligible_ridges": list(eligible),
+        "ridge_tie_rule": "minimum pooled validation-decision logloss; exact ties choose larger ridge",
         "selected_ridge": selected,
-        "selection": "three_fold_sha256_game_id; minimum log loss; ties choose larger ridge",
+        "selection": "three_fold_sha256_game_id; minimum pooled validation-decision logloss; exact ties choose larger ridge",
         "training_rows": len(materialized),
         "training_games": len({str(row["game_id"]) for row in materialized}),
         "training_models": len({str(row["player_model"]) for row in materialized}),
@@ -343,7 +442,7 @@ def response_parameter(
 
     provenance = {
         key: fit.get(key)
-        for key in ("status", "selected_ridge", "converged", "iterations", "training_rows", "training_games", "training_models", "training_config_signatures", "optimizer", "final_objective", "final_max_change", "final_max_gradient")
+        for key in ("status", "selected_ridge", "eligible_ridges", "ridge_tie_rule", "converged", "iterations", "training_rows", "training_games", "training_models", "training_config_signatures", "optimizer", "final_objective", "final_max_change", "final_max_gradient", "projected_kkt_tolerance", "projected_kkt_pass", "stop_reason", "last_damping", "total_backtracks", "inner_cv_convergence")
     }
     provenance["channel_support"] = (fit.get("channel_support") or {}).get(channel)
     if fit.get("status") != "ok" or channel not in fit.get("x_scale", {}):

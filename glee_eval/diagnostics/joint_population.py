@@ -220,6 +220,235 @@ def score_oof_decision(
     }
 
 
+def response_fit_provenance_errors(fit: dict[str, Any]) -> list[str]:
+    """Return violations of the frozen projected-KKT response-fit contract."""
+
+    errors: list[str] = []
+    expected_grid = [0.1, 1.0, 10.0, 100.0]
+    expected_keys = {str(value) for value in expected_grid}
+    if fit.get("status") != "ok" or fit.get("reason") is not None:
+        errors.append("fit_status_not_ok")
+    if fit.get("optimizer") != "sparse_coordinate_newton_with_deterministic_backtracking":
+        errors.append("optimizer_mismatch")
+    if fit.get("converged") is not True or fit.get("projected_kkt_pass") is not True:
+        errors.append("projected_kkt_not_passed")
+    if fit.get("stop_reason") != "projected_kkt":
+        errors.append("invalid_stop_reason")
+    if fit.get("max_iterations") != 300 or fit.get("tolerance") != 1e-7:
+        errors.append("iteration_or_tolerance_mismatch")
+    if fit.get("projected_kkt_tolerance") != 1e-7:
+        errors.append("projected_kkt_tolerance_mismatch")
+    try:
+        iterations = int(fit["iterations"])
+        gradient = float(fit["final_max_gradient"])
+        change = float(fit["final_max_change"])
+        objective = float(fit["final_objective"])
+        damping = float(fit["last_damping"])
+        backtracks = int(fit["total_backtracks"])
+        if not 1 <= iterations <= 300:
+            errors.append("invalid_iteration_count")
+        if not math.isfinite(gradient) or gradient < 0.0 or gradient > 1e-7:
+            errors.append("projected_kkt_residual_exceeds_tolerance")
+        if not math.isfinite(change) or change < 0.0:
+            errors.append("invalid_final_change")
+        if not math.isfinite(objective):
+            errors.append("nonfinite_final_objective")
+        if not math.isfinite(damping) or not 0.0 < damping <= 1.0:
+            errors.append("invalid_damping")
+        if backtracks < 0 or isinstance(fit.get("total_backtracks"), bool):
+            errors.append("invalid_backtrack_count")
+    except (KeyError, TypeError, ValueError, OverflowError):
+        errors.append("missing_or_invalid_solver_diagnostics")
+
+    coefficients = fit.get("coefficients")
+    if not isinstance(coefficients, dict) or not coefficients:
+        errors.append("missing_coefficients")
+    else:
+        for name, value in coefficients.items():
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError, OverflowError):
+                errors.append("nonfinite_coefficient")
+                break
+            if not math.isfinite(numeric):
+                errors.append("nonfinite_coefficient")
+                break
+            if str(name).startswith("slope|") and numeric < 1e-8:
+                errors.append("slope_below_lower_bound")
+                break
+    scales = fit.get("x_scale")
+    if not isinstance(scales, dict) or not scales:
+        errors.append("missing_x_scale")
+    else:
+        for scale in scales.values():
+            if not isinstance(scale, dict):
+                errors.append("invalid_x_scale")
+                break
+            try:
+                mean_value, sd = float(scale["mean"]), float(scale["sd"])
+                endpoints = [scale.get("min"), scale.get("max")]
+                if not math.isfinite(mean_value) or not math.isfinite(sd) or sd <= 0.0:
+                    errors.append("invalid_x_scale")
+                    break
+                if any(value is not None and not math.isfinite(float(value)) for value in endpoints):
+                    errors.append("invalid_x_scale")
+                    break
+                if endpoints[0] is not None and endpoints[1] is not None and float(endpoints[0]) > float(endpoints[1]):
+                    errors.append("invalid_x_scale")
+                    break
+            except (KeyError, TypeError, ValueError, OverflowError):
+                errors.append("invalid_x_scale")
+                break
+    try:
+        raw_rows = int(fit["raw_rows"])
+        aggregated_rows = int(fit["aggregated_rows"])
+        statistic_rows = int(fit["numerical_sufficient_statistic_rows"])
+        if (
+            fit.get("aggregation_enabled") is not True
+            or min(raw_rows, aggregated_rows, statistic_rows) <= 0
+            or aggregated_rows != statistic_rows or statistic_rows > raw_rows
+            or raw_rows != int(fit["training_rows"])
+        ):
+            errors.append("invalid_aggregation_provenance")
+    except (KeyError, TypeError, ValueError, OverflowError):
+        errors.append("invalid_aggregation_provenance")
+
+    history = fit.get("objective_history")
+    if not isinstance(history, list) or len(history) < 2:
+        errors.append("missing_objective_history")
+    else:
+        try:
+            values = [float(value) for value in history]
+            if any(not math.isfinite(value) for value in values):
+                errors.append("nonfinite_objective_history")
+            if any(right > left + 1e-9 * max(1.0, abs(left)) for left, right in zip(values, values[1:])):
+                errors.append("nonmonotone_objective_history")
+            if math.isfinite(float(fit.get("final_objective", float("nan")))) and not math.isclose(
+                values[-1], float(fit["final_objective"]), rel_tol=1e-12, abs_tol=1e-12
+            ):
+                errors.append("final_objective_history_mismatch")
+        except (TypeError, ValueError, OverflowError):
+            errors.append("invalid_objective_history")
+
+    ridge_grid = fit.get("ridge_grid")
+    cv = fit.get("cv_log_loss")
+    inner = fit.get("inner_cv_convergence")
+    if list(ridge_grid or []) != expected_grid:
+        errors.append("ridge_grid_mismatch")
+    if not isinstance(cv, dict) or set(cv) != expected_keys:
+        errors.append("cv_loss_schema_mismatch")
+    if not isinstance(inner, dict) or set(inner) != expected_keys:
+        errors.append("inner_cv_schema_mismatch")
+    eligible: list[float] = []
+    if isinstance(cv, dict) and isinstance(inner, dict) and set(cv) == expected_keys and set(inner) == expected_keys:
+        for ridge in expected_grid:
+            key = str(ridge)
+            records = inner[key]
+            if not isinstance(records, list) or len(records) != 3:
+                errors.append(f"invalid_inner_cv_records:{key}")
+                continue
+            record_passes = []
+            fold_losses = []
+            validation_rows = []
+            for fold, record in enumerate(records):
+                if not isinstance(record, dict) or set(record) != {
+                    "fold", "training_rows", "validation_rows", "training_games", "validation_games",
+                    "converged", "stop_reason", "projected_kkt_norm", "projected_kkt_tolerance",
+                    "projected_kkt_pass", "iterations", "finite_validation_probability",
+                    "finite_validation_loss", "fold_logloss",
+                }:
+                    errors.append(f"invalid_inner_cv_record_schema:{key}:{fold}")
+                    record_passes.append(False)
+                    fold_losses.append(float("inf"))
+                    validation_rows.append(0)
+                    continue
+                try:
+                    norm = float(record["projected_kkt_norm"])
+                    loss = float(record["fold_logloss"])
+                    counts_ok = all(
+                        isinstance(record[name], int) and not isinstance(record[name], bool) and record[name] > 0
+                        for name in ("training_rows", "validation_rows", "training_games", "validation_games")
+                    )
+                    iterations_ok = (
+                        isinstance(record["iterations"], int) and not isinstance(record["iterations"], bool)
+                        and 1 <= record["iterations"] <= 300
+                    )
+                    kkt_consistent = (
+                        math.isfinite(norm) and norm >= 0.0
+                        and record["projected_kkt_tolerance"] == 1e-7
+                        and isinstance(record["projected_kkt_pass"], bool)
+                        and record["projected_kkt_pass"] == (norm <= 1e-7)
+                    )
+                    finite_flags = all(isinstance(record[name], bool) for name in (
+                        "converged", "finite_validation_probability", "finite_validation_loss",
+                    ))
+                    passed = (
+                        counts_ok and iterations_ok and kkt_consistent and finite_flags
+                        and record["converged"] is True
+                        and record["stop_reason"] == "projected_kkt"
+                        and record["projected_kkt_pass"] is True
+                        and record["finite_validation_probability"] is True
+                        and record["finite_validation_loss"] is True
+                        and math.isfinite(loss)
+                    )
+                    if record["converged"] is True and (
+                        record["stop_reason"] != "projected_kkt" or record["projected_kkt_pass"] is not True
+                    ):
+                        errors.append(f"inner_cv_false_convergence:{key}:{fold}")
+                    if record["finite_validation_loss"] != math.isfinite(loss):
+                        errors.append(f"inner_cv_loss_flag_mismatch:{key}:{fold}")
+                    record_passes.append(passed)
+                    fold_losses.append(loss)
+                    validation_rows.append(int(record["validation_rows"]))
+                except (KeyError, TypeError, ValueError, OverflowError):
+                    errors.append(f"invalid_inner_cv_record_values:{key}:{fold}")
+                    record_passes.append(False)
+                    fold_losses.append(float("inf"))
+                    validation_rows.append(0)
+            try:
+                loss = float(cv[key])
+            except (TypeError, ValueError, OverflowError):
+                errors.append(f"invalid_cv_loss:{key}")
+                continue
+            if all(record_passes):
+                if not math.isfinite(loss):
+                    errors.append(f"eligible_ridge_nonfinite:{key}")
+                else:
+                    eligible.append(float(ridge))
+                    pooled_loss = sum(
+                        fold_loss * count for fold_loss, count in zip(fold_losses, validation_rows)
+                    ) / sum(validation_rows)
+                    if not math.isclose(loss, pooled_loss, rel_tol=1e-12, abs_tol=1e-12):
+                        errors.append(f"cv_pooled_loss_mismatch:{key}")
+            elif not (math.isinf(loss) and loss > 0):
+                errors.append(f"ineligible_ridge_has_finite_loss:{key}")
+    serialized_eligible = fit.get("eligible_ridges")
+    if not isinstance(serialized_eligible, list) or serialized_eligible != eligible:
+        errors.append("eligible_ridges_mismatch")
+    try:
+        selected = float(fit["selected_ridge"])
+        final_ridge = float(fit["ridge"])
+        if not eligible or selected not in eligible:
+            errors.append("selected_ridge_ineligible")
+        else:
+            ridge_keys = {float(ridge): str(ridge) for ridge in expected_grid}
+            expected_selected = min(eligible, key=lambda ridge: (float(cv[ridge_keys[ridge]]), -ridge))
+            if selected != expected_selected:
+                errors.append("selected_ridge_not_cv_minimum")
+        if final_ridge != selected:
+            errors.append("final_ridge_selection_mismatch")
+    except (KeyError, TypeError, ValueError, OverflowError):
+        errors.append("missing_or_invalid_selected_ridge")
+    if fit.get("selection") != (
+        "three_fold_sha256_game_id; minimum pooled validation-decision logloss; "
+        "exact ties choose larger ridge"
+    ):
+        errors.append("selection_rule_mismatch")
+    if fit.get("ridge_tie_rule") != "minimum pooled validation-decision logloss; exact ties choose larger ridge":
+        errors.append("ridge_tie_rule_mismatch")
+    return errors
+
+
 def decision_comparator_probabilities(
     payload: dict[str, Any],
     observation: dict[str, Any],
@@ -304,6 +533,7 @@ def score_crossfit_decisions(
     if len(set(identities)) != len(identities):
         raise ValueError("duplicate OOF decision row")
     populations: dict[str, OpponentPopulation] = {}
+    provenance_cache: dict[tuple[str, str], list[str]] = {}
     folds = range(fold_count(getattr(router, "axis", "config")))
     per_fold: dict[int, list[dict[str, Any]]] = {fold: [] for fold in folds}
     eligible: dict[tuple[str, str], dict[str, Any]] = defaultdict(lambda: {"decisions": 0, "game_ids": set()})
@@ -315,6 +545,15 @@ def score_crossfit_decisions(
         cell["game_ids"].add(str(observation["game_id"]))
         fit = ((routed.payload.get("joint_model") or {}).get("response_estimators") or {}).get(family)
         if not fit:
+            cell.setdefault("provenance_errors", set()).add("missing_response_fit")
+            continue
+        provenance_key = (routed.sha256, family)
+        fit_errors = provenance_cache.get(provenance_key)
+        if fit_errors is None:
+            fit_errors = response_fit_provenance_errors(fit)
+            provenance_cache[provenance_key] = fit_errors
+        if fit_errors:
+            cell.setdefault("provenance_errors", set()).update(fit_errors)
             continue
         try:
             probability = response_probability(
@@ -335,17 +574,15 @@ def score_crossfit_decisions(
             neutral_probability=neutral, v1_probability=v1,
         )
         support = (fit.get("channel_support") or {}).get(channel) or {}
-        provenance_complete = (
-            fit.get("status") == "ok"
-            and list(fit.get("ridge_grid") or []) == [0.1, 1, 10, 100]
-            and all(fit.get(name) is not None for name in (
-                "selected_ridge", "cv_log_loss", "selection", "converged", "iterations",
-                "max_iterations", "tolerance",
-            ))
-            and all(int(support.get(name, 0)) > 0 for name in (
+        try:
+            support_complete = all(int(support.get(name, 0)) > 0 for name in (
                 "rows", "games", "models", "config_signatures",
             ))
-        )
+        except (TypeError, ValueError, OverflowError):
+            support_complete = False
+        if not support_complete:
+            cell.setdefault("provenance_errors", set()).add("invalid_channel_support")
+        provenance_complete = support_complete
         threshold_in_domain = True
         if family in {"bargaining", "negotiation"}:
             threshold, threshold_provenance = response_parameter(
@@ -364,13 +601,18 @@ def score_crossfit_decisions(
             "outer_fold": routed.fold, "crossfit_artifact_sha256": routed.sha256,
             "crossfit_manifest_sha256": router.manifest["manifest_sha256"],
             "provenance_complete": provenance_complete,
+            "response_provenance_errors": ([] if support_complete else ["invalid_channel_support"]),
             "converged": bool(fit.get("converged")),
             "in_domain": (
                 math.isfinite(probability) and 0.0 <= probability <= 1.0 and threshold_in_domain
             ),
         })
     pooled = [row for fold in folds for row in per_fold[fold]]
-    return pooled, dict(eligible)
+    serialized_eligible = {}
+    for key, cell in eligible.items():
+        serialized_eligible[key] = dict(cell)
+        serialized_eligible[key]["provenance_errors"] = sorted(cell.get("provenance_errors", set()))
+    return pooled, serialized_eligible
 
 
 _REQUIRED_DECISION_CHANNELS = {
@@ -432,6 +674,7 @@ def summarize_oof_decisions(
             eligible_cell = eligible.get(key) or {}
             eligible_decisions = int(eligible_cell.get("decisions", 0))
             eligible_games = {str(item) for item in eligible_cell.get("game_ids", [])}
+            fit_provenance_errors = sorted(str(item) for item in eligible_cell.get("provenance_errors", []))
             reached_games = {str(row["game_id"]) for row in cell_rows}
             decision_reach = len(cell_rows) / eligible_decisions if eligible_decisions else 0.0
             game_reach = len(reached_games) / len(eligible_games) if eligible_games else 0.0
@@ -445,7 +688,7 @@ def summarize_oof_decisions(
                 for fold in range(folds)
             }
             required_clusters = 12 if axis == "model" else 20
-            provenance_ok = bool(cell_rows) and all(
+            provenance_ok = not fit_provenance_errors and bool(cell_rows) and all(
                 bool(row.get("provenance_complete")) and bool(row.get("converged"))
                 and bool(row.get("in_domain", True)) for row in cell_rows
             )
@@ -457,6 +700,7 @@ def summarize_oof_decisions(
                 "required_overall_clusters": required_clusters,
                 "required_clusters_per_fold": 3,
                 "provenance_complete": provenance_ok,
+                "fit_provenance_errors": fit_provenance_errors,
                 "calibration": _calibration_intercept_slope(cell_rows),
             }
             support_ok = (
@@ -1125,6 +1369,24 @@ def run_crossfit_validation(
     axis_reports: dict[str, Any] = {}
     for axis, (router_axis, specs) in axes.items():
         router = CrossfitRouter(manifest, router_axis, specs)
+        artifact_fit_errors = {
+            f"fold={fold},family={family}": errors
+            for fold, artifact in sorted(router.artifacts.items())
+            for family, fit in sorted(
+                (((artifact.payload.get("joint_model") or {}).get("response_estimators") or {}).items())
+            )
+            if (errors := response_fit_provenance_errors(fit))
+        }
+        expected_families = {"bargaining", "negotiation", "persuasion"}
+        for fold, artifact in sorted(router.artifacts.items()):
+            present = set(((artifact.payload.get("joint_model") or {}).get("response_estimators") or {}))
+            for missing in sorted(expected_families - present):
+                artifact_fit_errors[f"fold={fold},family={missing}"] = ["missing_response_fit"]
+        if artifact_fit_errors:
+            raise ValueError(
+                f"cross-fit response provenance rejected before scoring on {axis}: "
+                f"{json.dumps(artifact_fit_errors, sort_keys=True)}"
+            )
         scored_bundles, eligible_games, unsupported = score_crossfit_bundles(bundles, router)
         bundle_verdict = summarize_validation(
             scored_bundles, axis=axis, crossfit=True,

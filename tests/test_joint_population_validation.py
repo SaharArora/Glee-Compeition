@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 import json
 import tempfile
+import copy
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -22,6 +23,7 @@ from glee_eval.diagnostics.joint_population import (
     summarize_oof_decisions,
     summarize_validation,
     run_validation,
+    response_fit_provenance_errors,
     transform_parameters,
 )
 
@@ -75,10 +77,35 @@ class JointPopulationValidationTests(unittest.TestCase):
             score_crossfit_decisions([row, row], Router())
 
     def test_crossfit_decisions_route_then_pool_with_complete_provenance(self) -> None:
+        def inner_records(loss):
+            return [{
+                "fold": fold, "training_rows": 20, "validation_rows": 10,
+                "training_games": 10, "validation_games": 5, "converged": True,
+                "stop_reason": "projected_kkt", "projected_kkt_norm": 5e-8,
+                "projected_kkt_tolerance": 1e-7, "projected_kkt_pass": True,
+                "iterations": 3, "finite_validation_probability": True,
+                "finite_validation_loss": True, "fold_logloss": loss,
+            } for fold in range(3)]
+
         fit = {
-            "status": "ok", "ridge_grid": [0.1, 1, 10, 100], "selected_ridge": 10,
-            "cv_log_loss": {"10": 0.2}, "selection": "training-only", "converged": True,
-            "iterations": 3, "max_iterations": 100, "tolerance": 1e-8,
+            "status": "ok", "reason": None, "ridge_grid": [0.1, 1, 10, 100],
+            "cv_log_loss": {"0.1": 0.4, "1.0": 0.3, "10.0": 0.2, "100.0": 0.1},
+            "inner_cv_convergence": {
+                "0.1": inner_records(0.4), "1.0": inner_records(0.3),
+                "10.0": inner_records(0.2), "100.0": inner_records(0.1),
+            },
+            "eligible_ridges": [0.1, 1.0, 10.0, 100.0], "selected_ridge": 100, "ridge": 100,
+            "selection": "three_fold_sha256_game_id; minimum pooled validation-decision logloss; exact ties choose larger ridge",
+            "ridge_tie_rule": "minimum pooled validation-decision logloss; exact ties choose larger ridge",
+            "converged": True, "iterations": 3, "max_iterations": 300, "tolerance": 1e-7,
+            "optimizer": "sparse_coordinate_newton_with_deterministic_backtracking",
+            "final_objective": 0.5, "objective_history": [1.0, 0.5], "final_max_change": 1e-8,
+            "final_max_gradient": 5e-8, "projected_kkt_tolerance": 1e-7,
+            "projected_kkt_pass": True, "stop_reason": "projected_kkt", "last_damping": 1.0,
+            "total_backtracks": 0, "coefficients": {"intercept|persuasion|buyer_yes": 0.1},
+            "x_scale": {"persuasion|buyer_yes": {"mean": 0.0, "sd": 1.0, "min": None, "max": None}},
+            "raw_rows": 20, "aggregated_rows": 10, "numerical_sufficient_statistic_rows": 10,
+            "aggregation_enabled": True, "training_rows": 20,
             "channel_support": {"persuasion|buyer_yes": {
                 "rows": 20, "games": 10, "models": 4, "config_signatures": 5,
             }},
@@ -106,6 +133,72 @@ class JointPopulationValidationTests(unittest.TestCase):
         self.assertEqual([row["outer_fold"] for row in pooled], [0, 1, 2, 3])
         self.assertTrue(all(row["provenance_complete"] for row in pooled))
         self.assertEqual(eligible[("persuasion", "persuasion|buyer_yes")]["decisions"], 4)
+        fit["final_max_gradient"] = 2e-7
+        with patch("glee_eval.diagnostics.joint_population.OpponentPopulation", return_value=object()), \
+             patch("glee_eval.diagnostics.joint_population.response_probability", return_value=0.8), \
+             patch("glee_eval.diagnostics.joint_population.decision_comparator_probabilities", return_value=(0.55, 0.6)):
+            rejected, rejected_eligible = score_crossfit_decisions(rows, Router())
+        self.assertEqual(rejected, [])
+        self.assertIn(
+            "projected_kkt_residual_exceeds_tolerance",
+            rejected_eligible[("persuasion", "persuasion|buyer_yes")]["provenance_errors"],
+        )
+
+    def test_response_fit_provenance_enforces_kkt_inner_cv_and_selection(self) -> None:
+        def record(fold, loss):
+            return {"fold": fold, "training_rows": 20, "validation_rows": 10,
+                    "training_games": 10, "validation_games": 5, "converged": True,
+                    "stop_reason": "projected_kkt", "projected_kkt_norm": 5e-8,
+                    "projected_kkt_tolerance": 1e-7, "projected_kkt_pass": True,
+                    "iterations": 4, "finite_validation_probability": True,
+                    "finite_validation_loss": True, "fold_logloss": loss}
+
+        losses = {"0.1": 0.4, "1.0": 0.3, "10.0": 0.2, "100.0": 0.1}
+        fit = {"status": "ok", "reason": None,
+               "optimizer": "sparse_coordinate_newton_with_deterministic_backtracking",
+               "converged": True, "projected_kkt_pass": True, "stop_reason": "projected_kkt",
+               "max_iterations": 300, "iterations": 5, "tolerance": 1e-7,
+               "projected_kkt_tolerance": 1e-7, "final_max_gradient": 5e-8,
+               "final_max_change": 1e-8, "final_objective": 0.5,
+               "objective_history": [1.0, 0.75, 0.5], "last_damping": 0.5,
+               "total_backtracks": 1, "coefficients": {"intercept|x": 0.0, "slope|x": 1e-8},
+               "x_scale": {"x": {"mean": 0.0, "sd": 1.0, "min": -1.0, "max": 1.0}},
+               "raw_rows": 20, "aggregated_rows": 10, "numerical_sufficient_statistic_rows": 10,
+               "aggregation_enabled": True, "training_rows": 20,
+               "ridge_grid": [0.1, 1, 10, 100], "cv_log_loss": losses,
+               "inner_cv_convergence": {key: [record(fold, loss) for fold in range(3)]
+                                         for key, loss in losses.items()},
+               "eligible_ridges": [0.1, 1.0, 10.0, 100.0], "selected_ridge": 100,
+               "ridge": 100,
+               "selection": "three_fold_sha256_game_id; minimum pooled validation-decision logloss; exact ties choose larger ridge",
+               "ridge_tie_rule": "minimum pooled validation-decision logloss; exact ties choose larger ridge"}
+        self.assertEqual(response_fit_provenance_errors(fit), [])
+
+        mutations = {
+            "kkt": lambda item: item.update(final_max_gradient=2e-7),
+            "stagnation": lambda item: item.update(stop_reason="line_search_stagnation"),
+            "slope": lambda item: item["coefficients"].update({"slope|x": 0.0}),
+            "objective": lambda item: item.update(objective_history=[1.0, 1.1, 0.5]),
+            "selection": lambda item: item.update(selected_ridge=10, ridge=10),
+            "nonfinite": lambda item: item["coefficients"].update({"intercept|x": float("nan")}),
+            "inner": lambda item: item["inner_cv_convergence"]["100.0"][0].update(converged=False),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                broken = copy.deepcopy(fit)
+                mutate(broken)
+                self.assertTrue(response_fit_provenance_errors(broken))
+
+        weighted = copy.deepcopy(fit)
+        weighted_records = weighted["inner_cv_convergence"]["100.0"]
+        for item, count, loss in zip(weighted_records, (100, 200, 300), (0.1, 0.2, 0.4)):
+            item["validation_rows"] = count
+            item["fold_logloss"] = loss
+        weighted["cv_log_loss"]["100.0"] = (0.1 * 100 + 0.2 * 200 + 0.4 * 300) / 600
+        weighted["selected_ridge"] = weighted["ridge"] = 10
+        self.assertEqual(response_fit_provenance_errors(weighted), [])
+        weighted["cv_log_loss"]["100.0"] = (0.1 + 0.2 + 0.4) / 3
+        self.assertIn("cv_pooled_loss_mismatch:100.0", response_fit_provenance_errors(weighted))
 
     def test_oof_decision_summary_requires_every_channel_and_both_comparators(self) -> None:
         rows = []
