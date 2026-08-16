@@ -106,7 +106,8 @@ class HierarchicalResponseFitTests(unittest.TestCase):
         self.assertEqual(len(fit["contrast_audit"]),2)
         for audit in fit["contrast_audit"]:
             self.assertLessEqual(audit["raw_kkt_final"],fit["projected_kkt_tolerance"])
-            self.assertIn(audit["raw_kkt_worst_key"],audit["free_vector_coefficient_order"])
+            self.assertEqual(len(json.loads(audit["free_vector_coefficient_order"])), audit["dimension"])
+            self.assertTrue(audit["raw_kkt_worst_key"])
             self.assertAlmostEqual(abs(audit["raw_kkt_worst_value"]),audit["raw_kkt_final"],places=14)
         limited=_fit_response_coefficients(rows,1.0,max_iterations=1,tolerance=1e-15)
         self.assertFalse(limited["projected_kkt_pass"])

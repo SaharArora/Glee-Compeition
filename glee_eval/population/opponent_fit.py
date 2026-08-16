@@ -514,7 +514,13 @@ def _fit_response_coefficients(
         all_coefficients[f"intercept|{channel}"]=beta[intercept_i]
         if slope_i is not None: all_coefficients[f"slope|{channel}"]=beta[slope_i]
         all_coefficients.update({f"model|{channel}|{m}":v for m,v in model_vals.items()}); all_coefficients.update({f"config|{channel}|{c}":v for c,v in config_vals.items()})
-        order="|".join([channel,*models,*configs,"intercept",*( ["slope"] if slope_i is not None else [])])
+        free_order = [
+            *(f"model:{model}" for model in models[:-1]),
+            *(f"config:{config}" for config in configs[:-1]),
+            "intercept",
+            *(["slope"] if slope_i is not None else []),
+        ]
+        order = json.dumps(free_order, separators=(",", ":"))
         _,_,raw_keyed=original_kkt(beta)
         audits.append({"channel":channel,"dimension":dim,"models":len(models),"configs":len(configs),"zero_sum_model":math.fsum(model_vals.values()),"zero_sum_config":math.fsum(config_vals.values()),"coefficient_order_sha256":hashlib.sha256(order.encode()).hexdigest(),"free_vector_coefficient_order":order,"active_slope":bool(slope_i is not None and beta[slope_i]<=1e-8+1e-14),"active_slope_history":active_history,"objective_history":hist,"raw_kkt_history":raw_kkt_history,"raw_kkt_final":kkt,"raw_kkt_worst_key":worst_key,"raw_kkt_worst_value":raw_keyed[worst_key],"stop_reason":stop,"projected_kkt":kkt,"iterations":iteration,"max_change":channel_max_change,"last_damping":last_damping,"total_backtracks":backtracks,"preconditioner":{"block":"intercept_slope_2x2" if slope_i is not None else "intercept_1x1","contrast_diagonal":True,"pivot_floor":1e-18},"pcg":pcg_records,"armijo":armijo_records})
         histories.append(hist); channel_passes.append(converged and kkt<=tolerance); channel_kkts.append(kkt); channel_stops.append(stop)

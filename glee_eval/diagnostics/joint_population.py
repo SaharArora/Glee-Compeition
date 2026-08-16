@@ -220,6 +220,249 @@ def score_oof_decision(
     }
 
 
+_PCG_SHIFTS = [0.0, 1e-12, 1e-10, 1e-8, 1e-6, 1e-4]
+_PCG_RESIDUAL_RULE = "max(1e-12,min(.5,sqrt(current_projected_kkt))*current_projected_kkt)"
+_PCG_CAP_RULE = "min(2000,max(50,4*free_parameter_count))"
+_PCG_PRECONDITIONER = "exact_intercept_slope_block_plus_diagonal_contrasts"
+
+
+def _newton_pcg_solver_audit_errors(payload: dict[str, Any], prefix: str) -> list[str]:
+    """Validate frozen Newton-PCG constants and per-channel numerical audit."""
+
+    errors: list[str] = []
+    def fail(reason: str) -> None:
+        errors.append(f"{prefix}:{reason}")
+
+    if payload.get("optimizer") != "zero_sum_sparse_newton_pcg_with_armijo":
+        fail("optimizer")
+    if payload.get("pcg_residual_rule") != _PCG_RESIDUAL_RULE:
+        fail("pcg_residual_rule")
+    if payload.get("pcg_iteration_cap_rule") != _PCG_CAP_RULE:
+        fail("pcg_iteration_cap_rule")
+    if payload.get("pcg_shift_schedule") != _PCG_SHIFTS:
+        fail("pcg_shift_schedule")
+    if payload.get("pcg_preconditioner") != _PCG_PRECONDITIONER:
+        fail("pcg_preconditioner")
+    if payload.get("armijo_c1") != 1e-4:
+        fail("armijo_c1")
+    audits = payload.get("contrast_audit")
+    if not isinstance(audits, list) or not audits:
+        fail("missing_contrast_audit")
+        return errors
+    seen_channels: set[str] = set()
+    for audit_index, audit in enumerate(audits):
+        label = f"{prefix}:channel[{audit_index}]"
+        if not isinstance(audit, dict):
+            errors.append(f"{label}:schema")
+            continue
+        channel = str(audit.get("channel") or "")
+        if not channel or channel in seen_channels:
+            errors.append(f"{label}:channel_identity")
+        seen_channels.add(channel)
+        try:
+            dimension = int(audit["dimension"])
+            models = int(audit["models"])
+            configs = int(audit["configs"])
+            if min(dimension, models, configs) <= 0:
+                errors.append(f"{label}:dimension")
+        except (KeyError, TypeError, ValueError, OverflowError):
+            errors.append(f"{label}:dimension")
+            continue
+        order = audit.get("free_vector_coefficient_order")
+        digest = audit.get("coefficient_order_sha256")
+        try:
+            parsed_order = json.loads(order) if isinstance(order, str) else None
+        except (TypeError, ValueError):
+            parsed_order = None
+        order_valid = (
+            isinstance(parsed_order, list)
+            and len(parsed_order) == dimension
+            and len(set(parsed_order)) == dimension
+            and sum(str(value).startswith("model:") for value in parsed_order) == models - 1
+            and sum(str(value).startswith("config:") for value in parsed_order) == configs - 1
+            and parsed_order[-1] in {"intercept", "slope"}
+            and "intercept" in parsed_order
+        )
+        if (
+            not isinstance(order, str) or not order or not order_valid
+            or digest != hashlib.sha256(order.encode()).hexdigest()
+        ):
+            errors.append(f"{label}:coefficient_order_hash")
+        for name in ("zero_sum_model", "zero_sum_config"):
+            try:
+                value = float(audit[name])
+                if not math.isfinite(value) or abs(value) > 1e-10:
+                    errors.append(f"{label}:{name}")
+            except (KeyError, TypeError, ValueError, OverflowError):
+                errors.append(f"{label}:{name}")
+        objective_history = audit.get("objective_history")
+        raw_history = audit.get("raw_kkt_history")
+        active_history = audit.get("active_slope_history")
+        try:
+            objectives = [float(value) for value in objective_history]
+            raw_values = [float(value) for value in raw_history]
+            if not objectives or any(not math.isfinite(value) for value in objectives):
+                errors.append(f"{label}:objective_history")
+            if any(right > left + 1e-9 * max(1.0, abs(left)) for left, right in zip(objectives, objectives[1:])):
+                errors.append(f"{label}:objective_nonmonotone")
+            if not raw_values or any(not math.isfinite(value) or value < 0 for value in raw_values):
+                errors.append(f"{label}:raw_kkt_history")
+            if not isinstance(active_history, list) or not all(isinstance(value, bool) for value in active_history):
+                errors.append(f"{label}:active_slope_history")
+            elif len(raw_values) != len(active_history) + 1:
+                errors.append(f"{label}:active_raw_history_alignment")
+            raw_final = float(audit["raw_kkt_final"])
+            raw_worst = float(audit["raw_kkt_worst_value"])
+            if (
+                not math.isclose(raw_final, raw_values[-1], rel_tol=1e-12, abs_tol=1e-12)
+                or not math.isclose(abs(raw_worst), raw_final, rel_tol=1e-12, abs_tol=1e-12)
+                or not str(audit.get("raw_kkt_worst_key") or "")
+                or audit.get("projected_kkt") != audit.get("raw_kkt_final")
+            ):
+                errors.append(f"{label}:raw_kkt_final_or_worst")
+            if raw_final > 1e-7 or audit.get("stop_reason") != "projected_kkt":
+                errors.append(f"{label}:raw_kkt_convergence")
+        except (KeyError, TypeError, ValueError, OverflowError):
+            errors.append(f"{label}:history_values")
+            objectives, raw_values = [], []
+        preconditioner = audit.get("preconditioner")
+        has_slope = bool(order_valid and parsed_order[-1] == "slope")
+        expected_block = "intercept_slope_2x2" if has_slope else "intercept_1x1"
+        if preconditioner != {"block": expected_block, "contrast_diagonal": True, "pivot_floor": 1e-18}:
+            errors.append(f"{label}:preconditioner")
+        if not isinstance(audit.get("active_slope"), bool) or (not has_slope and audit.get("active_slope")):
+            errors.append(f"{label}:active_slope")
+        try:
+            if (
+                not 1 <= int(audit["iterations"]) <= 300
+                or not math.isfinite(float(audit["max_change"])) or float(audit["max_change"]) < 0
+                or not math.isfinite(float(audit["last_damping"]))
+                or not 0 < float(audit["last_damping"]) <= 1
+                or int(audit["total_backtracks"]) < 0
+            ):
+                errors.append(f"{label}:terminal_diagnostics")
+        except (KeyError, TypeError, ValueError, OverflowError):
+            errors.append(f"{label}:terminal_diagnostics")
+        pcg = audit.get("pcg")
+        armijo = audit.get("armijo")
+        if not isinstance(pcg, list) or not isinstance(armijo, list) or len(pcg) != len(armijo):
+            errors.append(f"{label}:pcg_armijo_alignment")
+            continue
+        if objectives and len(objectives) != len(armijo) + 1:
+            errors.append(f"{label}:objective_armijo_alignment")
+        for record_index, (record, armijo_record) in enumerate(zip(pcg, armijo), start=1):
+            record_label = f"{label}:iteration[{record_index}]"
+            try:
+                current_kkt = float(record["current_projected_kkt"])
+                target = max(1e-12, min(0.5, math.sqrt(current_kkt)) * current_kkt)
+                cap = min(2000, max(50, 4 * dimension))
+                if record["iteration"] != record_index or not math.isclose(
+                    float(record["absolute_residual_target"]), target, rel_tol=1e-15, abs_tol=0.0
+                ) or record["iteration_cap"] != cap:
+                    errors.append(f"{record_label}:target_or_cap")
+                if raw_values and not math.isclose(current_kkt, raw_values[record_index - 1], rel_tol=1e-12, abs_tol=1e-12):
+                    errors.append(f"{record_label}:kkt_history")
+                attempts = record["shift_attempts"]
+                if not isinstance(attempts, list) or not attempts or len(attempts) > len(_PCG_SHIFTS):
+                    errors.append(f"{record_label}:shift_attempts")
+                    attempts = []
+                for attempt_index, attempt in enumerate(attempts):
+                    if attempt.get("shift") != _PCG_SHIFTS[attempt_index]:
+                        errors.append(f"{record_label}:shift_order")
+                    residual = float(attempt["residual"])
+                    attempt_target = float(attempt["target"])
+                    iterations = int(attempt["iterations"])
+                    if (
+                        not math.isfinite(residual) or residual < 0 or attempt_target != target
+                        or not 0 <= iterations <= cap or not isinstance(attempt.get("solved"), bool)
+                    ):
+                        errors.append(f"{record_label}:shift_values")
+                    if attempt["solved"]:
+                        if (
+                            attempt.get("curvature_failure") is not None or residual > target
+                            or not math.isfinite(float(attempt["curvature_product"]))
+                            or float(attempt["curvature_product"]) <= 0
+                            or not math.isfinite(float(attempt["descent_product"]))
+                            or float(attempt["descent_product"]) >= 0
+                        ):
+                            errors.append(f"{record_label}:solved_shift_contract")
+                    elif attempt.get("curvature_failure") is None:
+                        errors.append(f"{record_label}:failed_shift_reason")
+                if any(attempt.get("solved") is True for attempt in attempts[:-1]):
+                    errors.append(f"{record_label}:continued_after_solved_shift")
+                if (
+                    not attempts or record.get("solved") is not True or attempts[-1].get("solved") is not True
+                    or record.get("shift") != attempts[-1].get("shift")
+                    or record.get("pcg_iterations") != attempts[-1].get("iterations")
+                    or not math.isclose(float(record["final_residual"]), float(attempts[-1]["residual"]), rel_tol=1e-12, abs_tol=1e-12)
+                    or float(record["final_residual"]) > target
+                    or not math.isfinite(float(record["curvature_product"])) or float(record["curvature_product"]) <= 0
+                    or not math.isfinite(float(record["descent_product"])) or float(record["descent_product"]) >= 0
+                    or not math.isclose(float(record["curvature_product"]), float(attempts[-1]["curvature_product"]), rel_tol=1e-12, abs_tol=1e-12)
+                    or not math.isclose(float(record["descent_product"]), float(attempts[-1]["descent_product"]), rel_tol=1e-12, abs_tol=1e-12)
+                ):
+                    errors.append(f"{record_label}:pcg_final_contract")
+                backtracks = int(armijo_record["backtracks"])
+                alpha = float(armijo_record["alpha"])
+                if (
+                    armijo_record.get("iteration") != record_index or armijo_record.get("passed") is not True
+                    or backtracks < 0 or not math.isfinite(alpha) or alpha <= 0 or alpha > 1
+                    or not math.isclose(alpha, 2.0 ** (-backtracks), rel_tol=1e-15, abs_tol=0.0)
+                ):
+                    errors.append(f"{record_label}:armijo")
+            except (KeyError, TypeError, ValueError, OverflowError):
+                errors.append(f"{record_label}:schema_or_values")
+        try:
+            if int(audit["total_backtracks"]) != sum(int(record["backtracks"]) for record in armijo):
+                errors.append(f"{label}:armijo_backtrack_sum")
+            if armijo and not math.isclose(
+                float(audit["last_damping"]), float(armijo[-1]["alpha"]), rel_tol=1e-12, abs_tol=1e-12
+            ):
+                errors.append(f"{label}:last_damping")
+        except (KeyError, TypeError, ValueError, OverflowError):
+            errors.append(f"{label}:armijo_summary")
+    try:
+        histories = [[float(value) for value in audit["objective_history"]] for audit in audits]
+        aggregate = [
+            math.fsum(history[min(index, len(history) - 1)] for history in histories)
+            for index in range(max(len(history) for history in histories))
+        ]
+        top_history = [float(value) for value in payload.get("objective_history", aggregate)]
+        if "objective_history" in payload and (
+            len(top_history) != len(aggregate)
+            or any(not math.isclose(left, right, rel_tol=1e-12, abs_tol=1e-12)
+                   for left, right in zip(top_history, aggregate))
+        ):
+            fail("aggregate_objective_history")
+        if "final_objective" in payload and not math.isclose(
+            float(payload["final_objective"]), math.fsum(history[-1] for history in histories),
+            rel_tol=1e-12, abs_tol=1e-12,
+        ):
+            fail("aggregate_final_objective")
+        if "final_max_gradient" in payload and not math.isclose(
+            float(payload["final_max_gradient"]), max(float(audit["raw_kkt_final"]) for audit in audits),
+            rel_tol=1e-12, abs_tol=1e-12,
+        ):
+            fail("aggregate_raw_kkt")
+        if "final_max_change" in payload and not math.isclose(
+            float(payload["final_max_change"]), max(float(audit["max_change"]) for audit in audits),
+            rel_tol=1e-12, abs_tol=1e-12,
+        ):
+            fail("aggregate_max_change")
+        if "total_backtracks" in payload and int(payload["total_backtracks"]) != sum(
+            int(audit["total_backtracks"]) for audit in audits
+        ):
+            fail("aggregate_backtracks")
+        if "last_damping" in payload and not math.isclose(
+            float(payload["last_damping"]), min(float(audit["last_damping"]) for audit in audits),
+            rel_tol=1e-12, abs_tol=1e-12,
+        ):
+            fail("aggregate_damping")
+    except (KeyError, TypeError, ValueError, OverflowError):
+        fail("aggregate_solver_audit")
+    return errors
+
+
 def response_fit_provenance_errors(fit: dict[str, Any]) -> list[str]:
     """Return violations of the frozen projected-KKT response-fit contract."""
 
@@ -228,8 +471,9 @@ def response_fit_provenance_errors(fit: dict[str, Any]) -> list[str]:
     expected_keys = {str(value) for value in expected_grid}
     if fit.get("status") != "ok" or fit.get("reason") is not None:
         errors.append("fit_status_not_ok")
-    if fit.get("optimizer") != "sparse_coordinate_newton_with_deterministic_backtracking":
+    if fit.get("optimizer") != "zero_sum_sparse_newton_pcg_with_armijo":
         errors.append("optimizer_mismatch")
+    errors.extend(_newton_pcg_solver_audit_errors(fit, "final"))
     if fit.get("converged") is not True or fit.get("projected_kkt_pass") is not True:
         errors.append("projected_kkt_not_passed")
     if fit.get("stop_reason") != "projected_kkt":
@@ -355,7 +599,7 @@ def response_fit_provenance_errors(fit: dict[str, Any]) -> list[str]:
                     "fold", "training_rows", "validation_rows", "training_games", "validation_games",
                     "converged", "stop_reason", "projected_kkt_norm", "projected_kkt_tolerance",
                     "projected_kkt_pass", "iterations", "finite_validation_probability",
-                    "finite_validation_loss", "fold_logloss",
+                    "finite_validation_loss", "fold_logloss", "solver_audit",
                 }:
                     errors.append(f"invalid_inner_cv_record_schema:{key}:{fold}")
                     record_passes.append(False)
@@ -391,6 +635,35 @@ def response_fit_provenance_errors(fit: dict[str, Any]) -> list[str]:
                         and record["finite_validation_loss"] is True
                         and math.isfinite(loss)
                     )
+                    solver_audit = record.get("solver_audit")
+                    if solver_audit is None:
+                        errors.append(f"missing_inner_solver_audit:{key}:{fold}")
+                        passed = False
+                    else:
+                        if set(solver_audit) != {
+                            "optimizer", "pcg_residual_rule", "pcg_iteration_cap_rule",
+                            "pcg_shift_schedule", "pcg_preconditioner", "armijo_c1",
+                            "last_damping", "total_backtracks", "contrast_audit",
+                        }:
+                            errors.append(f"inner_solver_audit_schema:{key}:{fold}")
+                        solver_errors = _newton_pcg_solver_audit_errors(
+                            solver_audit, f"inner:{key}:{fold}"
+                        )
+                        errors.extend(solver_errors)
+                        passed = passed and not solver_errors
+                        try:
+                            audits = solver_audit["contrast_audit"]
+                            audit_kkt = max(float(audit["raw_kkt_final"]) for audit in audits)
+                            audit_iterations = max(len(audit["objective_history"]) - 1 for audit in audits)
+                            if not math.isclose(norm, audit_kkt, rel_tol=1e-12, abs_tol=1e-12):
+                                errors.append(f"inner_solver_kkt_mismatch:{key}:{fold}")
+                                passed = False
+                            if int(record["iterations"]) != audit_iterations:
+                                errors.append(f"inner_solver_iteration_mismatch:{key}:{fold}")
+                                passed = False
+                        except (KeyError, TypeError, ValueError, OverflowError):
+                            errors.append(f"inner_solver_summary_mismatch:{key}:{fold}")
+                            passed = False
                     if record["converged"] is True and (
                         record["stop_reason"] != "projected_kkt" or record["projected_kkt_pass"] is not True
                     ):
