@@ -9,6 +9,8 @@ from typing import Any
 from glee_eval.adapters.candidate_agent import load_agent
 from glee_eval.data.schemas import EpisodeResult, to_jsonable
 from glee_eval.population.sampler import sample_scenario
+from glee_eval.population.config_catalogue import ConfigCatalogue
+from glee_eval.population.opponent_fit import OpponentPopulation
 from glee_eval.storage.trajectories import write_json, write_jsonl
 from glee_eval.tournament.metrics import summarize_episodes
 from glee_eval.tournament.runner import run_episode
@@ -40,6 +42,8 @@ def search_failures(
     simulation_trigger: str | None = None,
     simulation_reason: str | None = None,
     simulation_gap: dict[str, Any] | None = None,
+    fitted_population: OpponentPopulation | None = None,
+    config_catalogue: ConfigCatalogue | None = None,
 ) -> dict[str, Any]:
     rng = random.Random(seed)
     agent = load_agent(agent_spec, seed=seed)
@@ -50,9 +54,9 @@ def search_failures(
         for _ in range(population):
             if generation and elites and rng.random() < 0.5:
                 base = rng.choice(elites).scenario
-                scenario = sample_scenario(family, seed=base.seed + rng.randrange(1, 10_000), candidate_role=base.candidate_role)
+                scenario = sample_scenario(family, seed=base.seed + rng.randrange(1, 10_000), candidate_role=base.candidate_role, population=fitted_population, catalogue=config_catalogue)
             else:
-                scenario = sample_scenario(family, seed=rng.randrange(10**9))
+                scenario = sample_scenario(family, seed=rng.randrange(10**9), population=fitted_population, catalogue=config_catalogue)
             if simulation_trigger:
                 scenario = replace(
                     scenario,

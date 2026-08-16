@@ -112,6 +112,7 @@ class JordanStrategicAgent(CandidateAgent):
         guarantee_own_margin: bool = False,
         debias_counterpart_value: bool = False,
         use_unknown_horizon_counter_fallback: bool = False,
+        use_unknown_horizon_counter_preservation: bool = False,
     ):
         self.rng = random.Random(seed)
         self.exploit_evidence_threshold = exploit_evidence_threshold
@@ -180,6 +181,9 @@ class JordanStrategicAgent(CandidateAgent):
         # structured recommendation. Default-off pending the preregistered gate.
         self.use_persuasion_text_stance = use_persuasion_text_stance
         self.use_unknown_horizon_counter_fallback = use_unknown_horizon_counter_fallback
+        # Exact hidden-horizon repair: repeat the latest own offer, without adding
+        # a newly fitted concession schedule or value-model assumption.
+        self.use_unknown_horizon_counter_preservation = use_unknown_horizon_counter_preservation
         # Never explore when a single buy would cost more than this in price units.
         self.max_exploration_loss = max_exploration_loss
         # Concede over time in negotiation instead of repeating one price forever.
@@ -531,6 +535,22 @@ class JordanStrategicAgent(CandidateAgent):
             "evidence": evidence,
             "beliefs": beliefs,
         }
+        if (
+            self.use_unknown_horizon_counter_preservation
+            and decision == "RejectOffer"
+            and state.metadata.get("horizon_known") is False
+        ):
+            own_offers = [
+                self._float(item.get("numeric_action"), None)
+                for item in self._transcript(state)
+                if item.get("role") == state.role
+                and item.get("action_type") == "offer"
+                and self._float(item.get("numeric_action"), None) is not None
+            ]
+            if own_offers:
+                preserved = own_offers[-1]
+                structured["counter_price"] = preserved
+                structured["counter_normalized_price"] = preserved / order
         if (
             self.use_unknown_horizon_counter_fallback
             and decision == "RejectOffer"
