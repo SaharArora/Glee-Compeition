@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from glee_eval.population.crossfit import canonical_key, row_fold
+from glee_eval.population.crossfit import AXIS_HOLDOUT_FRACTIONS, canonical_key, fold_count, row_fold
 from glee_eval.population.crossfit_fit import fit_crossfit_population
 from glee_eval.storage.trajectories import write_json
 
@@ -17,7 +17,7 @@ def _events() -> list[dict]:
         "configuration": {"money_to_divide": 100, "delta_1": .9, "delta_2": .9,
                           "max_rounds": 12, "complete_information": True,
                           "messages_allowed": False},
-    } for index in range(16)]
+    } for index in range(15)]
 
 
 class CrossfitFitTests(unittest.TestCase):
@@ -42,7 +42,8 @@ class CrossfitFitTests(unittest.TestCase):
                         })
                 payload = {
                     "crossfit_provenance": {
-                        "axis": axis, "fold": fold, "folds": 4, "holdout_fraction": .25,
+                        "axis": axis, "fold": fold, "folds": fold_count(axis),
+                        "holdout_fraction": AXIS_HOLDOUT_FRACTIONS[axis],
                         "manifest_sha256": manifest["manifest_sha256"],
                         "training_key_hashes": expected["training_key_hashes"],
                         "evaluation_key_hashes": expected["evaluation_key_hashes"],
@@ -55,10 +56,10 @@ class CrossfitFitTests(unittest.TestCase):
             result = fit_crossfit_population(
                 data_dir=root / "data", output_dir=root / "models", fitter=fake_fitter,
             )
-            self.assertEqual(len(calls), 8)
+            self.assertEqual(len(calls), 7)
             self.assertEqual({call["crossfit_axis"] for call in calls}, {"actor", "config"})
             self.assertEqual({call["excluded_fold"] for call in calls}, {0, 1, 2, 3})
-            self.assertEqual(len(result["actor_artifacts"]), 4)
+            self.assertEqual(len(result["actor_artifacts"]), 3)
             self.assertEqual(len(result["config_artifacts"]), 4)
             self.assertTrue(Path(result["spec_path"]).exists())
             frozen = json.loads(Path(result["spec_path"]).read_text())

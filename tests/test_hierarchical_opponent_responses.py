@@ -115,15 +115,15 @@ class ResponseExtractionTests(unittest.TestCase):
              "player_2_model": f"m{index:02d}", "configuration": {"p": .5, "product_price": 100, "c": 0},
              "raw_record": {"decision": "yes"},
              "round": 1, "transcript_so_far": [{"role": "seller", "round": 1, "buy_no_buy": "yes"}]}
-            for index in range(16)
+            for index in range(15)
         ]
         manifest = build_manifest(events)
         excluded_fold = 1
         rows = extract_response_observations(
             events, crossfit_manifest=manifest, excluded_fold=excluded_fold, crossfit_axis="actor",
         )
-        self.assertEqual(len(rows), 12)
-        self.assertEqual(len({row["decision_id"] for row in rows}), 12)
+        self.assertEqual(len(rows), 10)
+        self.assertEqual(len({row["decision_id"] for row in rows}), 10)
         self.assertTrue(all(row_fold(row, "actor", manifest) != excluded_fold for row in rows))
         expected_config_fold = row_fold(events[0], "config", manifest)
         self.assertTrue(all(row_fold(row, "config", manifest) == expected_config_fold for row in rows))

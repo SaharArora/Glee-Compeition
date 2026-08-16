@@ -27,7 +27,7 @@ from glee_eval.population.opponent_fit import (
     response_parameter,
     response_probability,
 )
-from glee_eval.population.crossfit import CrossfitRouter, FOLDS
+from glee_eval.population.crossfit import CrossfitRouter, fold_count
 from glee_eval.population.sampler import ARCHETYPES
 from glee_eval.population.splits import HOLDOUT, is_holdout_key, keeps
 from glee_eval.storage.trajectories import iter_jsonl
@@ -304,7 +304,8 @@ def score_crossfit_decisions(
     if len(set(identities)) != len(identities):
         raise ValueError("duplicate OOF decision row")
     populations: dict[str, OpponentPopulation] = {}
-    per_fold: dict[int, list[dict[str, Any]]] = {fold: [] for fold in range(FOLDS)}
+    folds = range(fold_count(getattr(router, "axis", "config")))
+    per_fold: dict[int, list[dict[str, Any]]] = {fold: [] for fold in folds}
     eligible: dict[tuple[str, str], dict[str, Any]] = defaultdict(lambda: {"decisions": 0, "game_ids": set()})
     for observation in materialized:
         routed = router.route(observation)
@@ -368,7 +369,7 @@ def score_crossfit_decisions(
                 math.isfinite(probability) and 0.0 <= probability <= 1.0 and threshold_in_domain
             ),
         })
-    pooled = [row for fold in range(FOLDS) for row in per_fold[fold]]
+    pooled = [row for fold in folds for row in per_fold[fold]]
     return pooled, dict(eligible)
 
 
@@ -435,6 +436,15 @@ def summarize_oof_decisions(
             decision_reach = len(cell_rows) / eligible_decisions if eligible_decisions else 0.0
             game_reach = len(reached_games) / len(eligible_games) if eligible_games else 0.0
             clusters = len({str(row[cluster_key]) for row in cell_rows})
+            folds = fold_count("actor" if axis == "model" else "config")
+            fold_cluster_counts = {
+                str(fold): len({
+                    str(row[cluster_key]) for row in cell_rows
+                    if int(row.get("outer_fold", -1)) == fold
+                })
+                for fold in range(folds)
+            }
+            required_clusters = 12 if axis == "model" else 20
             provenance_ok = bool(cell_rows) and all(
                 bool(row.get("provenance_complete")) and bool(row.get("converged"))
                 and bool(row.get("in_domain", True)) for row in cell_rows
@@ -443,11 +453,15 @@ def summarize_oof_decisions(
                 "decisions": len(cell_rows), "games": len(reached_games), "clusters": clusters,
                 "eligible_decisions": eligible_decisions, "eligible_games": len(eligible_games),
                 "decision_reach": decision_reach, "game_reach": game_reach,
+                "outer_fold_cluster_counts": fold_cluster_counts,
+                "required_overall_clusters": required_clusters,
+                "required_clusters_per_fold": 3,
                 "provenance_complete": provenance_ok,
                 "calibration": _calibration_intercept_slope(cell_rows),
             }
             support_ok = (
-                len(reached_games) >= 25 and clusters >= 5
+                len(reached_games) >= 25 and clusters >= required_clusters
+                and all(count >= 3 for count in fold_cluster_counts.values())
                 and decision_reach >= 0.50 and game_reach >= 0.50 and provenance_ok
             )
             if not support_ok:
@@ -812,7 +826,7 @@ def summarize_validation(
         clusters = len({row[cluster_key] for row in rows})
         fold_cluster_counts = {
             str(fold): len({row[cluster_key] for row in rows if int(row.get("outer_fold", -1)) == fold})
-            for fold in range(FOLDS)
+            for fold in range(fold_count("actor" if axis == "model" else "config"))
         } if crossfit else {}
         scored_games = {str(game_id) for row in rows for game_id in row.get("game_ids", [])}
         eligible_games = set((eligible_game_ids_by_family or {}).get(family, set()))
@@ -923,7 +937,7 @@ def score_crossfit_bundles(
 ) -> tuple[list[dict[str, Any]], dict[str, set[str]], int]:
     """Route and score each OOF bundle once, pooling only frozen predictions.
 
-    ``CrossfitRouter`` has already verified all four artifact hashes and their
+    ``CrossfitRouter`` has already verified every artifact hash for its axis and its
     training/evaluation isolation.  This function deliberately completes every
     per-fold score before returning a pooled collection.
     """
@@ -935,7 +949,8 @@ def score_crossfit_bundles(
     if len(set(identities)) != len(identities):
         raise ValueError("duplicate OOF bundle row")
     contexts: dict[str, tuple[OpponentPopulation, dict[tuple[str, str, str], tuple[float, ...]], dict[Any, Any]]] = {}
-    per_fold: dict[int, list[dict[str, Any]]] = {fold: [] for fold in range(FOLDS)}
+    folds = range(fold_count(getattr(router, "axis", "config")))
+    per_fold: dict[int, list[dict[str, Any]]] = {fold: [] for fold in folds}
     eligible_games: dict[str, set[str]] = defaultdict(set)
     unsupported = 0
     for row in materialized:
@@ -967,9 +982,9 @@ def score_crossfit_bundles(
             "crossfit_manifest_sha256": router.manifest["manifest_sha256"],
         })
         per_fold[routed.fold].append(result)
-    # Concatenation occurs only after all four independently-routed fold lists
+    # Concatenation occurs only after all independently-routed fold lists
     # are complete, making the post-freeze pooling boundary explicit.
-    pooled = [row for fold in range(FOLDS) for row in per_fold[fold]]
+    pooled = [row for fold in folds for row in per_fold[fold]]
     return pooled, dict(eligible_games), unsupported
 
 
@@ -1094,7 +1109,7 @@ def run_crossfit_validation(
     config_artifacts: Sequence[dict[str, Any]],
     output_dir: str | Path,
 ) -> dict[str, Any]:
-    """Route exhaustive OOF rows through four frozen artifacts on both axes."""
+    """Route exhaustive OOF rows through every frozen artifact on both axes."""
 
     manifest_path = Path(manifest_path)
     raw_manifest = manifest_path.read_bytes()
@@ -1119,7 +1134,7 @@ def run_crossfit_validation(
         decision_verdict = summarize_oof_decisions(
             scored_decisions, axis=axis, eligible=eligible_decisions,
         )
-        artifacts = [router.artifacts[fold] for fold in range(FOLDS)]
+        artifacts = [router.artifacts[fold] for fold in sorted(router.artifacts)]
         axis_reports[axis] = {
             "router_axis": router_axis,
             "artifact_sha256s": {str(item.fold): item.sha256 for item in artifacts},

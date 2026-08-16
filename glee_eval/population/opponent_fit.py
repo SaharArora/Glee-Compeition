@@ -995,8 +995,8 @@ def fit_opponent_population(
         payload["crossfit_provenance"] = {
             "axis": axis,
             "fold": int(excluded_fold),
-            "folds": 4,
-            "holdout_fraction": 0.25,
+            "folds": int(crossfit_manifest["axis_folds"][axis]),
+            "holdout_fraction": float(crossfit_manifest["axis_holdout_fractions"][axis]),
             "manifest_sha256": crossfit_manifest["manifest_sha256"],
             "training_key_hashes": list(declared["training_key_hashes"]),
             "evaluation_key_hashes": list(declared["evaluation_key_hashes"]),

@@ -286,7 +286,7 @@ class FitSmokeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             events = []
-            for model_index in range(16):
+            for model_index in range(15):
                 for game_index in range(3):
                     events.append({
                         "event_id": f"e-{model_index}-{game_index}",
@@ -310,12 +310,12 @@ class FitSmokeTests(unittest.TestCase):
                 root, root / "out", crossfit_manifest=manifest,
                 excluded_fold=excluded_fold, crossfit_axis="actor",
             )
-            self.assertEqual(payload["events_scanned"], 36)
-            self.assertEqual(payload["events_skipped_by_split"], 12)
+            self.assertEqual(payload["events_scanned"], 30)
+            self.assertEqual(payload["events_skipped_by_split"], 15)
             self.assertTrue(all(value == 0.5 for value in payload["families"]["bargaining"]["target_share"].values()))
             expected = manifest["folds_manifest"]["actor"][str(excluded_fold)]
             self.assertEqual(payload["crossfit_provenance"], {
-                "axis": "actor", "fold": excluded_fold, "folds": 4, "holdout_fraction": .25,
+                "axis": "actor", "fold": excluded_fold, "folds": 3, "holdout_fraction": 1 / 3,
                 "manifest_sha256": manifest["manifest_sha256"],
                 "training_key_hashes": expected["training_key_hashes"],
                 "evaluation_key_hashes": expected["evaluation_key_hashes"],

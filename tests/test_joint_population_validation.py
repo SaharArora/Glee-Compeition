@@ -118,8 +118,9 @@ class JointPopulationValidationTests(unittest.TestCase):
             rows.append({
                 "family": "bargaining", "role": "player_1", "channel": "bargaining|player_1",
                 "outcome": outcome, "model_b_probability": 0.9 if outcome else 0.1,
-                "game_id": f"g{index}", "player_model": f"m{index % 5}",
+                "game_id": f"g{index}", "player_model": f"m{index % 12}",
                 "config_signature": f"c{index % 6}", "provenance_complete": True,
+                "outer_fold": (index % 12) % 3,
                 "converged": True, "in_domain": True, **scored,
             })
         report = summarize_oof_decisions(
@@ -130,6 +131,7 @@ class JointPopulationValidationTests(unittest.TestCase):
         )
         cell = report["cells"]["bargaining|player_1"]
         self.assertTrue(cell["passed"])
+        self.assertEqual(cell["outer_fold_cluster_counts"], {"0": 4, "1": 4, "2": 4})
         self.assertLess(cell["comparators"]["neutral"]["log_loss_delta"]["ci_high"], 0.0)
         self.assertLessEqual(cell["comparators"]["v1"]["brier_delta"]["ci_high"], 0.0)
         self.assertIsNotNone(cell["calibration"])
@@ -234,16 +236,16 @@ class JointPopulationValidationTests(unittest.TestCase):
                         })
             return result
 
-        failing = rows([2, 4, 4, 4])
+        failing = rows([2, 5, 5])
         eligible = {"bargaining": {game for row in failing for game in row["game_ids"]}}
         cell = summarize_validation(
             failing, axis="model", crossfit=True, replicates=10,
             eligible_game_ids_by_family=eligible,
         )["families"]["bargaining"]
-        self.assertEqual(cell["outer_fold_cluster_counts"], {"0": 2, "1": 4, "2": 4, "3": 4})
+        self.assertEqual(cell["outer_fold_cluster_counts"], {"0": 2, "1": 5, "2": 5})
         self.assertEqual(cell["reason"], "crossfit_cluster_floor_failed")
 
-        passing = rows([3, 3, 3, 3])
+        passing = rows([4, 4, 4])
         eligible = {"bargaining": {game for row in passing for game in row["game_ids"]}}
         cell = summarize_validation(
             passing, axis="model", crossfit=True, replicates=10,

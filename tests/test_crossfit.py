@@ -7,12 +7,21 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from glee_eval.population.crossfit import CrossfitRouter, acting_model, build_manifest, filter_rows, manifest_sha256
+from glee_eval.population.crossfit import (
+    AXIS_HOLDOUT_FRACTIONS,
+    CrossfitRouter,
+    acting_model,
+    build_manifest,
+    filter_rows,
+    fold_count,
+    manifest_sha256,
+    row_fold,
+)
 
 
 def _rows() -> list[dict]:
     rows = []
-    for index in range(16):
+    for index in range(15):
         rows.append({
             "game_family": "persuasion", "game_id": f"g{index}",
             "role": "seller" if index % 2 == 0 else "buyer",
@@ -26,7 +35,8 @@ def _rows() -> list[dict]:
 def _artifact(path: Path, manifest: dict, axis: str, fold: int) -> dict:
     expected = manifest["folds_manifest"][axis][str(fold)]
     payload = {"crossfit_provenance": {
-        "axis": axis, "fold": fold, "folds": 4, "holdout_fraction": 0.25,
+        "axis": axis, "fold": fold, "folds": fold_count(axis),
+        "holdout_fraction": AXIS_HOLDOUT_FRACTIONS[axis],
         "manifest_sha256": manifest["manifest_sha256"], **expected,
     }, "joint_bundles": {}}
     path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
@@ -46,7 +56,7 @@ class CrossfitManifestTests(unittest.TestCase):
 
         manifest = build_manifest(stream())
         self.assertEqual(consumed, len(rows))
-        self.assertEqual(len(manifest["actor_identity_hashes"]), 16)
+        self.assertEqual(len(manifest["actor_identity_hashes"]), 15)
 
     def test_actor_assignment_is_permutation_invariant_and_balanced(self) -> None:
         rows = _rows()
@@ -54,7 +64,7 @@ class CrossfitManifestTests(unittest.TestCase):
         random.Random(7).shuffle(shuffled)
         first, second = build_manifest(rows), build_manifest(shuffled)
         self.assertEqual(first, second)
-        self.assertEqual([list(first["actor_identity_hashes"].values()).count(fold) for fold in range(4)], [4] * 4)
+        self.assertEqual([list(first["actor_identity_hashes"].values()).count(fold) for fold in range(3)], [5] * 3)
         self.assertEqual(first["manifest_sha256"], manifest_sha256(first))
 
     def test_acting_role_not_other_player_selects_actor(self) -> None:
@@ -66,9 +76,10 @@ class CrossfitManifestTests(unittest.TestCase):
         rows, manifest = _rows(), build_manifest(_rows())
         for axis in ("actor", "config"):
             for row in rows:
-                eval_count = sum(row in filter_rows(rows, axis=axis, fold=fold, manifest=manifest, evaluation=True) for fold in range(4))
-                train_count = sum(row in filter_rows(rows, axis=axis, fold=fold, manifest=manifest, evaluation=False) for fold in range(4))
-                self.assertEqual((eval_count, train_count), (1, 3))
+                folds = fold_count(axis)
+                eval_count = sum(row in filter_rows(rows, axis=axis, fold=fold, manifest=manifest, evaluation=True) for fold in range(folds))
+                train_count = sum(row in filter_rows(rows, axis=axis, fold=fold, manifest=manifest, evaluation=False) for fold in range(folds))
+                self.assertEqual((eval_count, train_count), (1, folds - 1))
 
     def test_canonical_defaults_ignore_omitted_equivalents(self) -> None:
         rows = _rows()
@@ -83,24 +94,37 @@ class CrossfitManifestTests(unittest.TestCase):
 
 
 class CrossfitRouterTests(unittest.TestCase):
-    def test_router_accepts_locked_four_artifacts_and_routes(self) -> None:
+    def test_router_accepts_locked_actor_artifacts_and_routes(self) -> None:
         manifest = build_manifest(_rows())
         with tempfile.TemporaryDirectory() as tmp:
-            specs = [_artifact(Path(tmp) / f"f{fold}.json", manifest, "actor", fold) for fold in range(4)]
+            specs = [_artifact(Path(tmp) / f"f{fold}.json", manifest, "actor", fold) for fold in range(3)]
             router = CrossfitRouter(manifest, "actor", specs)
             routed = router.route(_rows()[0])
-            self.assertIn(routed.fold, range(4))
+            self.assertIn(routed.fold, range(3))
+
+    def test_config_router_requires_four_artifacts_and_axis_specific_fraction(self) -> None:
+        manifest = build_manifest(_rows())
+        with tempfile.TemporaryDirectory() as tmp:
+            specs = [_artifact(Path(tmp) / f"c{fold}.json", manifest, "config", fold) for fold in range(4)]
+            self.assertIn(CrossfitRouter(manifest, "config", specs).route(_rows()[0]).fold, range(4))
+            path = Path(specs[0]["path"])
+            payload = json.loads(path.read_text())
+            payload["crossfit_provenance"]["holdout_fraction"] = 1 / 3
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            specs[0]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+            with self.assertRaisesRegex(ValueError, "provenance mismatch"):
+                CrossfitRouter(manifest, "config", specs)
 
     def test_router_rejects_wrong_sha_duplicate_and_leakage(self) -> None:
         manifest = build_manifest(_rows())
         with tempfile.TemporaryDirectory() as tmp:
-            specs = [_artifact(Path(tmp) / f"f{fold}.json", manifest, "actor", fold) for fold in range(4)]
+            specs = [_artifact(Path(tmp) / f"f{fold}.json", manifest, "actor", fold) for fold in range(3)]
             wrong = [dict(spec) for spec in specs]
             wrong[0]["sha256"] = "0" * 64
             with self.assertRaisesRegex(ValueError, "SHA mismatch"):
                 CrossfitRouter(manifest, "actor", wrong)
             with self.assertRaisesRegex(ValueError, "duplicate"):
-                CrossfitRouter(manifest, "actor", [specs[0], specs[0], specs[2], specs[3]])
+                CrossfitRouter(manifest, "actor", [specs[0], specs[0], specs[2]])
             payload = json.loads(Path(specs[0]["path"]).read_text())
             leaked = payload["crossfit_provenance"]["evaluation_key_hashes"][0]
             payload["crossfit_provenance"]["training_key_hashes"].append(leaked)
@@ -113,8 +137,7 @@ class CrossfitRouterTests(unittest.TestCase):
         rows = _rows()
         manifest = build_manifest(rows)
         with tempfile.TemporaryDirectory() as tmp:
-            specs = [_artifact(Path(tmp) / f"f{fold}.json", manifest, "actor", fold) for fold in range(4)]
-            from glee_eval.population.crossfit import row_fold
+            specs = [_artifact(Path(tmp) / f"f{fold}.json", manifest, "actor", fold) for fold in range(3)]
             fold = row_fold(rows[0], "actor", manifest)
             path = Path(specs[fold]["path"])
             payload = json.loads(path.read_text())
@@ -122,6 +145,22 @@ class CrossfitRouterTests(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             specs[fold]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
             with self.assertRaisesRegex(ValueError, "leaked"):
+                CrossfitRouter(manifest, "actor", specs)
+
+    def test_router_rejects_a_heldout_response_coefficient(self) -> None:
+        rows = _rows()
+        manifest = build_manifest(rows)
+        with tempfile.TemporaryDirectory() as tmp:
+            specs = [_artifact(Path(tmp) / f"f{fold}.json", manifest, "actor", fold) for fold in range(3)]
+            heldout = next(row for row in rows if row_fold(row, "actor", manifest) == 0)
+            path = Path(specs[0]["path"])
+            payload = json.loads(path.read_text())
+            payload["joint_model"] = {"response_estimators": {"bargaining": {
+                "coefficients": {f"model|bargaining|player_1|{acting_model(heldout)}": 0.5},
+            }}}
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            specs[0]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+            with self.assertRaisesRegex(ValueError, "response coefficient"):
                 CrossfitRouter(manifest, "actor", specs)
 
 

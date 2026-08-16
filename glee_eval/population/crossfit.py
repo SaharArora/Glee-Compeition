@@ -1,4 +1,4 @@
-"""Immutable four-fold manifests and leak-proof artifact routing."""
+"""Immutable per-axis cross-fit manifests and leak-proof artifact routing."""
 
 from __future__ import annotations
 
@@ -10,8 +10,14 @@ from typing import Any, Iterable
 
 from glee_eval.population.config_keys import canonical_config_key
 
-FOLDS = 4
-HOLDOUT_FRACTION = 0.25
+AXIS_FOLDS = {"actor": 3, "config": 4}
+AXIS_HOLDOUT_FRACTIONS = {"actor": 1.0 / 3.0, "config": 0.25}
+
+
+def fold_count(axis: str) -> int:
+    if axis not in AXIS_FOLDS:
+        raise ValueError("axis must be actor or config")
+    return AXIS_FOLDS[axis]
 
 
 def _sha(value: str | bytes) -> str:
@@ -38,7 +44,7 @@ def canonical_key(row: dict[str, Any]) -> str:
 
 
 def config_fold(key: str) -> int:
-    return int(_sha(key)[:16], 16) % FOLDS
+    return int(_sha(key)[:16], 16) % AXIS_FOLDS["config"]
 
 
 def build_manifest(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
@@ -48,15 +54,15 @@ def build_manifest(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
         identities_seen.add(acting_model(row))
         configs_seen.add(canonical_key(row))
     identities = sorted(identities_seen, key=lambda value: (_sha(value), value))
-    if len(identities) != 16:
-        raise ValueError(f"actor cross-fit requires exactly 16 identities, found {len(identities)}")
-    actor_folds = {identity: index % FOLDS for index, identity in enumerate(identities)}
+    if len(identities) != 15:
+        raise ValueError(f"actor cross-fit requires exactly 15 identities, found {len(identities)}")
+    actor_folds = {identity: index % AXIS_FOLDS["actor"] for index, identity in enumerate(identities)}
     configs = sorted(configs_seen)
     config_folds = {key: config_fold(key) for key in configs}
     manifest: dict[str, Any] = {
-        "schema_version": 1,
-        "folds": FOLDS,
-        "holdout_fraction": HOLDOUT_FRACTION,
+        "schema_version": 2,
+        "axis_folds": dict(AXIS_FOLDS),
+        "axis_holdout_fractions": dict(AXIS_HOLDOUT_FRACTIONS),
         "actor_identity_hashes": {_sha(identity): actor_folds[identity] for identity in identities},
         "config_signature_hashes": {_sha(key): config_folds[key] for key in configs},
     }
@@ -66,7 +72,7 @@ def build_manifest(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 "evaluation_key_hashes": sorted(key_hash for key_hash, assigned in assignments.items() if assigned == fold),
                 "training_key_hashes": sorted(key_hash for key_hash, assigned in assignments.items() if assigned != fold),
             }
-            for fold in range(FOLDS)
+            for fold in range(AXIS_FOLDS[axis])
         }
         for axis, assignments in (
             ("actor", manifest["actor_identity_hashes"]),
@@ -97,8 +103,8 @@ def row_fold(row: dict[str, Any], axis: str, manifest: dict[str, Any]) -> int:
 
 
 def filter_rows(rows: Iterable[dict[str, Any]], *, axis: str, fold: int, manifest: dict[str, Any], evaluation: bool) -> list[dict[str, Any]]:
-    if fold not in range(FOLDS):
-        raise ValueError("fold must be 0..3")
+    if fold not in range(fold_count(axis)):
+        raise ValueError(f"fold must be 0..{fold_count(axis) - 1} for {axis}")
     return [row for row in rows if (row_fold(row, axis, manifest) == fold) is evaluation]
 
 
@@ -112,15 +118,20 @@ class RoutedArtifact:
 
 
 class CrossfitRouter:
-    """Load exactly four provenance-locked artifacts and route OOF rows."""
+    """Load every provenance-locked artifact for one axis and route OOF rows."""
 
     def __init__(self, manifest: dict[str, Any], axis: str, artifacts: Iterable[dict[str, Any]]):
         if manifest.get("manifest_sha256") != manifest_sha256(manifest):
             raise ValueError("cross-fit manifest SHA mismatch")
-        if manifest.get("folds") != FOLDS or manifest.get("holdout_fraction") != HOLDOUT_FRACTION:
-            raise ValueError("cross-fit manifest must declare four folds and holdout_fraction .25")
         if axis not in {"actor", "config"}:
             raise ValueError("axis must be actor or config")
+        expected_folds = fold_count(axis)
+        expected_fraction = AXIS_HOLDOUT_FRACTIONS[axis]
+        if (
+            (manifest.get("axis_folds") or {}).get(axis) != expected_folds
+            or (manifest.get("axis_holdout_fractions") or {}).get(axis) != expected_fraction
+        ):
+            raise ValueError("cross-fit manifest axis fold/fraction contract mismatch")
         routed: dict[int, RoutedArtifact] = {}
         seen_paths: set[Path] = set()
         for spec in artifacts:
@@ -137,11 +148,11 @@ class CrossfitRouter:
             fold = int(provenance.get("fold", -1))
             if fold in routed:
                 raise ValueError(f"duplicate cross-fit fold {fold}")
-            expected = manifest["folds_manifest"][axis][str(fold)] if fold in range(FOLDS) else None
+            expected = manifest["folds_manifest"][axis][str(fold)] if fold in range(expected_folds) else None
             if (
                 expected is None or provenance.get("axis") != axis
-                or provenance.get("folds") != FOLDS
-                or provenance.get("holdout_fraction") != HOLDOUT_FRACTION
+                or provenance.get("folds") != expected_folds
+                or provenance.get("holdout_fraction") != expected_fraction
                 or provenance.get("manifest_sha256") != manifest["manifest_sha256"]
                 or sorted(provenance.get("training_key_hashes") or []) != expected["training_key_hashes"]
                 or sorted(provenance.get("evaluation_key_hashes") or []) != expected["evaluation_key_hashes"]
@@ -159,9 +170,18 @@ class CrossfitRouter:
                     key_hash = _sha(str(raw_key))
                     if key_hash in evaluation or key_hash not in training:
                         raise ValueError(f"heldout identity/signature leaked into artifact: {path}")
+            coefficient_prefix = "model|" if axis == "actor" else "config|"
+            for fit in ((payload.get("joint_model") or {}).get("response_estimators") or {}).values():
+                for coefficient in (fit.get("coefficients") or {}):
+                    if not str(coefficient).startswith(coefficient_prefix):
+                        continue
+                    raw_key = str(coefficient).rsplit("|", 1)[-1]
+                    key_hash = _sha(raw_key)
+                    if key_hash in evaluation or key_hash not in training:
+                        raise ValueError(f"heldout response coefficient leaked into artifact: {path}")
             routed[fold] = RoutedArtifact(axis, fold, path, digest, payload)
-        if set(routed) != set(range(FOLDS)):
-            raise ValueError("router requires exactly one artifact for each of four folds")
+        if set(routed) != set(range(expected_folds)):
+            raise ValueError(f"router requires exactly one artifact for each of {expected_folds} {axis} folds")
         self.manifest = manifest
         self.axis = axis
         self.artifacts = routed

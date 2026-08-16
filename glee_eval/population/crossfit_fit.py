@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-from glee_eval.population.crossfit import CrossfitRouter, FOLDS, build_manifest
+from glee_eval.population.crossfit import CrossfitRouter, build_manifest, fold_count
 from glee_eval.population.opponent_fit import fit_opponent_population
 from glee_eval.storage.trajectories import iter_jsonl
 
@@ -35,7 +35,7 @@ def fit_crossfit_population(
     output_dir: str | Path,
     fitter: Callable[..., dict[str, Any]] = fit_opponent_population,
 ) -> dict[str, Any]:
-    """Build the immutable manifest, fit four artifacts per axis, and lock their SHAs."""
+    """Build the immutable manifest, fit every artifact per axis, and lock their SHAs."""
 
     data_dir = Path(data_dir)
     output_dir = Path(output_dir)
@@ -49,8 +49,9 @@ def fit_crossfit_population(
     artifacts_by_axis: dict[str, list[dict[str, Any]]] = {}
     for axis in ("actor", "config"):
         specs: list[dict[str, Any]] = []
-        for fold in range(FOLDS):
-            print(f"phase=fit axis={axis} fold={fold}/{FOLDS - 1}", file=sys.stderr, flush=True)
+        folds = fold_count(axis)
+        for fold in range(folds):
+            print(f"phase=fit axis={axis} fold={fold}/{folds - 1}", file=sys.stderr, flush=True)
             fold_dir = output_dir / f"{axis}_fold_{fold}"
             fitter(
                 data_dir,
@@ -86,7 +87,7 @@ def fit_crossfit_population(
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Fit provenance-locked four-fold Model-B artifacts.")
+    parser = argparse.ArgumentParser(description="Fit provenance-locked per-axis Model-B artifacts.")
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--output-dir", required=True)
     args = parser.parse_args(argv)

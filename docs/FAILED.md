@@ -407,6 +407,23 @@ append a correction and update `docs/REGISTRY.md` instead.
   in REGISTRY before fitting; it must still beat the same-support conditional shuffle, not only
   the defective v1 sampler.
 
+## Four-by-four exhaustive cross-fit manifest — retracted before fitting
+
+- Declared: four actor folds of four identities and four canonical-config folds, with the full
+  predictive and decision-level endpoints frozen before artifact fitting.
+- Mandatory pre-fit kill-check: the memory-safe full-corpus manifest scan found exactly **15**
+  acting-model identities. It stopped before actor fold 0 with
+  `actor cross-fit requires exactly 16 identities, found 15`; no fold artifact, holdout score,
+  payoff tournament, candidate gate or live game was produced.
+- Why this is a failure rather than a silent repair: balanced 4/4/4/4 actor folds, .25 actor
+  holdout fraction and >=3 clusters in every one of four actor folds were explicit prospective
+  conditions. Relabeling or duplicating an identity would invent support; relaxing the count in
+  place after the scan would change the declared structural estimand.
+- Materially new retry: a per-axis manifest with three actor folds of the actual 15 identities
+  (5/5/5, each evaluated once) and four canonical-config folds. That changes the fold/provenance
+  contract and training population while preserving every predictive threshold. It is declared
+  separately in REGISTRY before code changes or fitting.
+
 ## Retracted claims from the 14 August session
 
 ### Frozen persuasion posterior guarantees zero payoff — retracted claim
