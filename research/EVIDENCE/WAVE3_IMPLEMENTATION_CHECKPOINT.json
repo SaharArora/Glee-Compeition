@@ -1,6 +1,7 @@
 {
   "schema": "glee.research.wave3_implementation.v1",
   "base_commit": "fd05023de6ef87bb9d9e8f0f20044052569041b6",
+  "implementation_commit": "a1438d0878dd89fff7d71accc7ddc7faebac983b",
   "outcome": "four_real_agents_implemented_rng_repair_self_audited_final_payoff_blocked",
   "artifacts": {
     "factorial_evaluator": {
