@@ -19,7 +19,15 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from glee_eval.population.opponent_fit import OpponentPopulation, config_signature, extract_joint_bundle_observations
+from glee_eval.population.opponent_fit import (
+    OpponentPopulation,
+    config_signature,
+    extract_joint_bundle_observations,
+    extract_response_observations,
+    response_parameter,
+    response_probability,
+)
+from glee_eval.population.crossfit import CrossfitRouter, FOLDS
 from glee_eval.population.sampler import ARCHETYPES
 from glee_eval.population.splits import HOLDOUT, is_holdout_key, keeps
 from glee_eval.storage.trajectories import iter_jsonl
@@ -166,6 +174,308 @@ def cluster_bootstrap_mean(
         return samples[index]
 
     return {"mean": observed, "ci_low": percentile(0.025), "ci_high": percentile(0.975)}
+
+
+def binary_log_loss(outcome: int | bool, probability: float) -> float:
+    """Clipped Bernoulli log loss used by the declared OOF decision endpoints."""
+
+    probability = float(probability)
+    if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
+        raise ValueError("decision probability must be finite and in [0, 1]")
+    clipped = min(1.0 - 1e-15, max(1e-15, probability))
+    return -math.log(clipped if bool(outcome) else 1.0 - clipped)
+
+
+def brier_score(outcome: int | bool, probability: float) -> float:
+    """Bernoulli Brier score with strict probability-domain validation."""
+
+    probability = float(probability)
+    if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
+        raise ValueError("decision probability must be finite and in [0, 1]")
+    return (probability - int(bool(outcome))) ** 2
+
+
+def score_oof_decision(
+    *,
+    outcome: int | bool,
+    model_b_probability: float,
+    neutral_probability: float,
+    v1_probability: float,
+) -> dict[str, float]:
+    """Return paired per-decision losses without fitting or selecting anything."""
+
+    model_log = binary_log_loss(outcome, model_b_probability)
+    neutral_log = binary_log_loss(outcome, neutral_probability)
+    v1_log = binary_log_loss(outcome, v1_probability)
+    model_brier = brier_score(outcome, model_b_probability)
+    neutral_brier = brier_score(outcome, neutral_probability)
+    v1_brier = brier_score(outcome, v1_probability)
+    return {
+        "model_b_log_loss": model_log,
+        "neutral_log_loss_delta": model_log - neutral_log,
+        "v1_log_loss_delta": model_log - v1_log,
+        "model_b_brier": model_brier,
+        "neutral_brier_delta": model_brier - neutral_brier,
+        "v1_brier_delta": model_brier - v1_brier,
+    }
+
+
+def decision_comparator_probabilities(
+    payload: dict[str, Any],
+    observation: dict[str, Any],
+    *,
+    master_seed: int = 20260815,
+    draws: int = 256,
+    population: OpponentPopulation | None = None,
+) -> tuple[float, float]:
+    """Mirror neutral and operational-v1 decision behavior without refitting."""
+
+    if draws != 256:
+        raise ValueError("prospective Model-B decision validation fixes draws at 256")
+    family, role = str(observation["family"]), str(observation["role"])
+    channel = str(observation["channel"])
+    x = observation.get("x")
+    population = population or OpponentPopulation(payload)
+    identity = str(observation.get("decision_id") or observation.get("game_id"))
+    rng = random.Random(_subseed(master_seed, identity, family, channel, "decision_v1"))
+    neutral_config: dict[str, Any] = {}
+    if family == "bargaining":
+        if x is None:
+            raise ValueError("bargaining decision requires responder-share x")
+        neutral_threshold = _policy_value(
+            family, role, "accept_threshold", {}, neutral_config, "historical_imitator", sampler_kind="joint"
+        )
+        neutral = float(float(x) >= neutral_threshold)
+        accepted = 0
+        for index in range(draws):
+            archetype = ARCHETYPES[index % len(ARCHETYPES)]
+            params = population.parameters(family, archetype, rng, role=role)
+            threshold = _policy_value(
+                family, role, "accept_threshold", params, neutral_config, archetype, sampler_kind="v1"
+            )
+            accepted += int(float(x) >= threshold)
+        return neutral, accepted / draws
+    if family == "negotiation":
+        if x is None:
+            raise ValueError("negotiation decision requires normalized-own-gain x")
+        neutral = float(float(x) >= 0.02)
+        accepted = 0
+        for index in range(draws):
+            archetype = ARCHETYPES[index % len(ARCHETYPES)]
+            params = population.parameters(family, archetype, rng, role=role)
+            threshold = _policy_value(
+                family, role, "accept_margin", params, neutral_config, archetype, sampler_kind="v1"
+            )
+            accepted += int(float(x) >= threshold)
+        return neutral, accepted / draws
+    if family == "persuasion":
+        parameter = {
+            "persuasion|seller_high": "honesty", "persuasion|seller_low": "yes_on_low_rate",
+            "persuasion|buyer_yes": "trust_prior", "persuasion|buyer_no": "buy_after_no_rate",
+        }.get(channel)
+        if parameter is None:
+            raise ValueError(f"unknown persuasion response channel {channel!r}")
+        neutral = _policy_value(
+            family, role, parameter, {}, neutral_config, "historical_imitator", sampler_kind="joint"
+        )
+        total = 0.0
+        for index in range(draws):
+            archetype = ARCHETYPES[index % len(ARCHETYPES)]
+            params = population.parameters(family, archetype, rng, role=role)
+            total += _policy_value(
+                family, role, parameter, params, neutral_config, archetype, sampler_kind="v1"
+            )
+        return neutral, total / draws
+    raise ValueError(f"unknown decision family {family!r}")
+
+
+def score_crossfit_decisions(
+    observations: Iterable[dict[str, Any]],
+    router: CrossfitRouter,
+    *,
+    master_seed: int = 20260815,
+) -> tuple[list[dict[str, Any]], dict[tuple[str, str], dict[str, Any]]]:
+    """Route OOF decisions once and generate paired predictive-loss rows."""
+
+    materialized = [dict(row) for row in observations]
+    identities = [str(row.get("decision_id") or "") for row in materialized]
+    if any(not identity for identity in identities):
+        raise ValueError("every OOF decision requires a stable decision_id")
+    if len(set(identities)) != len(identities):
+        raise ValueError("duplicate OOF decision row")
+    populations: dict[str, OpponentPopulation] = {}
+    per_fold: dict[int, list[dict[str, Any]]] = {fold: [] for fold in range(FOLDS)}
+    eligible: dict[tuple[str, str], dict[str, Any]] = defaultdict(lambda: {"decisions": 0, "game_ids": set()})
+    for observation in materialized:
+        routed = router.route(observation)
+        family, channel = str(observation["family"]), str(observation["channel"])
+        cell = eligible[(family, channel)]
+        cell["decisions"] += 1
+        cell["game_ids"].add(str(observation["game_id"]))
+        fit = ((routed.payload.get("joint_model") or {}).get("response_estimators") or {}).get(family)
+        if not fit:
+            continue
+        try:
+            probability = response_probability(
+                fit, channel=channel, player_model=str(observation["player_model"]),
+                signature=str(observation["config_signature"]), x=observation.get("x"),
+            )
+        except ValueError:
+            continue
+        population = populations.get(routed.sha256)
+        if population is None:
+            population = OpponentPopulation(routed.payload)
+            populations[routed.sha256] = population
+        neutral, v1 = decision_comparator_probabilities(
+            routed.payload, observation, master_seed=master_seed, population=population,
+        )
+        scored = score_oof_decision(
+            outcome=observation["outcome"], model_b_probability=probability,
+            neutral_probability=neutral, v1_probability=v1,
+        )
+        support = (fit.get("channel_support") or {}).get(channel) or {}
+        provenance_complete = (
+            fit.get("status") == "ok"
+            and list(fit.get("ridge_grid") or []) == [0.1, 1, 10, 100]
+            and all(fit.get(name) is not None for name in (
+                "selected_ridge", "cv_log_loss", "selection", "converged", "iterations",
+                "max_iterations", "tolerance",
+            ))
+            and all(int(support.get(name, 0)) > 0 for name in (
+                "rows", "games", "models", "config_signatures",
+            ))
+        )
+        threshold_in_domain = True
+        if family in {"bargaining", "negotiation"}:
+            threshold, threshold_provenance = response_parameter(
+                fit, channel=channel, player_model=str(observation["player_model"]),
+                signature=str(observation["config_signature"]),
+            )
+            threshold_in_domain = (
+                threshold is not None and math.isfinite(float(threshold))
+                and threshold_provenance.get("parameter_kind") == "p50_threshold"
+                and math.isfinite(float(threshold_provenance.get("raw_threshold", float("nan"))))
+                and float(threshold_provenance["fit_min"]) <= float(threshold) <= float(threshold_provenance["fit_max"])
+            )
+        per_fold[routed.fold].append({
+            **observation, **scored, "model_b_probability": probability,
+            "neutral_probability": neutral, "v1_probability": v1,
+            "outer_fold": routed.fold, "crossfit_artifact_sha256": routed.sha256,
+            "crossfit_manifest_sha256": router.manifest["manifest_sha256"],
+            "provenance_complete": provenance_complete,
+            "converged": bool(fit.get("converged")),
+            "in_domain": (
+                math.isfinite(probability) and 0.0 <= probability <= 1.0 and threshold_in_domain
+            ),
+        })
+    pooled = [row for fold in range(FOLDS) for row in per_fold[fold]]
+    return pooled, dict(eligible)
+
+
+_REQUIRED_DECISION_CHANNELS = {
+    "bargaining": ("bargaining|player_1", "bargaining|player_2"),
+    "negotiation": ("negotiation|seller", "negotiation|buyer"),
+    "persuasion": ("persuasion|seller_high", "persuasion|seller_low",
+                    "persuasion|buyer_yes", "persuasion|buyer_no"),
+}
+
+
+def _calibration_intercept_slope(rows: Sequence[dict[str, Any]]) -> dict[str, float] | None:
+    """Unpenalized logistic recalibration diagnostic; never used for selection."""
+
+    if not rows or len({int(bool(row["outcome"])) for row in rows}) < 2:
+        return None
+    xs = [math.log(min(1 - 1e-15, max(1e-15, float(row["model_b_probability"]))) /
+                   (1 - min(1 - 1e-15, max(1e-15, float(row["model_b_probability"]))))) for row in rows]
+    ys = [int(bool(row["outcome"])) for row in rows]
+    intercept, slope = 0.0, 1.0
+    for _ in range(50):
+        probabilities = [1.0 / (1.0 + math.exp(-max(-35.0, min(35.0, intercept + slope * x)))) for x in xs]
+        g0 = sum(y - p for y, p in zip(ys, probabilities))
+        g1 = sum((y - p) * x for y, p, x in zip(ys, probabilities, xs))
+        w = [p * (1.0 - p) for p in probabilities]
+        h00 = sum(w)
+        h01 = sum(weight * x for weight, x in zip(w, xs))
+        h11 = sum(weight * x * x for weight, x in zip(w, xs))
+        determinant = h00 * h11 - h01 * h01
+        if determinant <= 1e-15:
+            return {"intercept": intercept, "slope": slope}
+        delta0 = (h11 * g0 - h01 * g1) / determinant
+        delta1 = (-h01 * g0 + h00 * g1) / determinant
+        intercept += delta0
+        slope += delta1
+        if max(abs(delta0), abs(delta1)) < 1e-10:
+            break
+    return {"intercept": intercept, "slope": slope}
+
+
+def summarize_oof_decisions(
+    rows: Sequence[dict[str, Any]],
+    *,
+    axis: str,
+    eligible: dict[tuple[str, str], dict[str, Any]],
+    bootstrap_seed: int = 20260815,
+    replicates: int = 2000,
+) -> dict[str, Any]:
+    """Apply every preregistered OOF binary-decision requirement by channel."""
+
+    if axis not in {"model", "config"}:
+        raise ValueError("axis must be model or config")
+    cluster_key = "player_model" if axis == "model" else "config_signature"
+    output: dict[str, Any] = {"axis": axis, "cluster_key": cluster_key, "cells": {}}
+    for family, channels in _REQUIRED_DECISION_CHANNELS.items():
+        for channel in channels:
+            key = (family, channel)
+            cell_rows = [dict(row) for row in rows if (row.get("family"), row.get("channel")) == key]
+            cell_name = channel
+            eligible_cell = eligible.get(key) or {}
+            eligible_decisions = int(eligible_cell.get("decisions", 0))
+            eligible_games = {str(item) for item in eligible_cell.get("game_ids", [])}
+            reached_games = {str(row["game_id"]) for row in cell_rows}
+            decision_reach = len(cell_rows) / eligible_decisions if eligible_decisions else 0.0
+            game_reach = len(reached_games) / len(eligible_games) if eligible_games else 0.0
+            clusters = len({str(row[cluster_key]) for row in cell_rows})
+            provenance_ok = bool(cell_rows) and all(
+                bool(row.get("provenance_complete")) and bool(row.get("converged"))
+                and bool(row.get("in_domain", True)) for row in cell_rows
+            )
+            cell: dict[str, Any] = {
+                "decisions": len(cell_rows), "games": len(reached_games), "clusters": clusters,
+                "eligible_decisions": eligible_decisions, "eligible_games": len(eligible_games),
+                "decision_reach": decision_reach, "game_reach": game_reach,
+                "provenance_complete": provenance_ok,
+                "calibration": _calibration_intercept_slope(cell_rows),
+            }
+            support_ok = (
+                len(reached_games) >= 25 and clusters >= 5
+                and decision_reach >= 0.50 and game_reach >= 0.50 and provenance_ok
+            )
+            if not support_ok:
+                cell.update({"reportable": False, "passed": False, "reason": "decision_support_or_reach_failed"})
+                output["cells"][cell_name] = cell
+                continue
+            metrics = {}
+            passed = True
+            for comparator in ("neutral", "v1"):
+                logloss = cluster_bootstrap_mean(
+                    cell_rows, f"{comparator}_log_loss_delta", cluster_key=cluster_key,
+                    seed=_subseed(bootstrap_seed, axis, family, channel, comparator, "logloss"),
+                    replicates=replicates,
+                )
+                brier = cluster_bootstrap_mean(
+                    cell_rows, f"{comparator}_brier_delta", cluster_key=cluster_key,
+                    seed=_subseed(bootstrap_seed, axis, family, channel, comparator, "brier"),
+                    replicates=replicates,
+                )
+                metrics[comparator] = {"log_loss_delta": logloss, "brier_delta": brier}
+                passed = passed and (
+                    logloss["mean"] < 0.0 and logloss["ci_high"] < 0.0
+                    and brier["mean"] < 0.0 and brier["ci_high"] <= 0.0
+                )
+            cell.update({"reportable": True, "passed": passed, "comparators": metrics})
+            output["cells"][cell_name] = cell
+    output["all_cells_passed"] = all(cell["passed"] for cell in output["cells"].values())
+    return output
 
 
 def _subseed(master_seed: int, *parts: Any) -> int:
@@ -448,6 +758,7 @@ def summarize_validation(
     bootstrap_seed: int = 20260815,
     replicates: int = 2000,
     eligible_game_ids_by_family: dict[str, set[str]] | None = None,
+    crossfit: bool = False,
 ) -> dict[str, Any]:
     """Apply the prospectively declared six-cell verdict rules."""
 
@@ -499,6 +810,10 @@ def summarize_validation(
     for family in ("bargaining", "negotiation", "persuasion"):
         rows = [dict(row) for row in scored_rows if row["family"] == family]
         clusters = len({row[cluster_key] for row in rows})
+        fold_cluster_counts = {
+            str(fold): len({row[cluster_key] for row in rows if int(row.get("outer_fold", -1)) == fold})
+            for fold in range(FOLDS)
+        } if crossfit else {}
         scored_games = {str(game_id) for row in rows for game_id in row.get("game_ids", [])}
         eligible_games = set((eligible_game_ids_by_family or {}).get(family, set()))
         retention = len(scored_games) / len(eligible_games) if eligible_games else 0.0
@@ -531,8 +846,20 @@ def summarize_validation(
             "role_fallback_rate": role_fallback_rate, "neutral_default_rate": default_rate,
             "dependence_diagnostics": dependence_diagnostics(rows),
         }
-        if clusters < 5 or not coverage_ok:
-            reason = "fewer_than_5_split_unit_clusters" if clusters < 5 else "prospective_coverage_rule_failed"
+        if crossfit:
+            required_clusters = 12 if axis == "model" else 20
+            cluster_ok = clusters >= required_clusters and all(count >= 3 for count in fold_cluster_counts.values())
+            cell.update({
+                "outer_fold_cluster_counts": fold_cluster_counts,
+                "required_overall_clusters": required_clusters,
+                "required_clusters_per_fold": 3,
+            })
+        else:
+            cluster_ok = clusters >= 5
+        if not cluster_ok or not coverage_ok:
+            reason = "crossfit_cluster_floor_failed" if crossfit and not cluster_ok else (
+                "fewer_than_5_split_unit_clusters" if not cluster_ok else "prospective_coverage_rule_failed"
+            )
             cell.update({"reportable": False, "passed": False, "reason": reason})
             report["families"][family] = cell
             continue
@@ -586,6 +913,64 @@ def summarize_validation(
         report["families"][family] = cell
     report["all_families_passed"] = all(cell.get("passed") is True for cell in report["families"].values())
     return report
+
+
+def score_crossfit_bundles(
+    observed_bundles: Iterable[dict[str, Any]],
+    router: CrossfitRouter,
+    *,
+    master_seed: int = 20260815,
+) -> tuple[list[dict[str, Any]], dict[str, set[str]], int]:
+    """Route and score each OOF bundle once, pooling only frozen predictions.
+
+    ``CrossfitRouter`` has already verified all four artifact hashes and their
+    training/evaluation isolation.  This function deliberately completes every
+    per-fold score before returning a pooled collection.
+    """
+
+    materialized = [dict(row) for row in observed_bundles]
+    identities = [str(row.get("oof_row_id") or row.get("bundle_id") or "") for row in materialized]
+    if any(not identity for identity in identities):
+        raise ValueError("every OOF bundle requires a stable oof_row_id or bundle_id")
+    if len(set(identities)) != len(identities):
+        raise ValueError("duplicate OOF bundle row")
+    contexts: dict[str, tuple[OpponentPopulation, dict[tuple[str, str, str], tuple[float, ...]], dict[Any, Any]]] = {}
+    per_fold: dict[int, list[dict[str, Any]]] = {fold: [] for fold in range(FOLDS)}
+    eligible_games: dict[str, set[str]] = defaultdict(set)
+    unsupported = 0
+    for row in materialized:
+        routing_row = dict(row)
+        routing_row.setdefault("game_family", row.get("family"))
+        # Bundle extraction stores the acting model directly; reconstruct only
+        # the role-specific routing envelope expected by CrossfitRouter.
+        routing_row.setdefault("player_1_model", row.get("player_model"))
+        routing_row.setdefault("player_2_model", row.get("player_model"))
+        routed = router.route(routing_row)
+        context = contexts.get(routed.sha256)
+        if context is None:
+            context = (OpponentPopulation(routed.payload), fit_marginals(routed.payload), {})
+            contexts[routed.sha256] = context
+        population, references, pool_cache = context
+        result = score_observed_bundle(
+            routed.payload, row, master_seed=master_seed, population=population,
+            pool_cache=pool_cache, references=references,
+        )
+        family = str(row["family"])
+        eligible_games[family].update(str(game_id) for game_id in row.get("game_ids", []))
+        if result is None:
+            unsupported += 1
+            continue
+        result.update({
+            "outer_fold": routed.fold,
+            "crossfit_artifact_sha256": routed.sha256,
+            "crossfit_artifact_path": str(routed.path),
+            "crossfit_manifest_sha256": router.manifest["manifest_sha256"],
+        })
+        per_fold[routed.fold].append(result)
+    # Concatenation occurs only after all four independently-routed fold lists
+    # are complete, making the post-freeze pooling boundary explicit.
+    pooled = [row for fold in range(FOLDS) for row in per_fold[fold]]
+    return pooled, dict(eligible_games), unsupported
 
 
 def run_validation(
@@ -701,15 +1086,122 @@ def run_validation(
     return report
 
 
+def run_crossfit_validation(
+    *,
+    data_dir: str | Path,
+    manifest_path: str | Path,
+    actor_artifacts: Sequence[dict[str, Any]],
+    config_artifacts: Sequence[dict[str, Any]],
+    output_dir: str | Path,
+) -> dict[str, Any]:
+    """Route exhaustive OOF rows through four frozen artifacts on both axes."""
+
+    manifest_path = Path(manifest_path)
+    raw_manifest = manifest_path.read_bytes()
+    manifest = json.loads(raw_manifest)
+    events_path = Path(data_dir) / "processed" / "events.jsonl"
+    events = list(iter_jsonl(events_path))
+    bundles = extract_joint_bundle_observations(events)
+    decisions = extract_response_observations(events)
+    axes = {
+        "model": ("actor", actor_artifacts),
+        "config": ("config", config_artifacts),
+    }
+    axis_reports: dict[str, Any] = {}
+    for axis, (router_axis, specs) in axes.items():
+        router = CrossfitRouter(manifest, router_axis, specs)
+        scored_bundles, eligible_games, unsupported = score_crossfit_bundles(bundles, router)
+        bundle_verdict = summarize_validation(
+            scored_bundles, axis=axis, crossfit=True,
+            eligible_game_ids_by_family=eligible_games,
+        )
+        scored_decisions, eligible_decisions = score_crossfit_decisions(decisions, router)
+        decision_verdict = summarize_oof_decisions(
+            scored_decisions, axis=axis, eligible=eligible_decisions,
+        )
+        artifacts = [router.artifacts[fold] for fold in range(FOLDS)]
+        axis_reports[axis] = {
+            "router_axis": router_axis,
+            "artifact_sha256s": {str(item.fold): item.sha256 for item in artifacts},
+            "artifact_paths": {str(item.fold): str(item.path) for item in artifacts},
+            "raw_oof_bundles": len(bundles),
+            "scored_oof_bundles": len(scored_bundles),
+            "unsupported_oof_bundles": unsupported,
+            "raw_oof_decisions": len(decisions),
+            "scored_oof_decisions": len(scored_decisions),
+            "bundle_verdict": bundle_verdict,
+            "decision_verdict": decision_verdict,
+            "passed": bundle_verdict["all_families_passed"] and decision_verdict["all_cells_passed"],
+            "scored_bundle_rows": scored_bundles,
+            "scored_decision_rows": scored_decisions,
+        }
+    report = {
+        "schema_version": 2,
+        "declaration": "docs/REGISTRY.md model_b_crossfit_joint_opponents",
+        "data_events_path": str(events_path),
+        "manifest_path": str(manifest_path),
+        "manifest_sha256": hashlib.sha256(raw_manifest).hexdigest(),
+        "declared_manifest_sha256": manifest.get("manifest_sha256"),
+        "master_seed": 20260815,
+        "draws_per_sampler_per_bundle_or_decision": 256,
+        "bootstrap_replicates": 2000,
+        "axes": axis_reports,
+        "passed": all(item["passed"] for item in axis_reports.values()),
+    }
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    target = out / "crossfit_validation.json"
+    temporary = out / ".crossfit_validation.json.tmp"
+    temporary.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(target)
+    lines = [
+        "# Model B exhaustive cross-fit validation", "",
+        f"- Manifest SHA-256: `{report['manifest_sha256']}`",
+        f"- Overall pass: **{report['passed']}**", "",
+        "| Axis | Bundle pass | Decision pass | Overall |",
+        "|---|---|---|---|",
+    ]
+    for axis, item in axis_reports.items():
+        lines.append(
+            f"| {axis} | {item['bundle_verdict']['all_families_passed']} | "
+            f"{item['decision_verdict']['all_cells_passed']} | {item['passed']} |"
+        )
+    markdown_target = out / "crossfit_validation.md"
+    markdown_temporary = out / ".crossfit_validation.md.tmp"
+    markdown_temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    markdown_temporary.replace(markdown_target)
+    return report
+
+
 def main(argv: list[str] | None = None) -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Validate Model B on a frozen structural holdout.")
+    parser = argparse.ArgumentParser(description="Validate Model B on frozen structural predictions.")
     parser.add_argument("--data-dir", required=True)
-    parser.add_argument("--artifact", required=True)
-    parser.add_argument("--split-mode", required=True, choices=["model", "config_signature"])
+    parser.add_argument("--artifact")
+    parser.add_argument("--split-mode", choices=["model", "config_signature"])
+    parser.add_argument(
+        "--crossfit-spec",
+        help="JSON containing manifest_path plus actor_artifacts/config_artifacts {path,sha256} lists",
+    )
     parser.add_argument("--output-dir", required=True)
     args = parser.parse_args(argv)
+    if args.crossfit_spec:
+        if args.artifact or args.split_mode:
+            parser.error("--crossfit-spec cannot be combined with --artifact/--split-mode")
+        spec = json.loads(Path(args.crossfit_spec).read_text(encoding="utf-8"))
+        report = run_crossfit_validation(
+            data_dir=args.data_dir, manifest_path=spec["manifest_path"],
+            actor_artifacts=spec["actor_artifacts"], config_artifacts=spec["config_artifacts"],
+            output_dir=args.output_dir,
+        )
+        print(json.dumps({
+            "manifest_sha256": report["manifest_sha256"], "passed": report["passed"],
+            "axis_passes": {axis: item["passed"] for axis, item in report["axes"].items()},
+        }, indent=2, sort_keys=True))
+        return
+    if not args.artifact or not args.split_mode:
+        parser.error("one-shot validation requires --artifact and --split-mode")
     report = run_validation(data_dir=args.data_dir, artifact_path=args.artifact,
                             split_mode=args.split_mode, output_dir=args.output_dir)
     print(json.dumps({"split_mode": args.split_mode, "verdict": report["verdict"]}, indent=2, sort_keys=True))
