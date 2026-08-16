@@ -7,7 +7,12 @@ import unittest
 from pathlib import Path
 
 from glee_eval.opponents.policies import PolicyFactory
-from glee_eval.population.opponent_fit import ARCHETYPE_BANDS, OpponentPopulation, fit_opponent_population
+from glee_eval.population.opponent_fit import (
+    ARCHETYPE_BANDS,
+    OpponentPopulation,
+    extract_joint_bundle_observations,
+    fit_opponent_population,
+)
 from glee_eval.population.sampler import ARCHETYPES, sample_opponent_spec
 from glee_eval.storage.trajectories import write_json, write_jsonl
 
@@ -83,6 +88,123 @@ class OpponentPopulationDrawTests(unittest.TestCase):
             self.assertIsNotNone(OpponentPopulation.load(tmp))
         self.assertIsNone(OpponentPopulation.load(None))
         self.assertIsNone(OpponentPopulation.load("/nonexistent/opponent_population.json"))
+
+    def test_joint_draw_preserves_bundle_and_role(self) -> None:
+        payload = _payload()
+        payload["schema_version"] = 2
+        payload["joint_bundles"] = {
+            "bargaining": [
+                {
+                    "bundle_id": "soft",
+                    "role": "player_1",
+                    "parameters": {"target_share": 0.48, "concession_rate": 0.12},
+                    "latent_percentile": 0.1,
+                    "config_signature": "different",
+                    "coarse_config_signature": "different",
+                    "weight": 1,
+                },
+                {
+                    "bundle_id": "hard",
+                    "role": "player_2",
+                    "parameters": {"target_share": 0.66, "concession_rate": -0.05},
+                    "latent_percentile": 0.9,
+                    "config_signature": "different",
+                    "coarse_config_signature": "different",
+                    "weight": 1,
+                },
+            ]
+        }
+        population = OpponentPopulation(payload)
+        drawn = population.sample_bundle("bargaining", "player_2", {}, random.Random(9))
+        self.assertEqual(drawn["bundle_id"], "hard")
+        self.assertEqual(drawn["role"], "player_2")
+        self.assertEqual(drawn["draw_fallback_level"], "role")
+        self.assertEqual((drawn["parameters"]["target_share"], drawn["parameters"]["concession_rate"]), (0.66, -0.05))
+        spec = sample_opponent_spec(
+            "bargaining", random.Random(9), population=population,
+            opponent_role="player_2", scenario_config={},
+        )
+        self.assertEqual(spec.parameters["action_noise"], 0.0)
+        self.assertEqual(spec.parameters["action_noise_source"], "explicit_zero_when_bundle_residual_unidentified")
+        self.assertEqual(spec.parameters["parameter_source"], "fitted_joint_population")
+
+
+class JointBundleExtractionTests(unittest.TestCase):
+    def test_bargaining_intercept_is_first_offer_not_all_offer_mean(self) -> None:
+        events = []
+        for game_index in range(2):
+            for round_number, gain in ((1, 60.0), (3, 50.0)):
+                events.append({
+                    "game_family": "bargaining", "game_id": f"g{game_index}", "config_id": "c",
+                    "role": "player_1", "player_1_model": "m", "player_2_model": "other",
+                    "action_type": "offer", "numeric_action": gain, "round": round_number,
+                    "configuration": {"money_to_divide": 100},
+                    "raw_record": {"alice_gain": gain, "bob_gain": 100 - gain},
+                })
+        [row] = extract_joint_bundle_observations(events)
+        self.assertAlmostEqual(row["parameters"]["target_share"], 0.60)
+        self.assertAlmostEqual(row["parameters"]["concession_rate"], 0.10)
+        self.assertEqual(row["parameter_game_counts"]["target_share"], 2)
+
+    def test_negotiation_intercept_slope_and_acceptance_crossing_match_policy_units(self) -> None:
+        events = []
+        config = {"seller_value": 0.5, "buyer_value": 1.0, "product_price_order": 100}
+        for game_index in range(2):
+            for round_number, price in ((1, 90.0), (3, 80.0)):
+                events.append({"game_family": "negotiation", "game_id": f"g{game_index}", "config_id": "c",
+                    "role": "seller", "player_1_model": "m", "player_2_model": "o", "action_type": "offer",
+                    "numeric_action": price, "round": round_number, "configuration": config,
+                    "raw_record": {"product_price": price}})
+        decisions = ((60.0, "RejectOffer"), (70.0, "AcceptOffer"), (80.0, "AcceptOffer"))
+        for index in range(30):
+            price, decision = decisions[index % 3]
+            events.append({"game_family": "negotiation", "game_id": f"g{index % 2}", "config_id": "c",
+                "role": "seller", "player_1_model": "m", "player_2_model": "o", "action_type": "decision",
+                "round": 5, "configuration": config, "raw_record": {"decision": decision},
+                "transcript_so_far": [{"action_type": "offer", "numeric_action": price, "round": 5}]})
+        [row] = extract_joint_bundle_observations(events)
+        self.assertAlmostEqual(row["parameters"]["aspiration_price"], 0.9)
+        self.assertAlmostEqual(row["parameters"]["concession_rate"], 0.1)
+        self.assertAlmostEqual(row["parameters"]["accept_margin"], 0.15)
+
+    def test_persuasion_honesty_is_yes_given_high_not_overall_truth(self) -> None:
+        events = []
+        for game_index in range(2):
+            for quality in ("high-quality", "low-quality"):
+                events.append({"game_family": "persuasion", "game_id": f"g{game_index}", "config_id": "c",
+                    "role": "seller", "player_1_model": "m", "player_2_model": "o",
+                    "action_type": "recommendation", "round": 1,
+                    "transcript_so_far": [{"role": "nature", "action_type": "nature_quality", "round": 1, "quality": quality}],
+                    "raw_record": {"decision": "yes"}})
+        [row] = extract_joint_bundle_observations(events)
+        self.assertEqual(row["parameters"]["honesty"], 1.0)
+        self.assertEqual(row["parameters"]["yes_on_low_rate"], 1.0)
+
+    def test_persuasion_buyer_has_joint_yes_and_no_rates_and_game_support(self) -> None:
+        events = []
+        for game_index in range(2):
+            for recommendation, decision in (("yes", "yes"), ("no", "no")):
+                events.append(
+                    {
+                        "game_family": "persuasion",
+                        "game_id": f"g{game_index}",
+                        "config_id": "c",
+                        "role": "buyer",
+                        "player_1_model": "seller-model",
+                        "player_2_model": "buyer-model",
+                        "action_type": "buy_decision",
+                        "raw_record": {"decision": decision},
+                        "transcript_so_far": [
+                            {"role": "seller", "buy_no_buy": recommendation, "round": 1}
+                        ],
+                        "round": 1,
+                    }
+                )
+        [row] = extract_joint_bundle_observations(events)
+        self.assertEqual(row["player_model"], "buyer-model")
+        self.assertEqual(row["role"], "buyer")
+        self.assertEqual(row["game_count"], 2)
+        self.assertEqual(row["parameters"], {"trust_prior": 1.0, "buy_after_no_rate": 0.0})
 
 
 class SamplerCalibrationTests(unittest.TestCase):

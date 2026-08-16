@@ -26,9 +26,11 @@ import hashlib
 import json
 from typing import Any
 
+from glee_eval.population.config_keys import canonical_config_key
+
 FIT = "fit"
 HOLDOUT = "holdout"
-SPLIT_MODES = ("none", "model", "config")
+SPLIT_MODES = ("none", "model", "config", "config_signature")
 DEFAULT_HOLDOUT_FRACTION = 0.25
 
 _BUCKETS = 1000
@@ -59,6 +61,19 @@ def _config_key(record: dict[str, Any]) -> str:
     return str(record.get("game_id") or "")
 
 
+def _normalized_config_signature(record: dict[str, Any]) -> str:
+    configuration = record.get("configuration") or record.get("public_parameters") or {}
+    if isinstance(configuration, str):
+        try:
+            configuration = json.loads(configuration)
+        except (TypeError, ValueError):
+            return configuration
+    if isinstance(configuration, dict):
+        configuration = configuration.get("game_args") or configuration
+        return canonical_config_key(str(record.get("game_family") or ""), configuration)
+    return str(configuration)
+
+
 def partition_of(
     record: dict[str, Any],
     mode: str = "none",
@@ -80,6 +95,8 @@ def partition_of(
         return HOLDOUT if any(is_holdout_key(model, holdout_fraction) for model in models) else FIT
     if mode == "config":
         return HOLDOUT if is_holdout_key(_config_key(record), holdout_fraction) else FIT
+    if mode == "config_signature":
+        return HOLDOUT if is_holdout_key(_normalized_config_signature(record), holdout_fraction) else FIT
     raise ValueError(f"Unsupported split mode: {mode}. Use one of {SPLIT_MODES}.")
 
 

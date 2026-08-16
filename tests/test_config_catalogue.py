@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from glee_eval.population.config_catalogue import ConfigCatalogue, build_config_catalogue
+from glee_eval.population.config_keys import CONFIG_DEFAULTS, CONFIG_FIELDS, canonical_config, canonical_config_key
 from glee_eval.population.sampler import sample_scenario
 from glee_eval.storage.trajectories import write_json, write_jsonl
 
@@ -31,6 +32,14 @@ NEGOTIATION_B = {**NEGOTIATION_A, "seller_value": 1.5, "buyer_value": 0.8}
 
 
 class BuildCatalogueTests(unittest.TestCase):
+    def test_canonical_key_resolves_catalogue_defaults_and_ignores_metadata(self) -> None:
+        required = {"money_to_divide": 100, "max_rounds": 12, "delta_1": 0.9, "delta_2": 0.95}
+        explicit = {**required, **CONFIG_DEFAULTS["bargaining"]}
+        decorated = {**explicit, "source": "irrelevant", "matchup": "m1-v-m2"}
+        self.assertEqual(canonical_config_key("bargaining", required), canonical_config_key("bargaining", explicit))
+        self.assertEqual(canonical_config_key("bargaining", explicit), canonical_config_key("bargaining", decorated))
+        self.assertEqual(tuple(canonical_config("bargaining", explicit)), CONFIG_FIELDS["bargaining"])
+
     def test_counts_distinct_configs_and_weights_them(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

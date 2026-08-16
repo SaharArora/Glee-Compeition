@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from glee_eval.config import DEFAULT_DATA_DIR
+from glee_eval.population.config_keys import CONFIG_DEFAULTS, CONFIG_FIELDS
 from glee_eval.population.splits import DEFAULT_HOLDOUT_FRACTION, add_split_arguments, keeps, split_provenance
 from glee_eval.storage.trajectories import ensure_dir, iter_jsonl, write_json
 
@@ -38,52 +39,12 @@ FAMILIES = ("bargaining", "negotiation", "persuasion")
 # Parameters that define a playable configuration, per family. Anything else on a
 # real config (identifiers, bookkeeping) is dropped so the catalogue stays a set
 # of game settings rather than a set of games.
-CONFIG_FIELDS: dict[str, tuple[str, ...]] = {
-    "bargaining": ("money_to_divide", "max_rounds", "complete_information", "messages_allowed", "delta_1", "delta_2"),
-    "negotiation": (
-        "seller_value",
-        "buyer_value",
-        "product_price_order",
-        "max_rounds",
-        "complete_information",
-        "messages_allowed",
-    ),
-    "persuasion": (
-        "p",
-        "v",
-        "c",
-        "product_price",
-        "total_rounds",
-        "is_seller_know_cv",
-        "is_buyer_know_p",
-        "seller_message_type",
-        "is_myopic",
-        "allow_buyer_message",
-    ),
-}
-
-
 # Optional fields that real configs frequently omit, with the defaults taken from
 # the upstream constructor signatures rather than guessed. 13,021 of 13,506 real
 # persuasion configs omit is_buyer_know_p and allow_buyer_message; skipping those
 # configs would have discarded almost the whole family.
 #   games/persuasion/persuasion.py: is_seller_know_cv=True, is_buyer_know_p=True,
 #   seller_message_type="text", allow_buyer_message=False, total_rounds=20, v=0
-CONFIG_DEFAULTS: dict[str, dict[str, Any]] = {
-    "bargaining": {"messages_allowed": False, "complete_information": True},
-    "negotiation": {"messages_allowed": False, "complete_information": True},
-    "persuasion": {
-        "is_seller_know_cv": True,
-        "is_buyer_know_p": True,
-        "seller_message_type": "text",
-        "allow_buyer_message": False,
-        "is_myopic": False,
-        "total_rounds": 20,
-        "v": 0,
-    },
-}
-
-
 def _game_args(game: dict[str, Any]) -> dict[str, Any]:
     configuration = game.get("configuration")
     if isinstance(configuration, str):

@@ -28,6 +28,7 @@ Durable status for policy, scoring, and evidence work. Statuses follow
 | `live_terminal_results` | Audit terminal outcomes with `live-episodes`, capture full SDK move responses, and GET-backfill games ending on opponent moves. | Historical pre-fix log remains incomplete; new capture path is verified. | Authorized confirmation: 31/31 authoritative terminal payoffs (15 direct +16 backfill), zero capture errors. Means B .383075, N .116996, P .235000. Manifest records support index off. | `shipped` | none | Account counter advanced 30 while capture has 31 terminal games; retain both denominators. No further live games without explicit authorization. | `docs/LIVE_INTEGRATION.md`; `glee_eval/live/episodes.py`; `glee_eval/live/run.py` |
 | `live_strict_game_limit` | Replace reliance on SDK `max_games` with bounded matchmaking waves and a unique-game-ID cap including opponent-ended games. | Upstream `--max-games 12` produced 31 terminals; repository wrapper no longer delegates this limit. | Two real verifications completed exactly 75/75 each, balanced 25 per family. The second had 35 direct +40 backfill, 860 clean turns, and zero capture errors/fallbacks/schema violations. | `shipped` | none | Do not call upstream `GleeClient.run(max_games=...)` directly. No further live games without explicit authorization. | `docs/FAILED.md`; `tests/test_live_run.py`; `reports/live/volume2_20260815` |
 | `live_simulator_alignment` | Diagnose live/offline payoff differences against fitted opponent/config assumptions without changing policy. | Bargaining's deterministic simulator timing defect is fixed, but it explains only part of the live gap and produced no acting-policy candidate. Persuasion's residual buyer-rate/role premise is killed after message-mode conditioning. Negotiation's true no-trade exit rate remains unidentified. | Bargaining authoritative n=61 mean .407409; all agreed, gross share .54511 minus .13770 mean discount loss. Live opponent offer-transition mean .00657/median 0 versus fitted concession median .025. Corrected theory audit +.0551 and confirmation +.0601 both pass. A production-visible low-delta/stagnation override is killed at n=2 with opposite signs; flat theory-off replay is only +.00484/61 with 4 gains/7 losses. | `candidate` | unassigned | Fitted opponent marginals are independently sampled and do not preserve real joint player/config behavior; this is model risk, not an identified live policy fix. Persuasion/negotiation conclusions remain as recorded in FAILED. | `bargaining_opponent_timing_parity`; `docs/FAILED.md`; three terminal-complete live batches |
+| `model_b_joint_opponents` | Fit and empirically sample one correlated opponent-parameter bundle per stable `(player_model, config_id, role)` segment instead of independently drawing marginal quantiles. Bundles preserve actor/model identity, role, configuration and within-segment parameter covariance; the sampled bundle derives a descriptive compatibility label after selection. | Fit/serialization/sampler implementation and predictive validation only; no payoff gate or default-policy claim is authorized in this track. | Kill-check: closest FAILED mechanisms are simulator/live distribution mismatch and rejected policy candidates measured on marginal opponents. Material difference: this changes the fit-only opponent distribution itself, not an acting policy or a retry seed. Exact declaration below. | `candidate` | h6_scoring | `opponent_fit.py`, population sampler, opponent-policy parameter contract; calibration_bins owns separate holdout diagnostics. Structural split isolation is mandatory. | Model B declaration below; `docs/FAILED.md`; `docs/PROCESS_LESSONS.md` |
 | `persuasion_text_stance` | Default-off buyer parser for unequivocal natural-language recommendations when the live text payload contains no structured yes/no stance; ambiguous text remains a conservative decline and binary inputs are unchanged. | Gate rejected; do not rerun unchanged and do not flip the default. Production mechanism remains diagnosed: 180/180 text buyer turns across nine complete live games defaulted to no despite 101 clearly positive and 79 clearly negative messages. | Frozen 420-turn replay: 0 polarity errors, 420 raw messages preserved, 240/240 binary actions unchanged, 84 text actions reached. Seed 314159, n=1600 structural holdout: +0.1390, t=13.04, 241W/12L/1347T; all archetypes nonnegative, but config-regime concentration 0.5437 > 0.50. | `candidate` | unassigned | Default remains false. Shares persuasion transcript parsing with the live adapter, synthetic runner, fitted opponent policy, and buyer decision path. No live payoff claim is allowed from declined rounds because their qualities are unobserved. | `reports/promotion/persuasion_text_stance_seed314159`; `reports/live/confirmation_20260815`; `reports/live/volume_20260815`; `docs/FAILED.md` |
 | `h6_percentile` | Preserve official-style percentile/rating and add a separate run-specific trade-zone diagnostic using the identical exact-to-family fallback ladder. | Candidate implemented; real-log replay unavailable locally. | Adversarial review caught and corrected an initial family-wide comparison that dropped config conditioning. Zone-suffixed buckets now mirror primary fallback/min-support semantics; exact-bucket equality and fallback divergence are tested. | `candidate` | root | Scoring/reporting only; primary percentile/rating contract unchanged. | `glee_eval/scoring/shadow.py`; `tests/test_shadow_scoring.py`; `docs/HANDOVER.md` §2/§6 |
 
@@ -78,6 +79,106 @@ Add sample size and seed here before executing any independent confirmation run.
   makes live authorization potentially eligible; it does not authorize a live/rated run.
 
 ## Ordinary gate declarations
+
+- `model_b_joint_opponents` implementation/validation declaration (declared 2026-08-15 before
+  predictive measurement): the empirical unit is a stable
+  `(player_model, config_id, role)` segment after the requested structural split is applied.
+  Raw identifiable segment endpoints match production policy units: bargaining mean first-own-
+  offer self-share, per-successive-own-offer concession, interpolated acceptance threshold and
+  residual uniform half-width; negotiation mean first-own-offer normalized aspiration, role-
+  oriented per-successive-own-offer concession, interpolated 50% acceptance threshold in own
+  normalized gain and residual uniform half-width; persuasion seller P(yes|high) and
+  P(yes|low), plus buyer P(buy|yes) and P(buy|no). Residual half-width is
+  `sqrt(3) * residual_sd` around the fitted intercept/slope, matching policy uniform-noise units.
+  A serialized bundle is retained only when it has at least two identified parameters and at
+  least two distinct contributing games; action counts and distinct-game support are serialized,
+  while missing parameters remain explicitly absent and are not silently imputed. At draw time one
+  role-compatible whole bundle is sampled with distinct-game empirical weight through a frozen
+  exact-config-signature, coarse-config-signature, then role-only fallback ladder; its identified
+  parameters stay correlated, and missing policy parameters use existing policy defaults rather
+  than independently sampled fitted marginals. The sampled bundle's latent percentile derives
+  the compatibility archetype label after the draw; stipulated uniform archetypes are not the
+  Model-B sampling prior. The latent score is the
+  equal-weight mean of fit-only empirical strategic-parameter percentiles after orienting higher
+  values toward extraction (concession and trust inverted; buyer aspiration inverted; residual
+  noise excluded), ranked
+  separately inside each family-role cell; ties are broken by stable bundle id. No learned
+  statistic may cross a model/config split boundary. Model splits serialize actor-model
+  holdout eligibility; config validation uses the new backward-compatible `config_signature`
+  split keyed by the same family-aware canonical defining fields/defaults used by bundle draws,
+  never the legacy source-prefixed `config_id` split.
+  Schema v2 preserves v1 marginal tables only as an explicit comparator and compatibility
+  surface. Validation is predictive/distributional on separately extracted raw model- and
+  config-holdout bundles, with fit-artifact normalization only; it is not a payoff promotion
+  gate and cannot ship an acting-policy change. No live/rated run is authorized.
+
+  **Prospective validation endpoints (corrected before artifact rebuild or holdout
+  extraction/scoring):** fit two completely separate schema-v2 artifacts, one on model-FIT
+  events and one on normalized-`config_signature`-FIT events, and evaluate each only on its
+  corresponding model-HOLDOUT or `config_signature`-HOLDOUT. Both axes use the frozen
+  deterministic holdout fraction **0.25**; legacy `config`/`config_id` FIT/HOLDOUT assignments
+  are not inputs. On the model axis, retain only a bundle whose actor model is itself a
+  held-out model; fit-model actors appearing in cross-model held-out games are excluded. The
+  observed unit is one raw
+  `(player_model, config_id, role)` bundle from `extract_joint_bundle_observations`; retain it
+  only when at least two production parameters are identifiable, the bundle contains at
+  least two distinct games, and every scored parameter has support from at least two distinct
+  games. These support thresholds may not be relaxed after counts or results are seen. Scale
+  each parameter through its family/role FIT-artifact empirical CDF (mid-rank, finite tails);
+  no holdout value may set a scale, rank, default, band, weight, or missing-value rule. Score
+  the parameter values actually delivered to the opponent policy, including the same existing
+  policy value actually delivered when a draw has an explicitly missing parameter: neutral
+  Model-B defaults for whole-bundle and conditional-shuffle draws, and the current
+  archetype-dependent/default behavior for the v1 operational comparator. Residual
+  `action_noise` is a scored production parameter; it may not be dropped merely because an old
+  v1 artifact lacked that marginal.
+
+  For each retained bundle, take exactly **256** predictive draws per sampler using master seed
+  **20260815** and a stable bundle/sampler-derived sub-seed. Schema v2 must use the production
+  `sample_bundle(family, role, heldout_configuration, rng)` path: condition on the held-out
+  configuration through the immutable `exact_config_signature -> coarse_config_signature ->
+  role` fallback ladder, sample with the artifact's empirical distinct-game weights, and derive
+  the archetype label only after the bundle draw. The **same-support conditional-shuffle
+  comparator** uses that identical exact/coarse/role eligible pool, empirical game weights,
+  held-out configuration and neutral default rules, but independently samples a bundle for
+  each requested parameter; it changes joint dependence only. The schema-v1 operational
+  comparator must reproduce its
+  actual production prior: cycle evenly over all 16 archetype labels (16 draws per label) and
+  draw every scored parameter independently from its retained marginal quantile table. The
+  held-out configuration is an input to v2 conditioning only and may not alter either FIT
+  artifact. Report v2 fallback-level counts in every cell. The two mandatory energy endpoints
+  are paired multivariate deltas `whole_bundle - conditional_shuffle` (the primary joint-
+  dependence estimand) and `whole_bundle - v1_independent` (total operational replacement
+  value), both lower-is-better. Use **2,000** deterministic cluster-bootstrap replicates,
+  clustering by `player_model` on the model axis and canonical `config_signature` on the config
+  axis. A family/axis cell is
+  reportable only with at least **5** distinct split-unit clusters; otherwise it is insufficient
+  evidence, not a pass. Success requires the mean and 95% bootstrap upper bound to be strictly
+  below zero for **both** energy endpoints in **all six family x structural-axis cells**; no
+  pooled result may hide a failed or unreportable family.
+
+  Coverage is a hard part of the verdict, not a diagnostic selected after measurement. In each
+  family/axis cell, scored bundles must cover at least **50%** of eligible distinct holdout
+  games and each family role must contribute at least **25** scored bundles. Role-only v2 draw
+  fallback may be at most **25%** on the model axis and **50%** on the config-signature axis;
+  the latter axis must have exactly **zero exact-signature draws** as a leakage assertion.
+  Neutral defaults may fill at most **25%** of requested whole-bundle plus conditional-shuffle
+  parameter values. Failing any coverage assertion, or having fewer than five split-unit
+  clusters, makes the cell unreportable and failed; thresholds may not be relaxed.
+
+  **Safety endpoints:** on the same FIT-CDF scale, the joint sampler's paired mean marginal
+  CRPS delta against **each** comparator must have a 95% cluster-bootstrap upper bound at most
+  **+0.005** in every one of the six cells, and every reported family/axis/parameter mean CRPS
+  delta against either comparator must be at most **+0.010**. Every whole-bundle and
+  conditional-shuffle draw must be finite and inside the parameter's observed FIT support after
+  ordinary policy bounds; any such support/non-finite violation fails that cell. Operational-v1
+  support violations are reported separately and cannot make Model B pass by making the legacy
+  comparator fail. The frozen FIT artifact's SHA-256 and split provenance must match the
+  requested validation axis or the validator refuses to run. Report role cells,
+  bundle/cluster counts, exclusions by reason, parameter missing/default rates, correlation and
+  covariance error, but these are diagnostic and may not replace or select the endpoints.
+  This predictive all-pass result, if achieved, authorizes only a later prospectively declared
+  payoff gate; it does not promote Model B or change a production default.
 
 - `bargaining_opponent_timing_parity` theory-anchor evidence audit (declared 2026-08-15 before
   measurement): make exactly two simulator-fidelity corrections and no fitted-parameter changes:
