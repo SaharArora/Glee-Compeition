@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from glee_eval.data.schemas import GameState, Scenario, to_jsonable
-from glee_eval.experiments.factorial import run_factorial
+from glee_eval.experiments.factorial import FactorialIntegrityError, run_factorial
 from research.CANDIDATES.wave3_factorial_agents import (
     EPROCESS_THRESHOLD,
     FACTORIAL_AGENTS,
@@ -155,6 +155,19 @@ def _model_payload() -> dict:
     }
 
 
+def _support_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "bucket_count": 0,
+        "buckets": {},
+        "summary": {
+            "bucket_count": 0,
+            "low_coverage_bucket_count": 0,
+            "lowest_coverage_buckets": [],
+        },
+    }
+
+
 class _ReferenceArtifact:
     def __enter__(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -162,7 +175,16 @@ class _ReferenceArtifact:
         raw = json.dumps(_model_payload(), sort_keys=True).encode("utf-8")
         self.path.write_bytes(raw)
         self.sha = hashlib.sha256(raw).hexdigest()
-        return {"response_model_path": self.path, "response_model_sha256": self.sha}
+        self.support_path = Path(self.temp.name) / "support_index.json"
+        support_raw = json.dumps(_support_payload(), sort_keys=True).encode("utf-8")
+        self.support_path.write_bytes(support_raw)
+        self.support_sha = hashlib.sha256(support_raw).hexdigest()
+        return {
+            "response_model_path": self.path,
+            "response_model_sha256": self.sha,
+            "support_index_path": self.support_path,
+            "support_index_sha256": self.support_sha,
+        }
 
     def __exit__(self, exc_type, exc, tb):
         self.temp.cleanup()
@@ -211,6 +233,13 @@ def _history(rounds: int, *, game_id: str = "obedience-game") -> GameState:
 
 
 class Wave3FactorialAgentTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._artifact_context = _ReferenceArtifact()
+        self.artifact = self._artifact_context.__enter__()
+
+    def tearDown(self) -> None:
+        self._artifact_context.__exit__(None, None, None)
+
     def test_four_forced_entrypoints_reject_flag_overrides(self) -> None:
         for cls in FACTORIAL_AGENTS.values():
             with self.assertRaises(TypeError):
@@ -218,25 +247,37 @@ class Wave3FactorialAgentTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 cls(use_language=False)
 
+    def test_all_four_arms_require_both_frozen_artifacts(self) -> None:
+        response_only = {
+            key: value
+            for key, value in self.artifact.items()
+            if key.startswith("response_model")
+        }
+        for cls in FACTORIAL_AGENTS.values():
+            with self.assertRaisesRegex(ValueError, "Model-C artifact"):
+                cls(seed=SEED)
+            with self.assertRaisesRegex(ValueError, "support index"):
+                cls(seed=SEED, **response_only)
+
     def test_all_four_are_callable_in_every_family_role_action_cell(self) -> None:
         for state in _cells():
             for cls in FACTORIAL_AGENTS.values():
-                action = cls(seed=SEED).decide(state)
+                action = cls(seed=SEED, **self.artifact).decide(state)
                 self.assertTrue(action.is_legal, (cls.__name__, state.scenario_id))
                 self.assertNotIn('"E_', json.dumps(to_jsonable(action), sort_keys=True))
 
     def test_language_never_changes_numeric_or_economic_decision(self) -> None:
         for state in _cells():
-            off = Factorial00Agent(seed=SEED).decide(state)
-            on = Factorial01Agent(seed=SEED).decide(state)
+            off = Factorial00Agent(seed=SEED, **self.artifact).decide(state)
+            on = Factorial01Agent(seed=SEED, **self.artifact).decide(state)
             self.assertEqual(off.numeric_action, on.numeric_action, state.scenario_id)
             self.assertEqual(off.accept_reject, on.accept_reject, state.scenario_id)
             self.assertEqual(off.buy_no_buy, on.buy_no_buy, state.scenario_id)
 
     def test_eligible_language_differs_and_unsupported_cells_are_exactly_inert(self) -> None:
         eligible = _state("persuasion", "seller", "recommendation", text=True)
-        off = Factorial00Agent(seed=SEED).decide(eligible)
-        on = Factorial01Agent(seed=SEED).decide(eligible)
+        off = Factorial00Agent(seed=SEED, **self.artifact).decide(eligible)
+        on = Factorial01Agent(seed=SEED, **self.artifact).decide(eligible)
         self.assertNotEqual(off.message, on.message)
         self.assertTrue(on.structured["language_treatment"]["eligible"])
 
@@ -247,14 +288,14 @@ class Wave3FactorialAgentTests(unittest.TestCase):
         ]
         unsupported.append(_state("persuasion", "seller", "recommendation", text=False))
         for state in unsupported:
-            off = Factorial00Agent(seed=SEED).decide(state)
-            on = Factorial01Agent(seed=SEED).decide(state)
+            off = Factorial00Agent(seed=SEED, **self.artifact).decide(state)
+            on = Factorial01Agent(seed=SEED, **self.artifact).decide(state)
             self.assertEqual(to_jsonable(off), to_jsonable(on), state.scenario_id)
 
     def test_eprocess_does_not_change_rendering_before_an_economic_change(self) -> None:
         for state in _cells():
-            off = Factorial00Agent(seed=SEED).decide(state)
-            on = Factorial10Agent(seed=SEED).decide(state)
+            off = Factorial00Agent(seed=SEED, **self.artifact).decide(state)
+            on = Factorial10Agent(seed=SEED, **self.artifact).decide(state)
             self.assertEqual(off.message, on.message, state.scenario_id)
             self.assertEqual(off.structured.get("message"), on.structured.get("message"), state.scenario_id)
 
@@ -369,7 +410,7 @@ class Wave3FactorialAgentTests(unittest.TestCase):
             self.assertEqual(report["trace"][0]["round"], 1)
 
     def test_controller_explicitly_rejects_unsupported_acting_scopes(self) -> None:
-        treated = Factorial10Agent(seed=SEED)
+        treated = Factorial10Agent(seed=SEED, **self.artifact)
         for state in (
             _state("bargaining", "player_1", "offer"),
             _state("negotiation", "seller", "offer"),
@@ -417,6 +458,9 @@ class Wave3FactorialAgentTests(unittest.TestCase):
                 arm: (lambda context, cls=cls: cls(arm_context=context, **artifact))
                 for arm, cls in FACTORIAL_AGENTS.items()
             }
+            expected_artifacts = Factorial00Agent(
+                seed=SEED, **artifact
+            ).factorial_artifact_provenance()
             rows = run_factorial(
                 factories,
                 families=["persuasion"],
@@ -425,6 +469,7 @@ class Wave3FactorialAgentTests(unittest.TestCase):
                 scenario_factory=scenario,
                 require_inert_parity=False,
                 require_active_isolation_canary=True,
+                required_artifact_provenance=expected_artifacts,
             )
         self.assertEqual(len(rows), 2)
         for row in rows:
@@ -433,12 +478,64 @@ class Wave3FactorialAgentTests(unittest.TestCase):
                 row.arm("e0_l1").non_language_record_hash,
             )
             for arm in row.arms:
+                self.assertEqual(arm.artifact_provenance, expected_artifacts)
                 expected = {"economic_policy"}
                 if arm.use_eprocess:
                     expected.add("eprocess_treatment")
                 if arm.use_language:
                     expected.add("language_treatment")
                 self.assertEqual(set(arm.randomness_audit["claims"]), expected)
+
+    def test_factorial_rejects_one_arm_with_different_artifact_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            variant_path = Path(tmp) / "support_index.json"
+            variant = _support_payload()
+            variant["summary"]["variant"] = "different bytes"
+            raw = json.dumps(variant, sort_keys=True).encode("utf-8")
+            variant_path.write_bytes(raw)
+            variant_artifact = {
+                **self.artifact,
+                "support_index_path": variant_path,
+                "support_index_sha256": hashlib.sha256(raw).hexdigest(),
+            }
+            expected = Factorial00Agent(
+                seed=SEED, **self.artifact
+            ).factorial_artifact_provenance()
+            factories = {
+                arm: (
+                    lambda context, cls=cls, kwargs=(
+                        variant_artifact if arm == "e0_l1" else self.artifact
+                    ): cls(arm_context=context, **kwargs)
+                )
+                for arm, cls in FACTORIAL_AGENTS.items()
+            }
+            with self.assertRaisesRegex(FactorialIntegrityError, "artifact provenance"):
+                run_factorial(
+                    factories,
+                    families=["persuasion"],
+                    games=1,
+                    seed=SEED,
+                    scenario_factory=lambda family, seed, role: Scenario(
+                        scenario_id=f"artifact-mismatch-{seed}",
+                        game_family=family,
+                        config_id="wave4-artifact-mismatch",
+                        public_parameters={
+                            "p": 0.5,
+                            "v": 2.0,
+                            "c": 0.0,
+                            "product_price": 100.0,
+                            "total_rounds": 2,
+                            "is_seller_know_cv": True,
+                            "seller_message_type": "text",
+                            "is_myopic": False,
+                        },
+                        candidate_role=role,
+                        opponent_role="buyer" if role == "seller" else "seller",
+                        opponent_spec={"archetype": "rational", "parameters": {}, "seed": seed},
+                        seed=seed,
+                    ),
+                    required_artifact_provenance=expected,
+                )
 
 
 if __name__ == "__main__":

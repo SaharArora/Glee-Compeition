@@ -35,3 +35,13 @@
 - Constructing a genuine treatment and identifying its effect are separate milestones. A fixed
   language policy can be implementation-complete while its text-responsive evaluation population
   remains empty.
+- A report that reconstructs arithmetic from supplied rows has not verified the experiment that
+  produced those rows. Recompute pre-outcome eligibility, exact roles, named streams, realized
+  nature evidence, and opponent/artifact identities; otherwise a forged but internally consistent
+  row can pass.
+- Never let reduced synthetic fixtures share the production-validation schema. A distinct
+  nonproduction evidence class plus an explicit authorized production-contract hash prevents a
+  six-row unit test from masquerading as the frozen 3,600-row study.
+- A mathematically valid e-process under a fixed conditional null does not certify that a fitted
+  reference is a population upper bound. Optional stopping protects the stopping rule, not an
+  unproved data-generating premise.

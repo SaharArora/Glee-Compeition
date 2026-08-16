@@ -28,6 +28,28 @@ EPROCESS_ALPHA = 0.05
 EPROCESS_ALTERNATIVE_WEIGHT = 0.5
 EPROCESS_REFERENCE_EPSILON = 0.01
 EPROCESS_MIN_SUPPORT_QUALITY = 0.5
+FACTORIAL_BASELINE_CONFIGURATION = {
+    "economic_core": "TreatmentOffEconomicCore",
+    "strategic_mode": "SAFE",
+    "use_theory_anchor": True,
+    "message_mode": "off",
+    "persuasion_explore": False,
+    "use_persuasion_platt": False,
+    "use_deceptive_seller_guard": False,
+    "use_persuasion_text_stance": False,
+    "use_time_concession": False,
+    "guarantee_own_margin": False,
+    "debias_counterpart_value": False,
+    "use_unknown_horizon_counter_fallback": False,
+    "use_unknown_horizon_counter_preservation": False,
+    "historical_evidence_controller": False,
+}
+FACTORIAL_RECEIVER_CONTRACT = {
+    "schema": "glee.research.receiver_capability.v1",
+    "environment_id": "glee.offline.rule_based_text_blind.v1",
+    "candidate_text_delivered": True,
+    "receiver_consumes_candidate_text": False,
+}
 
 
 def _derived_seed(seed: int, stream: str) -> int:
@@ -379,6 +401,17 @@ class Wave3FactorialAgent(TreatmentOffEconomicCore):
             use_language=_forced_language,
             **kwargs,
         )
+        if self.response_model_provenance.get("sha256") is None:
+            raise ValueError("factorial arms require a frozen hash-verified Model-C artifact")
+        if self.support_index_provenance.get("sha256") is None:
+            raise ValueError("factorial arms require a frozen hash-verified support index")
+        self._factorial_artifact_provenance = {
+            "schema": "glee.research.factorial_baseline_artifacts.v1",
+            "response_model": copy.deepcopy(self.response_model_provenance),
+            "support_index": copy.deepcopy(self.support_index_provenance),
+            "baseline_configuration": copy.deepcopy(FACTORIAL_BASELINE_CONFIGURATION),
+            "receiver_contract": copy.deepcopy(FACTORIAL_RECEIVER_CONTRACT),
+        }
         self.forced_eprocess = bool(_forced_eprocess)
         self.forced_language = bool(_forced_language)
         self.randomness = randomness
@@ -437,6 +470,9 @@ class Wave3FactorialAgent(TreatmentOffEconomicCore):
 
     def factorial_randomness_audit(self) -> dict[str, Any]:
         return self.randomness.audit()
+
+    def factorial_artifact_provenance(self) -> dict[str, Any]:
+        return copy.deepcopy(self._factorial_artifact_provenance)
 
     def factorial_capability_bindings(self) -> dict[str, RandomStreamCapability]:
         bindings = {"economic_policy": self._economic_stream}

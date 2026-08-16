@@ -1,6 +1,6 @@
 # Research run state
 
-- Campaign state: `wave_4_bounded_roadmap_in_progress`
+- Campaign state: `wave_4_checkpoint_complete_waiting_for_language_environment_selection`
 - Latest user directive: checkpoint Wave 3; freeze the exact baseline artifacts; finish and
   independently audit R4; settle R2, R3, family feasibility, and estimands; stop before any
   factorial payoff, large text-responsive simulator, Model-B reuse, or live/rated game.
@@ -22,7 +22,7 @@
 - Model-B state: the mixed-fold validation failed and R0 is closed. No Model-B process is
   active or authorized; the interrupted hierarchical actor-factor work is preserved but may
   not supply tournaments, gates, the research baseline, or e-process validity.
-- Active processes: none.
+- Active processes: none. No Model B, factorial payoff, external-model, or live/rated process ran.
 - Interrupted process: `python3 -m glee_eval.population.actor_factor_crossfit_fit
   fit-fold --data-dir data --output-dir models/actor_factor_crossfit_v2 --manifest
   models/actor_factor_crossfit_v2/crossfit_manifest.json --axis actor --fold 0`.
@@ -32,9 +32,10 @@
   boundary. Four forced entrypoints exist. R2 acts only on persuasion-seller prior-round buyer
   obedience relative to hash-locked Model C. R3 acts only on text-enabled persuasion-seller
   rendering, so the two interventions overlap primarily in eligible persuasion-seller cells.
-  The offline receiver is text-blind and no treatment payoff result exists. R4's named-stream
-  repair passes owner-run hostile canaries but is not independently verifier-backed and has no
-  final report validator.
+  The offline receiver is text-blind and no treatment payoff result exists. R4's report verifier
+  has a fresh independent version-bound audit: the production authorization pin is intentionally
+  absent, so no payoff contract can pass before language-environment selection and exact
+  pre-outcome manifest freezing.
 - Frozen baseline revision: `research/CANDIDATES/r1_treatment_off_baseline.py` SHA256
   `95bf90cfb63bde3b78aa9bdd5140de902016bd6413b25b910d8bebf80f885fef` at base
   `895ffee`; 8 parity tests pass. No baseline payoff or treatment run occurred.
@@ -62,5 +63,17 @@
 - Wave-3 evidence: `research/EVIDENCE/WAVE3_IMPLEMENTATION_CHECKPOINT.json`; R2 and R3 exact
   scopes are in `research/ROUTES/R2_EPROCESS_WAVE3.md` and
   `research/ROUTES/R3_LANGUAGE_WAVE3.md`.
-- Last reconciled: 2026-08-16 America/New_York, Wave 3 implementation complete; awaiting user
-  direction and independent R4 verification.
+- Wave-4 baseline: Model-C SHA `9daec869...b82c`, support SHA `b9587765...9145`, non-Model-B
+  structural holdout population SHA `33711317...51d`, config catalogue SHA `2a32c01d...e2ae`;
+  full contract is `research/EVIDENCE/WAVE4_BASELINE_CONTRACT.json`.
+- R2 verdict: nontrivial distribution-free population extension killed; exact surviving label is
+  `model-relative e-process against a fixed hash-locked Model-C reference`.
+- R3 decision: primary recommendation is a separately owned controlled frozen text-responsive
+  receiver, initially persuasion-seller; secondary is prospectively randomized live assignment.
+  Neither is authorized. The current offline language/interaction populations are empty.
+- Family expansion: bargaining/negotiation e-process and all current-offline language expansions
+  are unsupported; no treatment expansion selected.
+- R4 verdict: verifier-backed exact obstruction at report SHA `23cdbe69...f270`; production
+  contract pin remains `None`. Any activated pin requires a new independent audit.
+- Last reconciled: 2026-08-16 America/New_York, bounded Wave 4 completion condition reached;
+  waiting for the user's explicit language-environment selection before any next build.

@@ -129,3 +129,42 @@
   `1ca9d360073cb59fa7df972ae140796f1585cae6d27ec7d5229ba9670be4bbb3`
   plus a report validator bound to the frozen research question. Another self-run canary or new
   seed is insufficient.
+
+## R2 nontrivial population-valid bound from the training prefix — killed
+
+- Closest prior route: the implemented fixed-reference persuasion-seller e-process. This check
+  asked whether the same training corpus could make its fitted reference a conservative real-
+  population conditional upper bound.
+- Attempt: take the supremum over every future binary process compatible with a finite training
+  prefix, while allowing arbitrary repeated-observation dependence.
+- Obstruction: the sharp uniform next-step upper bound is `1`. Every bound below one excludes a
+  compatible process and loses finite-sample conditional coverage. Optional-stopping validity
+  cannot establish the missing conditional-null premise, and the implementation has no
+  across-game/596-signal multiplicity control.
+- Evidence: `research/EVIDENCE/R2_POPULATION_BOUND_KILL_CHECK.json`; Model-C SHA256
+  `9daec869b3e4950945a1a370486e8841874fe9f5e611a7e8638dcdaa2b08b82c`; `2/2` tests pass.
+- Classification: theorem-strength evidence against the nontrivial distribution-free population
+  extension, not against the fixed-null mathematical e-process.
+- Surviving exact label: `model-relative e-process against a fixed hash-locked Model-C reference`.
+- Reopen-only-if: a prospectively justified conditional population bound and multiplicity design;
+  not Model B, historical `E_*`, or another empirical plug-in score.
+
+## R4 Wave 4 caller-trusting production report — rejected and fail-closed
+
+- Closest prior route: the Wave 3 capability-isolated evaluator. The new report arithmetic was
+  materially new, but its first version trusted caller-supplied eligibility and identity hashes.
+- Rejected version: `glee_eval/experiments/factorial_report.py` SHA256
+  `0fa1011120c32051c248ed88e45cfd1aff8b65406bb12e0d11da8085b69e8cf5`.
+- Hostile obstruction: it accepted outcome-selected eligibility; aliased RNG-owner seeds plus
+  arm-dependent economic traces; altered episode opponent/nature evidence; invented balanced
+  roles; and a six-row custom contract as production evidence.
+- Classification: verifier-integrity failure, not a treatment/payoff result.
+- Material repair: production and synthetic schemas are now disjoint; future production evidence
+  recomputes eligibility, named streams, opponent/nature evidence, exact roles, artifacts, and a
+  pre-outcome manifest. Because the language environment is still unselected, the production
+  contract authorization pin remains `None` and every payoff contract fails closed.
+- Current independent result: verifier-backed exact obstruction at report SHA
+  `23cdbe690170b1d7eb598590e43e9bd7833d013019903b6acda7899e3455f270`; see
+  `research/AUDITS/R4_WAVE4_EXACT_OBSTRUCTION.md`.
+- Reopen-only-if: user selects the receiver environment, all contract inputs are prospectively
+  hash-frozen, and a fresh isolated audit passes the exact activated production pin.

@@ -1,0 +1,31 @@
+{
+  "schema": "glee.research.r4_wave4_exact_obstruction.v1",
+  "verdict": "VERIFIER_BACKED_EXACT_OBSTRUCTION",
+  "production_payoff_authorized": false,
+  "obstruction": "AUTHORIZED_PRODUCTION_CONTRACT_SHA256 is None until a text-responsive receiver and exact pre-outcome 3600-row contract are selected and frozen",
+  "versions": {
+    "factorial_report_sha256": "23cdbe690170b1d7eb598590e43e9bd7833d013019903b6acda7899e3455f270",
+    "factorial_evaluator_sha256": "c272d602cafced4c93be00b43d4d7df7174229a543eda6ee08ec59dd95c4aee1",
+    "research_question_revision_2_sha256": "221755b0b623d325143383e508b9b4132580b423134ef5ff15529d702c06ef45"
+  },
+  "hostile_counterexamples": {
+    "outcome_selected_eligibility_gets_production_status": false,
+    "cross_owner_rng_alias_gets_production_status": false,
+    "arm_dependent_economic_trace_gets_production_status": false,
+    "altered_opponent_or_nature_gets_production_status": false,
+    "invented_balanced_roles_get_production_status": false,
+    "six_row_contract_gets_production_status": false,
+    "forged_3600_row_contract_gets_production_status": false
+  },
+  "tests": {
+    "targeted_passed": 40,
+    "targeted_failed": 0
+  },
+  "boundaries": {
+    "payoff_rows": 0,
+    "model_b_used": false,
+    "external_model_calls": 0,
+    "live_or_rated_games": 0
+  },
+  "reopen_only_if": "user selects a receiver environment, exact production contract hash is prospectively frozen, and a fresh isolated audit passes that activated version"
+}

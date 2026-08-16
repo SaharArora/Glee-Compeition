@@ -1,0 +1,79 @@
+{
+  "schema": "glee.research.wave4_baseline_contract.v1",
+  "status": "frozen_mandatory_no_payoff_run",
+  "wave3_implementation_commit": "a1438d0878dd89fff7d71accc7ddc7faebac983b",
+  "wave3_provenance_commit": "5c389cc5773cf9714fe0c30bfbbbb4d24fc3e38c",
+  "agent_entrypoints": {
+    "e0_l0": "research.CANDIDATES.wave3_factorial_agents:Factorial00Agent",
+    "e0_l1": "research.CANDIDATES.wave3_factorial_agents:Factorial01Agent",
+    "e1_l0": "research.CANDIDATES.wave3_factorial_agents:Factorial10Agent",
+    "e1_l1": "research.CANDIDATES.wave3_factorial_agents:Factorial11Agent"
+  },
+  "artifact_provenance": {
+    "schema": "glee.research.factorial_baseline_artifacts.v1",
+    "response_model": {
+      "path": "/Users/sahararora/Glee-Compeition/models/response_v1/model.json",
+      "sha256": "9daec869b3e4950945a1a370486e8841874fe9f5e611a7e8638dcdaa2b08b82c"
+    },
+    "support_index": {
+      "path": "/Users/sahararora/Glee-Compeition/reports/dataset_audit/support_index.json",
+      "sha256": "b958776534e764ed14099f4194af5437d4b9f8d6e5be3ec6537276eb133d9145"
+    },
+    "baseline_configuration": {
+      "economic_core": "TreatmentOffEconomicCore",
+      "strategic_mode": "SAFE",
+      "use_theory_anchor": true,
+      "message_mode": "off",
+      "persuasion_explore": false,
+      "use_persuasion_platt": false,
+      "use_deceptive_seller_guard": false,
+      "use_persuasion_text_stance": false,
+      "use_time_concession": false,
+      "guarantee_own_margin": false,
+      "debias_counterpart_value": false,
+      "use_unknown_horizon_counter_fallback": false,
+      "use_unknown_horizon_counter_preservation": false,
+      "historical_evidence_controller": false
+    },
+    "receiver_contract": {
+      "schema": "glee.research.receiver_capability.v1",
+      "environment_id": "glee.offline.rule_based_text_blind.v1",
+      "candidate_text_delivered": true,
+      "receiver_consumes_candidate_text": false
+    }
+  },
+  "artifact_provenance_sha256": "620e0b10bf0d39bfae113348485702ebf95c5def24d06de19d2f7d097d61538e",
+  "offline_evaluator_inputs": {
+    "opponent_population": {
+      "path": "/Users/sahararora/Glee-Compeition/models/opponent_population_holdout/opponent_population.json",
+      "sha256": "3371131752a83dde73adba341aec78aab14af9bfd02b94b0bf7b773c317e051d",
+      "model_b": false
+    },
+    "config_catalogue": {
+      "path": "/Users/sahararora/Glee-Compeition/models/config_catalogue_holdout/config_catalogue.json",
+      "sha256": "2a32c01dd02f08663c54b9f149c7fc8eda9e0d3b4ade59a0d463c0c55b67e2ae"
+    }
+  },
+  "eligibility_derivation_sha256": "f0062b138c6b6f75ab051b333a516e670c47a5a192c173cda4d69b460ec36f75",
+  "required_provenance_fields": [
+    "response_model.path",
+    "response_model.sha256",
+    "support_index.path",
+    "support_index.sha256",
+    "baseline_configuration",
+    "receiver_contract"
+  ],
+  "tests": {
+    "missing_artifact_failure": true,
+    "mismatched_arm_bytes_failure": true,
+    "all_four_provenance_equal": true
+  },
+  "boundaries": {
+    "model_b_used": false,
+    "payoff_rows_generated": 0,
+    "external_model_calls": 0,
+    "live_or_rated_games": 0,
+    "scenario_manifest_frozen": false,
+    "scenario_manifest_blocker": "language environment selection is pending; current text-blind contract yields an empty primary language population"
+  }
+}

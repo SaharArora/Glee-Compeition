@@ -87,6 +87,38 @@ def _validate_response_model(payload: dict[str, Any]) -> None:
                 raise ValueError(f"response model {family} bucket trials is invalid")
 
 
+def _validate_support_index(payload: dict[str, Any]) -> None:
+    """Verify the frozen coverage artifact before it can influence control."""
+
+    if int(payload.get("schema_version", -1)) != 1:
+        raise ValueError("support index schema_version must be 1")
+    buckets = payload.get("buckets")
+    if not isinstance(buckets, dict):
+        raise ValueError("support index buckets must be an object")
+    if int(payload.get("bucket_count", -1)) != len(buckets):
+        raise ValueError("support index bucket_count does not match buckets")
+    for key, row in buckets.items():
+        if not isinstance(key, str) or not isinstance(row, dict):
+            raise ValueError("support index contains an invalid bucket")
+        if int(row.get("total_observations", -1)) < 0:
+            raise ValueError(f"support index bucket {key} has invalid observations")
+        counts = row.get("action_counts")
+        if not isinstance(counts, dict) or any(int(value) < 0 for value in counts.values()):
+            raise ValueError(f"support index bucket {key} has invalid action counts")
+        density = float(row.get("density", -1.0))
+        occupied = int(row.get("occupied_bins", -1))
+        total_bins = int(row.get("total_bins", 0))
+        expected_density = occupied / total_bins if total_bins > 0 else -1.0
+        if (
+            not math.isfinite(density)
+            or density < 0.0
+            or occupied < 0
+            or total_bins <= 0
+            or not math.isclose(density, expected_density, rel_tol=0.0, abs_tol=1e-15)
+        ):
+            raise ValueError(f"support index bucket {key} has invalid density")
+
+
 class TreatmentOffEconomicCore(JordanStrategicAgent):
     """Theory/residual economic policy with treatment control held neutral.
 
@@ -145,6 +177,8 @@ class TreatmentOffEconomicCore(JordanStrategicAgent):
         support_payload, self.support_index_provenance = _verified_json(
             support_index_path, support_index_sha256, "support_index.json"
         )
+        if support_payload is not None:
+            _validate_support_index(support_payload)
         self.coverage_gate = CoverageGate(support_payload) if support_payload is not None else None
 
         # The treatment-off baseline neither generates nor stores a shadow

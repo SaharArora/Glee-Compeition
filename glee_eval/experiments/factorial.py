@@ -204,11 +204,19 @@ class ArmResult:
     opponent_payoff: float
     scenario_hash: str
     initial_state_hash: str
+    configuration_hash: str
+    opponent_identity_hash: str
+    role_identity_hash: str
     support_mask_hash: str
+    support_identity_hash: str
     eligibility_hash: str
     environment_stream_hash: str
+    nature_stream_hash: str
+    nature_trace_hash: str
     opponent_stream_hash: str
     economic_stream_hash: str
+    artifact_provenance_hash: str
+    artifact_provenance: dict[str, Any]
     randomness_audit_hash: str
     randomness_audit: dict[str, Any]
     episode_hash: str
@@ -296,6 +304,37 @@ def _stream_hash(scenario_id: str, name: str, seed: int) -> str:
     return _hash({"scenario_id": scenario_id, "stream": name, "seed": seed})
 
 
+def factorial_named_seed(master_seed: int, scenario_id: str, stream: str) -> int:
+    """Public verifier surface for the evaluator's frozen named substreams."""
+
+    return _named_seed(master_seed, scenario_id, stream)
+
+
+def factorial_stream_hash(scenario_id: str, name: str, seed: int) -> str:
+    """Public verifier surface for an environment/opponent stream identity."""
+
+    return _stream_hash(scenario_id, name, seed)
+
+
+def nature_trace(episode: EpisodeResult) -> list[dict[str, Any]]:
+    """Return only engine-owned nature events, in transcript order.
+
+    Treatment-rendering fields never enter this projection.  It therefore binds
+    the declared nature stream to the evidence that was actually consumed by an
+    episode rather than merely comparing four caller-supplied hash strings.
+    """
+
+    trace: list[dict[str, Any]] = []
+    for item in episode.full_transcript:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role") or "").strip().lower()
+        action_type = str(item.get("action_type") or "").strip().lower()
+        if role == "nature" or action_type.startswith("nature_"):
+            trace.append(copy.deepcopy(item))
+    return trace
+
+
 def _unlabeled_episode_record(episode: EpisodeResult) -> dict[str, Any]:
     """Episode evidence with arm/treatment identity absent by construction."""
 
@@ -360,11 +399,18 @@ def _assert_paired_manifests(results: list[ArmResult]) -> None:
     paired_fields = (
         "scenario_hash",
         "initial_state_hash",
+        "configuration_hash",
+        "opponent_identity_hash",
+        "role_identity_hash",
         "support_mask_hash",
+        "support_identity_hash",
         "eligibility_hash",
         "environment_stream_hash",
+        "nature_stream_hash",
+        "nature_trace_hash",
         "opponent_stream_hash",
         "economic_stream_hash",
+        "artifact_provenance_hash",
     )
     for field in paired_fields:
         values = {getattr(result, field) for result in results}
@@ -414,6 +460,7 @@ def run_factorial(
     scenario_factory: ScenarioFactory | None = None,
     require_inert_parity: bool = False,
     require_active_isolation_canary: bool = False,
+    required_artifact_provenance: Mapping[str, Any] | None = None,
 ) -> list[FactorialRow]:
     """Run four arms on one frozen scenario manifest per paired row.
 
@@ -426,6 +473,11 @@ def run_factorial(
     ``require_inert_parity`` is the hard canary mode.  It is used for treatment-off
     wrappers and deliberately inert treatments; every unlabeled episode record must
     then be identical or the row is rejected before an effect is reported.
+
+    When ``required_artifact_provenance`` is supplied, every arm must expose
+    ``factorial_artifact_provenance()`` and its canonical payload must exactly match
+    the frozen contract. This prevents any arm from silently dropping or replacing
+    the shared Model-C/support bytes.
     """
 
     _validate_arm_definitions(factories)
@@ -472,6 +524,7 @@ def run_factorial(
         metadata = copy.deepcopy(scenario.metadata)
         metadata["factorial_randomness"] = {
             "schema": "glee.factorial.stream_manifest.v2",
+            "master_seed_hash": _hash({"master_seed": int(seed)}),
             "scenario_seed_hash": _stream_hash(scenario.scenario_id, "scenario", scenario_seed),
             "environment_seed_hash": _stream_hash(scenario.scenario_id, "environment", environment_seed),
             "opponent_seed_hash": _stream_hash(scenario.scenario_id, "opponent-policy", opponent_seed),
@@ -484,6 +537,24 @@ def run_factorial(
         )
         scenario_hash = _hash(frozen_scenario)
         initial_state_hash = _hash(_initial_state_manifest(frozen_scenario))
+        configuration_hash = _hash(
+            {
+                "config_id": frozen_scenario.config_id,
+                "public_parameters": frozen_scenario.public_parameters,
+            }
+        )
+        opponent_identity_hash = _hash(
+            {
+                "opponent_role": frozen_scenario.opponent_role,
+                "opponent_spec": frozen_scenario.opponent_spec,
+            }
+        )
+        role_identity_hash = _hash(
+            {
+                "candidate_role": frozen_scenario.candidate_role,
+                "opponent_role": frozen_scenario.opponent_role,
+            }
+        )
         support_mask = copy.deepcopy(support_mask_fn(copy.deepcopy(frozen_scenario)))
         eligibility = copy.deepcopy(eligibility_fn(copy.deepcopy(frozen_scenario)))
         support_mask_hash = _hash(support_mask)
@@ -514,6 +585,26 @@ def run_factorial(
             if _hash(arm_scenario) != scenario_hash:
                 raise FactorialIntegrityError("scenario copy changed before episode")
             agent = factories[arm](context)
+            artifact_fn = getattr(agent, "factorial_artifact_provenance", None)
+            if callable(artifact_fn):
+                artifact_provenance = to_jsonable(artifact_fn())
+            else:
+                artifact_provenance = {"schema": "glee.factorial.artifacts.absent.v1"}
+            if required_artifact_provenance is not None:
+                if not callable(artifact_fn):
+                    raise FactorialIntegrityError(
+                        f"arm {arm} lacks factorial_artifact_provenance()"
+                    )
+                if _hash(artifact_provenance) != _hash(required_artifact_provenance):
+                    raise FactorialIntegrityError(
+                        f"arm {arm} artifact provenance differs from the frozen contract"
+                    )
+            support_identity_hash = _hash(
+                {
+                    "support_mask_hash": support_mask_hash,
+                    "support_index": artifact_provenance.get("support_index"),
+                }
+            )
             binding_fn = getattr(agent, "factorial_capability_bindings", None)
             if not callable(binding_fn):
                 raise FactorialIntegrityError(
@@ -534,17 +625,27 @@ def run_factorial(
                     opponent_payoff=float(episode.opponent_payoff),
                     scenario_hash=scenario_hash,
                     initial_state_hash=initial_state_hash,
+                    configuration_hash=configuration_hash,
+                    opponent_identity_hash=opponent_identity_hash,
+                    role_identity_hash=role_identity_hash,
                     support_mask_hash=support_mask_hash,
+                    support_identity_hash=support_identity_hash,
                     eligibility_hash=eligibility_hash,
                     environment_stream_hash=_stream_hash(
                         frozen_scenario.scenario_id, "environment", environment_seed
                     ),
+                    nature_stream_hash=_stream_hash(
+                        frozen_scenario.scenario_id, "environment", environment_seed
+                    ),
+                    nature_trace_hash=_hash(nature_trace(episode)),
                     opponent_stream_hash=_stream_hash(frozen_scenario.scenario_id, "opponent-policy", opponent_seed),
                     economic_stream_hash=_stream_hash(
                         frozen_scenario.scenario_id,
                         "candidate-economic",
                         candidate_seeds["economic_seed"],
                     ),
+                    artifact_provenance_hash=_hash(artifact_provenance),
+                    artifact_provenance=artifact_provenance,
                     randomness_audit_hash=_hash(randomness_audit),
                     randomness_audit=randomness_audit,
                     episode_hash=_hash(episode),

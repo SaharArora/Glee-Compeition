@@ -1,6 +1,9 @@
-# Frozen research question — revision 1
+# Frozen research question — revision 2
 
-Status: frozen before treatment implementation or factorial evaluation.
+Status: revision 1 was frozen before treatment implementation. The user-authorized Wave 4
+roadmap required the sparse-treatment headline populations below to be frozen before any payoff
+evaluation. No treatment-payoff row had been generated when revision 2 was recorded. The full
+contract is mirrored in `research/ROUTES/WAVE4_ESTIMANDS.md`.
 
 ## Question
 
@@ -27,8 +30,8 @@ mandatory reported secondary outcome. Agreement, rounds, purchase/recommendation
 rates, downside quantiles, and action reach are diagnostics, not substitutes for
 payoff.
 
-The overall estimand includes every structurally eligible scenario in the frozen
-offline evaluation population. The language-eligible estimand includes only scenarios
+The secondary aggregate includes every scenario in the frozen evaluation population. The
+language-eligible estimand includes only scenarios
 whose frozen contract both exposes a textual message to the treated agent and delivers
 that message to a text-responsive opponent/evaluator. Eligibility is determined from
 the paired pre-treatment scenario and cannot depend on an arm's action or outcome. If
@@ -53,13 +56,26 @@ All four arms use the same frozen theory-plus-validated-empirical-residual econo
 scenario, opponent draw, candidate role, random-number substreams, stopping rule, and
 support mask. With both treatments off, all four wrappers must be behaviorally identical.
 
-## Estimands
+## Estimands and revision-2 headline populations
 
 For paired scenario payoff `Y(e,l)`, the e-process main effect is
 `0.5 * [(Y(1,0)-Y(0,0)) + (Y(1,1)-Y(0,1))]`. The language main effect is
 `0.5 * [(Y(0,1)-Y(0,0)) + (Y(1,1)-Y(1,0))]`. The interaction is
-`Y(1,1)-Y(1,0)-Y(0,1)+Y(0,0)`. Report these overall and by family, plus the
-language main effect and interaction on the language-eligible population.
+`Y(1,1)-Y(1,0)-Y(0,1)+Y(0,0)`.
+
+The three Holm-controlled headline hypotheses are, in order:
+
+1. the e-process main effect on immutable structurally e-process-eligible scenarios;
+2. the language main effect on immutable language-eligible scenarios in a certified
+   text-responsive receiver environment; and
+3. the interaction on the conjunction of those two immutable labels.
+
+Eligibility is recomputed from the pre-arm scenario, the hash-locked Model-C reference, and the
+frozen receiver-capability contract. It may not use actions, reach, crossing, terminal state, or
+payoff. Overall effects remain mandatory secondary estimates and negative controls remain
+mandatory. Under the current offline text-blind receiver contract the language and interaction
+headline populations are empty and therefore nonreportable; that fact is a checkpoint blocker,
+not a zero-effect result.
 
 ## Splits and final paired study
 
