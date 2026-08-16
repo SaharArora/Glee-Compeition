@@ -45,3 +45,13 @@
 - A mathematically valid e-process under a fixed conditional null does not certify that a fitted
   reference is a population upper bound. Optional stopping protects the stopping rule, not an
   unproved data-generating premise.
+- A pre-outcome hash is useful only if its inputs are independently reconstructible. Rehashing a
+  caller-supplied scenario, support mask, eligibility, or policy merely proves internal
+  consistency. Bind the exact scenario set, derivation indices, model payload, support root,
+  receiver/source identities, and canonical ordering before assignment.
+- A receiver capability harness is not a receiver choice. Freeze identity, prompts, visibility,
+  parser/failure/cache semantics, costs, probes, and treatment-blind selection independently;
+  mock responsiveness proves plumbing only and must carry a non-evidence label.
+- Report authorization and pre-outcome-manifest authorization are separate surfaces. The former
+  binds estimands/reporting; the latter binds who and what will be exposed to treatment. Require
+  both pins and a fresh audit after activation rather than letting one hash stand in for both.

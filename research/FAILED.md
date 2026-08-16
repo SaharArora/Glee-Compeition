@@ -168,3 +168,38 @@
   `research/AUDITS/R4_WAVE4_EXACT_OBSTRUCTION.md`.
 - Reopen-only-if: user selects the receiver environment, all contract inputs are prospectively
   hash-frozen, and a fresh isolated audit passes the exact activated production pin.
+
+## Wave 5A initial rehashable pre-outcome validator — rejected and repaired offline
+
+- Closest prior route: the Wave 4 report verifier, which intentionally had no exact future
+  scenario/receiver manifest because the language environment was unselected.
+- Rejected implementation SHA: `glee_eval/experiments/preoutcome_manifest.py`
+  `6ca804b18fc2c3986f2c21340d594de89657edef5f603551bf09a2b06ca421e3`.
+- Hostile obstruction: coherent rehashing could replace same-count scenarios; change Model C,
+  support masks, mirrored e-process/language/failure/missingness policies, top estimands/report
+  schema, and parsed receiver shape; the validator also initially lacked exact scenario-stream,
+  dependency, receiver/provenance, typed-output, and canonical-order reconstruction.
+- Classification: implementation/verifier failure, not an outcome and not evidence against the
+  2x2 hypothesis.
+- Material repair: the fixed contract now binds and reconstructs exact scenario/configuration
+  payloads, within-family indices and deterministic scenario seeds, canonical Model-C payload,
+  support masks, receiver and source hashes, all mirrored policies, named streams, strict output
+  fields, row order, and intent-to-treat admission. A fresh isolated auditor reports `39/39`
+  general and `13/13` scenario-seed attacks rejected; production remains blocked by two `None`
+  pins.
+- Reopen-only-if: an exact receiver and 3,600-row factorization are selected and both production
+  hashes are prospectively frozen; then audit the activated version afresh. Rehashing a synthetic
+  fixture or setting only one pin is not sufficient.
+
+## Wave 5A controlled receiver execution — blocked, not attempted
+
+- The generic contract/cache/replay/capability infrastructure is implemented, but current project
+  evidence supports no named hosted model or local artifact.
+- Obstruction: thirteen independent inputs remain user-owned, including immutable identity,
+  selection provenance, prompt bytes, visibility boundary, decoding/seeds, parser, failure/cache
+  policies, prices/caps, scope, untouched probes, confirmatory design, and a reviewed adapter.
+- Classification: environment/authorization obstruction. No receiver was selected, tuned, called,
+  or promoted; all mock results are `infrastructure_only_non_evidence`.
+- Reopen-only-if: those inputs and spend/external-call authorization are explicit and frozen
+  before capability outcomes. Do not choose a receiver because it reacts strongly to the four
+  treatment templates or factorial payoff.

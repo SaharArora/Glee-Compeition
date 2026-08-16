@@ -310,6 +310,12 @@ def factorial_named_seed(master_seed: int, scenario_id: str, stream: str) -> int
     return _named_seed(master_seed, scenario_id, stream)
 
 
+def factorial_scenario_seed(master_seed: int, family: str, family_index: int) -> int:
+    """Public verifier surface for the pre-outcome scenario stream."""
+
+    return _scenario_seed(master_seed, family, family_index)
+
+
 def factorial_stream_hash(scenario_id: str, name: str, seed: int) -> str:
     """Public verifier surface for an environment/opponent stream identity."""
 

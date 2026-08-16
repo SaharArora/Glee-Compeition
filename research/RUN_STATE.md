@@ -1,9 +1,15 @@
 # Research run state
 
-- Campaign state: `wave_4_checkpoint_complete_waiting_for_language_environment_selection`
-- Latest user directive: checkpoint Wave 3; freeze the exact baseline artifacts; finish and
-  independently audit R4; settle R2, R3, family feasibility, and estimands; stop before any
-  factorial payoff, large text-responsive simulator, Model-B reuse, or live/rated game.
+- Wave-5A UTC start: `2026-08-16T22:01:06Z`; hard stop no later than
+  `2026-08-17T01:01:06Z`.
+- Wave-5A scope: bounded offline technical handoff, controlled-receiver preflight, and
+  pre-outcome manifest/hostile-validation infrastructure. No Model B, payoff, external model,
+  holdout treatment-effect, or live/rated work is authorized.
+- Campaign state: `wave_5a_offline_preflight_complete_waiting_for_receiver_and_manifest_design`
+- Latest user directive: finish a bounded Wave 5A technical handoff, generic controlled-receiver
+  preflight, and future pre-outcome-manifest/hostile-validation infrastructure; reconcile,
+  commit, push, report, and terminate without production payoff, external calls, Model B, or
+  live/rated games.
 - Branch: `research/2x2-eprocess-language`
 - Worktree: `/Users/sahararora/Glee-Research-2x2`
 - Wave-3 base commit: `fd05023de6ef87bb9d9e8f0f20044052569041b6`
@@ -25,20 +31,39 @@
 - Model-B state: the mixed-fold validation failed and R0 is closed. No Model-B process is
   active or authorized; the interrupted hierarchical actor-factor work is preserved but may
   not supply tournaments, gates, the research baseline, or e-process validity.
-- Active processes: none. No Model B, factorial payoff, external-model, or live/rated process ran.
+- Active research processes: none after Wave 5A reconciliation. No Model B, factorial payoff,
+  external-model, holdout-effect, or live/rated process ran.
 - Interrupted process: `python3 -m glee_eval.population.actor_factor_crossfit_fit
   fit-fold --data-dir data --output-dir models/actor_factor_crossfit_v2 --manifest
   models/actor_factor_crossfit_v2/crossfit_manifest.json --axis actor --fold 0`.
   It was interrupted by the user-supplied R0 completion contract. It wrote no fold artifact
   or checkpoint and is not safe/authorized to resume unless the user explicitly reopens R0.
-- Current orchestration wave: Wave 3 implementation is complete and stopped at its report
-  boundary. Four forced entrypoints exist. R2 acts only on persuasion-seller prior-round buyer
+- Current orchestration wave: Wave 5A offline preflight is complete and stops before receiver
+  selection or production activation. Four forced entrypoints exist. R2 acts only on
+  persuasion-seller prior-round buyer
   obedience relative to hash-locked Model C. R3 acts only on text-enabled persuasion-seller
   rendering, so the two interventions overlap primarily in eligible persuasion-seller cells.
   The offline receiver is text-blind and no treatment payoff result exists. R4's report verifier
   has a fresh independent version-bound audit: the production authorization pin is intentionally
   absent, so no payoff contract can pass before language-environment selection and exact
   pre-outcome manifest freezing.
+- Wave-5A Route A: `research/TECHNICAL_HANDOFF_2X2.md` is a standalone researcher handoff with
+  architecture, exact mathematics/limits, treatment templates, evidence ledger, claim rules,
+  reproduction commands, and collaborator quick start.
+- Wave-5A Route B: `glee_eval/experiments/controlled_receiver.py` implements a provider-neutral,
+  injected-transport contract, strict parser/failure rules, hidden-input separation, hashes,
+  resource caps, exact cache/replay, and generic capability certificates. No receiver/model was
+  selected, called, tuned, or certified; all mock output is
+  `infrastructure_only_non_evidence`. The 13-part user gate is in
+  `research/ROUTES/WAVE5A_RECEIVER_DECISION.md`.
+- Wave-5A Route C: `glee_eval/experiments/preoutcome_manifest.py` binds/reconstructs exact
+  scenario/configuration bytes, within-family scenario stream, Model-C payload, support masks,
+  receiver/artifact/dependency/policy/estimand bytes, named RNG streams, row order, strict output
+  admission, and intent-to-treat inclusion. The fresh hostile audit passed the fixed-contract
+  synthetic checkpoint. The exact 3,600-row factorization remains deliberately unselected among
+  three designs; both independent production authorization pins remain `None`.
+- Wave-5A integrated regression: 74 unit/synthetic/audit tests passed, 0 failed, wall time 3.76s.
+  These include synthetic evaluator arithmetic and receiver mocks, not outcome evidence.
 - Frozen baseline revision: `research/CANDIDATES/r1_treatment_off_baseline.py` SHA256
   `95bf90cfb63bde3b78aa9bdd5140de902016bd6413b25b910d8bebf80f885fef` at base
   `895ffee`; 8 parity tests pass. No baseline payoff or treatment run occurred.
@@ -78,5 +103,6 @@
   are unsupported; no treatment expansion selected.
 - R4 verdict: verifier-backed exact obstruction at report SHA `23cdbe69...f270`; production
   contract pin remains `None`. Any activated pin requires a new independent audit.
-- Last reconciled: 2026-08-16 America/New_York, bounded Wave 4 completion condition reached;
-  waiting for the user's explicit language-environment selection before any next build.
+- Last reconciled: 2026-08-16 America/New_York, bounded Wave 5A completion condition reached;
+  waiting for explicit receiver selection plus the 3,600-row breadth/replication design before
+  any capability calls or production contract activation.
