@@ -99,6 +99,16 @@ def _fit_response_coefficients(
     tolerance: float = 1e-7,
     aggregate: bool = True,
 ) -> dict[str, Any]:
+    for row in rows:
+        if row.get("x") is not None and not math.isfinite(float(row["x"])):
+            raise ValueError("response optimizer requires finite x")
+        if int(row["outcome"]) not in {0, 1}:
+            raise ValueError("response optimizer outcome must be binary")
+    for row in rows:
+        if row.get("x") is not None and not math.isfinite(float(row["x"])):
+            raise ValueError("response optimizer requires finite x")
+        if int(row["outcome"]) not in {0, 1}:
+            raise ValueError("response optimizer outcome must be binary")
     """Deterministic diagonal-Newton ridge logistic fit on aggregated rows."""
 
     # Canonical sufficient statistics define the objective identically for both
@@ -281,6 +291,239 @@ def _fit_response_coefficients(
     }
 
 
+# Retain the coordinate implementation above as an auditable reference; the
+# frozen Model-B optimizer is the zero-sum Newton-PCG implementation below.
+_fit_response_coefficients_coordinate_reference = _fit_response_coefficients
+
+
+def _pcg_solve(hvp, rhs: list[float], precondition, *, target: float, cap: int, active_index: int|None=None) -> tuple[list[float], dict[str, Any]]:
+    """Deterministic PCG used by production and dense-reference tests."""
+    n=len(rhs); x=[0.0]*n; r=rhs[:]
+    if active_index is not None: r[active_index]=0.0
+    z=precondition(r); p=z[:]; rz=math.fsum(r[i]*z[i] for i in range(n))
+    residual=sqrt(math.fsum(v*v for v in r))
+    for iteration in range(1,cap+1):
+        if active_index is not None: p[active_index]=0.0
+        hp=hvp(p)
+        curvature=math.fsum(p[i]*hp[i] for i in range(n))
+        if not math.isfinite(curvature) or curvature<=0:
+            return x,{"solved":False,"stop_reason":"nonfinite_or_negative_curvature","iterations":iteration,"residual":residual}
+        alpha=rz/curvature
+        x=[x[i]+alpha*p[i] for i in range(n)]; r=[r[i]-alpha*hp[i] for i in range(n)]
+        if active_index is not None: r[active_index]=0.0
+        new_rr=math.fsum(v*v for v in r)
+        residual=sqrt(new_rr)
+        if not math.isfinite(new_rr): return x,{"solved":False,"stop_reason":"nonfinite_residual","iterations":iteration,"residual":residual}
+        if residual<=target: return x,{"solved":True,"stop_reason":"residual_target","iterations":iteration,"residual":residual}
+        z=precondition(r); nrz=math.fsum(r[i]*z[i] for i in range(n)); p=[z[i]+nrz/rz*p[i] for i in range(n)]; rz=nrz
+    return x,{"solved":False,"stop_reason":"iteration_limit","iterations":iteration,"residual":residual}
+
+
+def _pcg_direction_for_test(matrix: list[list[float]], rhs: list[float], *, target: float = 1e-12) -> tuple[list[float], dict[str, Any]]:
+    n=len(rhs)
+    return _pcg_solve(lambda p:[math.fsum(matrix[i][j]*p[j] for j in range(n)) for i in range(n)],rhs,lambda r:r[:],target=target,cap=min(2000,max(50,4*n)))
+
+
+def _sparse_hvp(vector, weights, shift, ridge, penalty_groups, active_index=None):
+    terms=[[shift*x] for x in vector]
+    for weight,features in weights:
+        dot=math.fsum(vector[i]*a for i,a in features.items())
+        for i,a in features.items(): terms[i].append(weight*a*dot)
+    for inds in penalty_groups:
+        total=math.fsum(vector[i] for i in inds)
+        for i in inds: terms[i].append(ridge*(vector[i]+total))
+    out=[math.fsum(x) for x in terms]
+    if active_index is not None: out[active_index]=vector[active_index]
+    return out
+
+
+def _sparse_logistic_numerics_for_test(
+    encoded: list[tuple[int,int,dict[int,float]]], beta: list[float], vector: list[float]
+) -> tuple[float,list[float],list[float]]:
+    """Unpenalized objective/gradient/HVP primitive for numerical contract tests."""
+    objective=0.0; gradient=[0.0]*len(beta); hvp=[0.0]*len(beta)
+    for n,y,features in encoded:
+        eta=math.fsum(beta[i]*v for i,v in features.items()); p=_sigmoid(eta)
+        objective+=n*(eta+math.log1p(math.exp(-eta)) if eta>=0 else math.log1p(math.exp(eta)))-y*eta
+        error=n*p-y; weight=n*p*(1-p); vd=math.fsum(vector[i]*v for i,v in features.items())
+        for i,v in features.items(): gradient[i]+=error*v; hvp[i]+=weight*v*vd
+    return objective,gradient,hvp
+
+
+def _projected_armijo(objective, beta, direction, gradient, project=lambda x:x):
+    """Exact projected Armijo loop used to exercise stagnation/finite guards."""
+    old=objective(beta); alpha=1.0
+    while alpha>=2**-30:
+        candidate=project([beta[i]+alpha*direction[i] for i in range(len(beta))])
+        step_dot=math.fsum(gradient[i]*(candidate[i]-beta[i]) for i in range(len(beta)))
+        value=objective(candidate)
+        if step_dot < 0.0 and math.isfinite(value) and value <= old + 1e-4 * step_dot:
+            return candidate, value, alpha
+        alpha*=.5
+    return None,None,alpha
+
+
+_armijo_projected_for_test = _projected_armijo
+
+
+def _fit_response_coefficients(
+    rows: list[dict[str, Any]], ridge: float, *, max_iterations: int = 300,
+    tolerance: float = 1e-7, aggregate: bool = True,
+) -> dict[str, Any]:
+    for row in rows:
+        if row.get("x") is not None and not math.isfinite(float(row["x"])):
+            raise ValueError("response optimizer requires finite x")
+        if int(row["outcome"]) not in {0, 1}:
+            raise ValueError("response optimizer outcome must be binary")
+    grouped: dict[tuple[Any, ...], list[int]] = defaultdict(lambda: [0, 0])
+    for row in rows:
+        key = (str(row["channel"]), row.get("x"), str(row["player_model"]), str(row["config_signature"]))
+        grouped[key][0] += 1; grouped[key][1] += int(row["outcome"])
+    work = [{"channel": k[0], "x": k[1], "model": k[2], "config": k[3], "n": v[0], "y": v[1]}
+            for k, v in sorted(grouped.items(), key=lambda item: tuple(str(x) for x in item[0]))]
+    all_coefficients: dict[str, float] = {}
+    x_scale: dict[str, Any] = {}
+    audits = []; histories = []; channel_passes=[]; channel_kkts=[]; channel_stops=[]
+    for channel in sorted({r["channel"] for r in work}):
+        cr = [r for r in work if r["channel"] == channel]
+        models = sorted({r["model"] for r in cr}); configs = sorted({r["config"] for r in cr})
+        xv = [(float(r["x"]), r["n"]) for r in cr if r["x"] is not None]
+        nt = sum(n for _, n in xv); xm = math.fsum(x*n for x, n in xv)/nt if nt else 0.0
+        xs = max(1e-9, sqrt(math.fsum(n*(x-xm)**2 for x, n in xv)/nt)) if nt > 1 else 1.0
+        x_scale[channel] = {"mean": xm, "sd": xs, "min": min((x for x,_ in xv), default=None), "max": max((x for x,_ in xv), default=None)}
+        mi={m:i for i,m in enumerate(models[:-1])}; ci={c:i+len(mi) for i,c in enumerate(configs[:-1])}
+        intercept_i=len(mi)+len(ci); slope_i=intercept_i+1 if xv else None; dim=intercept_i+1+(1 if xv else 0)
+        enc=[]
+        for r in cr:
+            f={intercept_i:1.0}
+            if len(models)>1:
+                if r["model"]==models[-1]:
+                    for i in mi.values(): f[i]=-1.0
+                else: f[mi[r["model"]]]=1.0
+            if len(configs)>1:
+                if r["config"]==configs[-1]:
+                    for i in ci.values(): f[i]=-1.0
+                else: f[ci[r["config"]]]=1.0
+            if slope_i is not None: f[slope_i]=(float(r["x"])-xm)/xs
+            enc.append((r,f))
+        beta=[0.0]*dim; rate=(sum(r["y"] for r in cr)+.5)/(sum(r["n"] for r in cr)+1)
+        beta[intercept_i]=math.log(rate/(1-rate));
+        if slope_i is not None: beta[slope_i]=.1
+        def penalty(b):
+            ms=math.fsum(b[i] for i in mi.values()); cs=math.fsum(b[i] for i in ci.values())
+            return .5*ridge*math.fsum([*(b[i]**2 for i in mi.values()),ms*ms,*(b[i]**2 for i in ci.values()),cs*cs])
+        def obj(b):
+            terms=[penalty(b)]
+            for r,f in enc:
+                eta=math.fsum(b[i]*v for i,v in f.items()); sp=eta+math.log1p(math.exp(-eta)) if eta>=0 else math.log1p(math.exp(eta))
+                terms.append(r["n"]*sp-r["y"]*eta)
+            return math.fsum(terms)
+        def gh(b):
+            gterms=[[] for _ in range(dim)]; dterms=[[] for _ in range(dim)]; weights=[]
+            for r,f in enc:
+                eta=math.fsum(b[i]*v for i,v in f.items()); p=_sigmoid(eta); e=r["n"]*p-r["y"]; w=r["n"]*p*(1-p); weights.append((w,f))
+                for i,v in f.items(): gterms[i].append(e*v); dterms[i].append(w*v*v)
+            for inds in (list(mi.values()),list(ci.values())):
+                s=math.fsum(b[i] for i in inds)
+                for i in inds: gterms[i].append(ridge*(b[i]+s)); dterms[i].append(2*ridge)
+            return [math.fsum(x) for x in gterms],[math.fsum(x) for x in dterms],weights
+        def hv(v,weights,shift):
+            return _sparse_hvp(v,weights,shift,ridge,(list(mi.values()),list(ci.values())))
+        def original_kkt(b):
+            """Raw constrained KKT in reconstructed original coordinates."""
+            scores_m={m:[] for m in models}; scores_c={c:[] for c in configs}
+            giterms=[]; gsterms=[]
+            for r,f in enc:
+                eta=math.fsum(b[i]*v for i,v in f.items()); error=r["n"]*_sigmoid(eta)-r["y"]
+                giterms.append(error); scores_m[r["model"]].append(error); scores_c[r["config"]].append(error)
+                if slope_i is not None: gsterms.append(error*f[slope_i])
+            gi=math.fsum(giterms); gs=math.fsum(gsterms)
+            mvals={m:(b[mi[m]] if m in mi else -math.fsum(b[i] for i in mi.values())) for m in models}
+            cvals={c:(b[ci[c]] if c in ci else -math.fsum(b[i] for i in ci.values())) for c in configs}
+            mg=[math.fsum(scores_m[m])+ridge*mvals[m] for m in models]; cg=[math.fsum(scores_c[c])+ridge*cvals[c] for c in configs]
+            keyed={"intercept":gi,**{f"model:{m}":v for m,v in zip(models,mg)},**{f"config:{c}":v for c,v in zip(configs,cg)}}
+            if slope_i is not None: keyed["slope"]=0.0 if b[slope_i]<=1e-8+1e-14 and gs>=0 else gs
+            worst=max(keyed,key=lambda k:abs(keyed[k])); return abs(keyed[worst]),worst,keyed
+        hist=[obj(beta)]; pcg_records=[]; armijo_records=[]; active_history=[]; raw_kkt_history=[]; converged=False; stop="iteration_limit"; backtracks=0; last_damping=1.0; channel_max_change=0.0
+        for iteration in range(1,max_iterations+1):
+            g,diag,w=gh(beta)
+            active_slope=slope_i is not None and beta[slope_i]<=1e-8+1e-14 and g[slope_i]>=0
+            if active_slope: g[slope_i]=0.0
+            kkt,worst_key,_=original_kkt(beta); raw_kkt_history.append(kkt); active_history.append(active_slope)
+            if kkt<=tolerance: converged=True; stop="projected_kkt"; break
+            solved=False
+            residual_target=max(1e-12,min(.5,sqrt(kkt))*kkt)
+            pcg_cap=min(2000,max(50,4*dim))
+            shift_attempts=[]
+            for shift in (0.0,1e-12,1e-10,1e-8,1e-6,1e-4):
+                rhs=[-x for x in g]; d=[0.0]*dim; r=rhs[:]
+                # Exact unpenalized intercept/slope block; all contrast
+                # coordinates use their declared diagonal curvature.
+                cross=0.0
+                if slope_i is not None:
+                    for weight,features in w:
+                        cross+=weight*features.get(intercept_i,0.0)*features.get(slope_i,0.0)
+                def precondition(vector):
+                    out=[vector[i]/max(diag[i]+shift,1e-12) for i in range(dim)]
+                    if slope_i is None or active_slope:
+                        out[intercept_i]=vector[intercept_i]/max(diag[intercept_i]+shift,1e-12)
+                        if active_slope: out[slope_i]=0.0
+                    else:
+                        a=diag[intercept_i]+shift; c=diag[slope_i]+shift; determinant=max(a*c-cross*cross,1e-18)
+                        out[intercept_i]=(c*vector[intercept_i]-cross*vector[slope_i])/determinant
+                        out[slope_i]=(a*vector[slope_i]-cross*vector[intercept_i])/determinant
+                    return out
+                d,pcg_audit=_pcg_solve(
+                    lambda p:_sparse_hvp(p,w,shift,ridge,(list(mi.values()),list(ci.values())),slope_i if active_slope else None),
+                    rhs,precondition,target=residual_target,cap=pcg_cap,
+                    active_index=slope_i if active_slope else None,
+                )
+                pcgit=pcg_audit["iterations"]; residual_norm=pcg_audit["residual"]
+                solved=pcg_audit["solved"]; failure=None if solved else pcg_audit["stop_reason"]
+                candidate_curvature=None; candidate_descent=None
+                if solved:
+                    candidate_hd=hv(d,w,shift)
+                    candidate_curvature=math.fsum(d[i]*candidate_hd[i] for i in range(dim))
+                    candidate_descent=math.fsum(g[i]*d[i] for i in range(dim))
+                    if (not math.isfinite(candidate_curvature) or candidate_curvature<=0 or
+                            not math.isfinite(candidate_descent) or candidate_descent>=0):
+                        failure="nonfinite_nondescent_or_nonpositive_curvature"; solved=False
+                shift_attempts.append({"shift":shift,"iterations":pcgit,"residual":residual_norm,"target":residual_target,"curvature_failure":failure,"curvature_product":candidate_curvature,"descent_product":candidate_descent,"solved":solved})
+                if solved: break
+            hd=hv(d,w,shift) if solved else None
+            curvature_product=math.fsum(d[i]*hd[i] for i in range(dim)) if solved else None
+            directional=math.fsum(g[i]*d[i] for i in range(dim)) if solved else None
+            pcg_records.append({"iteration":iteration,"current_projected_kkt":kkt,"shift":shift,"shift_attempts":shift_attempts,"pcg_iterations":pcgit,"solved":solved,"absolute_residual_target":residual_target,"final_residual":residual_norm,"iteration_cap":pcg_cap,"curvature_product":curvature_product,"descent_product":directional})
+            if not solved: stop="pcg_nonconvergence"; break
+            if not math.isfinite(directional) or directional>=0 or not math.isfinite(curvature_product) or curvature_product<=0: stop="pcg_nondescent_or_nonpositive_curvature"; break
+            project=(lambda candidate: [max(1e-8,x) if i==slope_i else x for i,x in enumerate(candidate)]) if slope_i is not None else (lambda candidate:candidate)
+            cand,no,damping=_projected_armijo(obj,beta,d,g,project)
+            accepted=(cand,no) if cand is not None else None
+            iteration_backtracks=(int(round(-math.log2(damping))) if accepted is not None else 31)
+            backtracks+=iteration_backtracks
+            last_damping=damping
+            armijo_records.append({"iteration":iteration,"alpha":damping,"backtracks":iteration_backtracks,"passed":accepted is not None})
+            if accepted is None: stop="line_search_stagnation"; break
+            previous=beta; beta,no=accepted; channel_max_change=max(channel_max_change,max(abs(beta[i]-previous[i]) for i in range(dim))); hist.append(no)
+        g,_,_=gh(beta)
+        if slope_i is not None and beta[slope_i]<=1e-8+1e-14 and g[slope_i]>=0:g[slope_i]=0.0
+        kkt,worst_key,_=original_kkt(beta); raw_kkt_history.append(kkt)
+        if kkt<=tolerance: converged=True; stop="projected_kkt"
+        model_vals={m:(beta[mi[m]] if m in mi else -sum(beta[i] for i in mi.values())) for m in models}
+        config_vals={c:(beta[ci[c]] if c in ci else -sum(beta[i] for i in ci.values())) for c in configs}
+        all_coefficients[f"intercept|{channel}"]=beta[intercept_i]
+        if slope_i is not None: all_coefficients[f"slope|{channel}"]=beta[slope_i]
+        all_coefficients.update({f"model|{channel}|{m}":v for m,v in model_vals.items()}); all_coefficients.update({f"config|{channel}|{c}":v for c,v in config_vals.items()})
+        order="|".join([channel,*models,*configs,"intercept",*( ["slope"] if slope_i is not None else [])])
+        _,_,raw_keyed=original_kkt(beta)
+        audits.append({"channel":channel,"dimension":dim,"models":len(models),"configs":len(configs),"zero_sum_model":math.fsum(model_vals.values()),"zero_sum_config":math.fsum(config_vals.values()),"coefficient_order_sha256":hashlib.sha256(order.encode()).hexdigest(),"free_vector_coefficient_order":order,"active_slope":bool(slope_i is not None and beta[slope_i]<=1e-8+1e-14),"active_slope_history":active_history,"objective_history":hist,"raw_kkt_history":raw_kkt_history,"raw_kkt_final":kkt,"raw_kkt_worst_key":worst_key,"raw_kkt_worst_value":raw_keyed[worst_key],"stop_reason":stop,"projected_kkt":kkt,"iterations":iteration,"max_change":channel_max_change,"last_damping":last_damping,"total_backtracks":backtracks,"preconditioner":{"block":"intercept_slope_2x2" if slope_i is not None else "intercept_1x1","contrast_diagonal":True,"pivot_floor":1e-18},"pcg":pcg_records,"armijo":armijo_records})
+        histories.append(hist); channel_passes.append(converged and kkt<=tolerance); channel_kkts.append(kkt); channel_stops.append(stop)
+    final_obj=math.fsum(h[-1] for h in histories); overall=bool(histories) and all(channel_passes)
+    overall_stop="projected_kkt" if overall else next((s for s in channel_stops if s!="projected_kkt"),"iteration_limit")
+    max_len=max(map(len,histories),default=0); aggregate_history=[math.fsum(h[min(i,len(h)-1)] for h in histories) for i in range(max_len)]
+    return {"coefficients":all_coefficients,"x_scale":x_scale,"converged":overall,"iterations":max((len(h)-1 for h in histories),default=0),"max_iterations":max_iterations,"tolerance":tolerance,"ridge":ridge,"optimizer":"zero_sum_sparse_newton_pcg_with_armijo","final_objective":final_obj,"objective_history":aggregate_history,"final_max_change":max((a["max_change"] for a in audits),default=0.0),"final_max_gradient":max(channel_kkts,default=float('inf')),"projected_kkt_tolerance":tolerance,"projected_kkt_pass":overall,"stop_reason":overall_stop,"last_damping":min((a["last_damping"] for a in audits),default=1.0),"total_backtracks":sum(a["total_backtracks"] for a in audits),"pcg_residual_rule":"max(1e-12,min(.5,sqrt(current_projected_kkt))*current_projected_kkt)","pcg_iteration_cap_rule":"min(2000,max(50,4*free_parameter_count))","pcg_shift_schedule":[0.0,1e-12,1e-10,1e-8,1e-6,1e-4],"pcg_preconditioner":"exact_intercept_slope_block_plus_diagonal_contrasts","armijo_c1":1e-4,"contrast_audit":audits,"aggregated_rows":len(work) if aggregate else len(rows),"numerical_sufficient_statistic_rows":len(work),"aggregation_enabled":aggregate,"raw_rows":len(rows)}
+
+
 def _response_probability(fit: dict[str, Any], row: dict[str, Any]) -> float:
     channel = str(row["channel"])
     coefficients = fit["coefficients"]
@@ -346,6 +589,7 @@ def fit_hierarchical_responses(
                     "projected_kkt_pass": False, "iterations": 0,
                     "finite_validation_probability": False, "finite_validation_loss": False,
                     "fold_logloss": float("inf"),
+                    "solver_audit": None,
                 })
                 fold_records.append(record)
                 continue
@@ -357,6 +601,12 @@ def fit_hierarchical_responses(
                 "projected_kkt_tolerance": fitted["projected_kkt_tolerance"],
                 "projected_kkt_pass": bool(fitted["projected_kkt_pass"]),
                 "iterations": fitted["iterations"],
+                "solver_audit": {
+                    key: fitted.get(key) for key in (
+                        "optimizer", "pcg_residual_rule", "pcg_iteration_cap_rule", "pcg_shift_schedule", "pcg_preconditioner", "armijo_c1",
+                        "last_damping", "total_backtracks", "contrast_audit",
+                    )
+                },
             })
             if not fitted["converged"] or not fitted["projected_kkt_pass"]:
                 record.update({
@@ -442,7 +692,7 @@ def response_parameter(
 
     provenance = {
         key: fit.get(key)
-        for key in ("status", "selected_ridge", "eligible_ridges", "ridge_tie_rule", "converged", "iterations", "training_rows", "training_games", "training_models", "training_config_signatures", "optimizer", "final_objective", "final_max_change", "final_max_gradient", "projected_kkt_tolerance", "projected_kkt_pass", "stop_reason", "last_damping", "total_backtracks", "inner_cv_convergence")
+        for key in ("status", "selected_ridge", "eligible_ridges", "ridge_tie_rule", "converged", "iterations", "training_rows", "training_games", "training_models", "training_config_signatures", "optimizer", "final_objective", "final_max_change", "final_max_gradient", "projected_kkt_tolerance", "projected_kkt_pass", "stop_reason", "last_damping", "total_backtracks", "pcg_residual_rule", "pcg_iteration_cap_rule", "pcg_shift_schedule", "pcg_preconditioner", "armijo_c1", "contrast_audit", "inner_cv_convergence")
     }
     provenance["channel_support"] = (fit.get("channel_support") or {}).get(channel)
     if fit.get("status") != "ok" or channel not in fit.get("x_scale", {}):
