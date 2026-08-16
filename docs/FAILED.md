@@ -467,6 +467,33 @@ append a correction and update `docs/REGISTRY.md` instead.
   make every inner-CV fit converge before its ridge is eligible. Raising iterations, loosening
   tolerance or trusting a small step alone is not an allowed retry.
 
+## Sparse coordinate-Newton response solver — instrument retracted after FIT-only fold 0
+
+- Closest prior entries: the global-gradient and diagonal-Newton numerical failures above. This
+  retry was materially new because it updated coupled intercept/model/config coordinates
+  sequentially, enforced a final projected-KKT certificate, rejected line-search stagnation,
+  and made a ridge ineligible if any inner fold failed. It kept the exact penalized-logistic
+  model, response rows, ridge grid, inner/outer folds, 300-sweep ceiling, slope bound and
+  `1e-7` stationarity tolerance.
+- Kill-check: actor fold 0 completed, but bargaining, negotiation and persuasion all serialized
+  `status=unavailable` / `no_ridge_with_all_inner_folds_converged`. Across the 36 family/ridge/
+  inner-fold fits, none produced an eligible ridge. Failures were either the 300-sweep limit or
+  explicit line-search stagnation. The smallest residuals were still approximately `.00237`
+  (bargaining ridge 100), `.00303` (negotiation ridge 100) and `.34015` (persuasion ridge .1),
+  with several residuals above 1. The artifact therefore fails its own stationarity contract.
+- The fitter advanced to actor fold 1 only after atomically writing fold 0; it was interrupted
+  immediately after the fold-0 audit. No fold-1 artifact, cross-fit holdout score, tournament,
+  policy gate or live game was accepted. The 176 MB fold-0 file is FIT-instrument evidence only.
+- Mechanism: exact coordinate descent handles coupling eventually but the intercept/model/config
+  system is ill-conditioned; 300 sweeps are insufficient for weak ridges, while local objective
+  comparisons hit floating-point stagnation before the absolute raw-gradient tolerance for
+  stronger ridges. This is a solver failure, not a predictive failure of Model B.
+- Materially new repair may use a deterministic global Hessian-vector/Newton-CG, block-IRLS or
+  identifiable reparameterization that solves the coupled system directly. It must preserve the
+  frozen statistical objective and `1e-7` projected-KKT contract. Merely increasing sweeps,
+  weakening tolerance, accepting relative gradients, or scoring the unavailable artifact is
+  forbidden.
+
 ## Retracted claims from the 14 August session
 
 ### Frozen persuasion posterior guarantees zero payoff — retracted claim

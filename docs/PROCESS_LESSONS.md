@@ -83,3 +83,7 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
 - A descent step is not a convergence certificate. For hierarchical logistic fits, require a
   projected-KKT/stationarity check, treat backtracking stagnation as failure, and disqualify
   nonconverged inner-CV fits before an outer-fold artifact can be accepted.
+- A correct convergence certificate can expose an unsuitable solver without refuting the model:
+  coordinate-wise descent on a coupled actor/config system may be exact yet too ill-conditioned
+  to reach an absolute KKT target. Keep numerical-instrument failures separate from predictive
+  failures, and never score an artifact whose training status is unavailable.
