@@ -42,12 +42,16 @@ def config_fold(key: str) -> int:
 
 
 def build_manifest(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
-    materialized = list(rows)
-    identities = sorted({acting_model(row) for row in materialized}, key=lambda value: (_sha(value), value))
+    identities_seen: set[str] = set()
+    configs_seen: set[str] = set()
+    for row in rows:
+        identities_seen.add(acting_model(row))
+        configs_seen.add(canonical_key(row))
+    identities = sorted(identities_seen, key=lambda value: (_sha(value), value))
     if len(identities) != 16:
         raise ValueError(f"actor cross-fit requires exactly 16 identities, found {len(identities)}")
     actor_folds = {identity: index % FOLDS for index, identity in enumerate(identities)}
-    configs = sorted({canonical_key(row) for row in materialized})
+    configs = sorted(configs_seen)
     config_folds = {key: config_fold(key) for key in configs}
     manifest: dict[str, Any] = {
         "schema_version": 1,

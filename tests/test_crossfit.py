@@ -34,6 +34,20 @@ def _artifact(path: Path, manifest: dict, axis: str, fold: int) -> dict:
 
 
 class CrossfitManifestTests(unittest.TestCase):
+    def test_manifest_accepts_a_single_pass_event_stream(self) -> None:
+        rows = _rows()
+        consumed = 0
+
+        def stream():
+            nonlocal consumed
+            for row in rows:
+                consumed += 1
+                yield row
+
+        manifest = build_manifest(stream())
+        self.assertEqual(consumed, len(rows))
+        self.assertEqual(len(manifest["actor_identity_hashes"]), 16)
+
     def test_actor_assignment_is_permutation_invariant_and_balanced(self) -> None:
         rows = _rows()
         shuffled = list(rows)
