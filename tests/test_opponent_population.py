@@ -15,7 +15,7 @@ from glee_eval.population.opponent_fit import (
 )
 from glee_eval.population.sampler import ARCHETYPES, sample_opponent_spec
 from glee_eval.population.crossfit import build_manifest, row_fold
-from glee_eval.storage.trajectories import write_json, write_jsonl
+from glee_eval.storage.trajectories import write_json, write_json_atomic, write_jsonl
 
 
 def _quantile_table(low: float, high: float) -> dict[str, float]:
@@ -42,6 +42,14 @@ def _payload() -> dict:
 
 
 class OpponentPopulationDrawTests(unittest.TestCase):
+    def test_atomic_json_replaces_complete_file_without_temp_residue(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/"artifact.json"
+            path.write_text('{"old":true}\n')
+            write_json_atomic(path,{"large":[{"value":index} for index in range(1000)]})
+            self.assertEqual(__import__('json').loads(path.read_text())["large"][-1]["value"],999)
+            self.assertEqual(list(Path(tmp).glob(".artifact.json.*.tmp")),[])
+
     def setUp(self) -> None:
         self.population = OpponentPopulation(_payload())
 

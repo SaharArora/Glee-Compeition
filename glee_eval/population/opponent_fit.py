@@ -44,7 +44,7 @@ from glee_eval.data.transcripts import (
 from glee_eval.population.splits import DEFAULT_HOLDOUT_FRACTION, add_split_arguments, is_holdout_key, keeps, split_provenance
 from glee_eval.population.config_keys import canonical_config, canonical_config_key
 from glee_eval.population.crossfit import row_fold
-from glee_eval.storage.trajectories import ensure_dir, iter_jsonl, write_json
+from glee_eval.storage.trajectories import ensure_dir, iter_jsonl, write_json_atomic
 
 
 # Where each archetype sits in the observed behavioral distribution, as a
@@ -320,8 +320,10 @@ def _pcg_solve(hvp, rhs: list[float], precondition, *, target: float, cap: int, 
         if active_index is not None: p[active_index]=0.0
         hp=hvp(p)
         curvature=math.fsum(p[i]*hp[i] for i in range(n))
-        if not math.isfinite(curvature) or curvature<=0:
-            return x,{"solved":False,"stop_reason":"nonfinite_or_negative_curvature","iterations":iteration,"residual":residual}
+        if not math.isfinite(curvature):
+            return x,{"solved":False,"stop_reason":"nonfinite_curvature","iterations":iteration,"residual":residual}
+        if curvature<=0:
+            return x,{"solved":False,"stop_reason":"nonpositive_curvature","iterations":iteration,"residual":residual}
         alpha=rz/curvature
         x=[x[i]+alpha*p[i] for i in range(n)]; r=[r[i]-alpha*hp[i] for i in range(n)]
         if active_index is not None: r[active_index]=0.0
@@ -331,6 +333,11 @@ def _pcg_solve(hvp, rhs: list[float], precondition, *, target: float, cap: int, 
         if residual<=target: return x,{"solved":True,"stop_reason":"residual_target","iterations":iteration,"residual":residual}
         z=precondition(r); nrz=math.fsum(r[i]*z[i] for i in range(n)); p=[z[i]+nrz/rz*p[i] for i in range(n)]; rz=nrz
     return x,{"solved":False,"stop_reason":"iteration_limit","iterations":iteration,"residual":residual}
+
+
+def _pcg_shift_retry_allowed(stop_reason: str) -> bool:
+    """Only curvature/nondescent failures can be repaired by diagonal shift."""
+    return stop_reason in {"nonpositive_curvature", "nondescent"}
 
 
 def _pcg_direction_for_test(matrix: list[list[float]], rhs: list[float], *, target: float = 1e-12) -> tuple[list[float], dict[str, Any]]:
@@ -500,11 +507,13 @@ def _fit_response_coefficients(
                     candidate_hd=hv(d,w,shift)
                     candidate_curvature=math.fsum(d[i]*candidate_hd[i] for i in range(dim))
                     candidate_descent=math.fsum(g[i]*d[i] for i in range(dim))
-                    if (not math.isfinite(candidate_curvature) or candidate_curvature<=0 or
-                            not math.isfinite(candidate_descent) or candidate_descent>=0):
-                        failure="nonfinite_nondescent_or_nonpositive_curvature"; solved=False
+                    if not math.isfinite(candidate_curvature): failure="nonfinite_curvature"; solved=False
+                    elif candidate_curvature<=0: failure="nonpositive_curvature"; solved=False
+                    elif not math.isfinite(candidate_descent): failure="nonfinite_descent"; solved=False
+                    elif candidate_descent>=0: failure="nondescent"; solved=False
                 shift_attempts.append({"shift":shift,"iterations":pcgit,"residual":residual_norm,"target":residual_target,"curvature_failure":failure,"curvature_product":candidate_curvature,"descent_product":candidate_descent,"solved":solved})
                 if solved: break
+                if not _pcg_shift_retry_allowed(str(failure)): break
             hd=hv(d,w,shift) if solved else None
             curvature_product=math.fsum(d[i]*hd[i] for i in range(dim)) if solved else None
             directional=math.fsum(g[i]*d[i] for i in range(dim)) if solved else None
@@ -1428,11 +1437,10 @@ def fit_opponent_population(
         }
 
     out = ensure_dir(output_dir)
-    write_json(out / "opponent_population.json", payload)
     missing = [f"{family}.{name}" for family, params in families.items() for name, value in params.items() if value is None]
     if missing:
         payload["unfitted_parameters"] = missing
-        write_json(out / "opponent_population.json", payload)
+    write_json_atomic(out / "opponent_population.json", payload)
     return payload
 
 

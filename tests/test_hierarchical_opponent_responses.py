@@ -14,6 +14,7 @@ from glee_eval.population.opponent_fit import (
     _sparse_hvp,
     _armijo_projected_for_test,
     _CompensatedSum,
+    _pcg_shift_retry_allowed,
     extract_response_observations,
     fit_hierarchical_responses,
     response_probability,
@@ -32,6 +33,23 @@ def _rows(channel: str, cutoff: float, *, model: str = "m", config: str = "c") -
 
 
 class HierarchicalResponseFitTests(unittest.TestCase):
+    def test_pcg_shift_retry_restriction_is_used_by_production(self) -> None:
+        rows=_rows("bargaining|player_1",.5)[:20]
+        forbidden={"solved":False,"stop_reason":"iteration_limit","iterations":50,"residual":1.0}
+        with patch("glee_eval.population.opponent_fit._pcg_solve",return_value=([0.0,0.0],forbidden)) as solve:
+            fit=_fit_response_coefficients(rows,1.0)
+        self.assertEqual(solve.call_count,1)
+        self.assertEqual(len(fit["contrast_audit"][0]["pcg"][0]["shift_attempts"]),1)
+        declared={"solved":False,"stop_reason":"nonpositive_curvature","iterations":1,"residual":1.0}
+        with patch("glee_eval.population.opponent_fit._pcg_solve",return_value=([0.0,0.0],declared)) as solve:
+            fit=_fit_response_coefficients(rows,1.0)
+        self.assertEqual(solve.call_count,6)
+        self.assertEqual([a["shift"] for a in fit["contrast_audit"][0]["pcg"][0]["shift_attempts"]],fit["pcg_shift_schedule"])
+        self.assertFalse(_pcg_shift_retry_allowed("nonfinite_residual"))
+        self.assertFalse(_pcg_shift_retry_allowed("iteration_limit"))
+        self.assertTrue(_pcg_shift_retry_allowed("nondescent"))
+        self.assertFalse(_pcg_shift_retry_allowed("nonfinite_curvature"))
+
     def test_compensated_accumulator_cancellation_and_constant_state(self) -> None:
         import math
         values=[1e16,1.0,-1e16,3.0,-3.0]*2000
@@ -85,8 +103,8 @@ class HierarchicalResponseFitTests(unittest.TestCase):
         matrix=[[4.0,1.0],[1.0,3.0]]; rhs=[1.0,2.0]
         direction,audit=_pcg_direction_for_test(matrix,rhs)
         self.assertTrue(audit["solved"]); self.assertAlmostEqual(direction[0],1/11,places=13); self.assertAlmostEqual(direction[1],7/11,places=13)
-        _,bad=_pcg_direction_for_test([[-1.0]],[1.0]); self.assertEqual(bad["stop_reason"],"nonfinite_or_negative_curvature")
-        _,nonfinite=_pcg_direction_for_test([[float("nan")]],[1.0]); self.assertEqual(nonfinite["stop_reason"],"nonfinite_or_negative_curvature")
+        _,bad=_pcg_direction_for_test([[-1.0]],[1.0]); self.assertEqual(bad["stop_reason"],"nonpositive_curvature")
+        _,nonfinite=_pcg_direction_for_test([[float("nan")]],[1.0]); self.assertEqual(nonfinite["stop_reason"],"nonfinite_curvature")
 
     def test_arbitrary_zero_sum_parameterization_preserves_predictor_and_penalty(self) -> None:
         free=[.4,-.1]; original=[*free,-sum(free)]

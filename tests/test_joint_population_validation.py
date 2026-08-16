@@ -149,6 +149,9 @@ class JointPopulationValidationTests(unittest.TestCase):
             "zero_sum": lambda item: item["contrast_audit"][0].update(zero_sum_model=1e-4),
             "pcg_target": lambda item: item["contrast_audit"][0]["pcg"][0].update(
                 absolute_residual_target=999.0),
+            "undeclared_shift_retry": lambda item: item["contrast_audit"][0]["pcg"][0][
+                "shift_attempts"
+            ][0].update(curvature_failure="iteration_limit"),
             "armijo": lambda item: item["contrast_audit"][0]["armijo"][0].update(passed=False),
         }
         for name, mutate in mutations.items():

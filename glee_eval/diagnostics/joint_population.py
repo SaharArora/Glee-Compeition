@@ -388,6 +388,11 @@ def _newton_pcg_solver_audit_errors(payload: dict[str, Any], prefix: str) -> lis
                             errors.append(f"{record_label}:solved_shift_contract")
                     elif attempt.get("curvature_failure") is None:
                         errors.append(f"{record_label}:failed_shift_reason")
+                    if (
+                        attempt_index < len(attempts) - 1
+                        and attempt.get("curvature_failure") not in {"nonpositive_curvature", "nondescent"}
+                    ):
+                        errors.append(f"{record_label}:undeclared_shift_retry")
                 if any(attempt.get("solved") is True for attempt in attempts[:-1]):
                     errors.append(f"{record_label}:continued_after_solved_shift")
                 if (
