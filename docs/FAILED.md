@@ -424,6 +424,23 @@ append a correction and update `docs/REGISTRY.md` instead.
   contract and training population while preserving every predictive threshold. It is declared
   separately in REGISTRY before code changes or fitting.
 
+## Diagonally scaled response-gradient solver — instrument retracted before scoring
+
+- The first mixed-fold FIT artifact completed on actor fold 0, but bargaining, negotiation and
+  persuasion all reached the fixed 300-iteration ceiling with `converged=false`. The fitting
+  campaign stopped during fold 1 before any cross-fit validation, payoff tournament or policy
+  gate. The partial artifact is not predictive evidence.
+- Mechanism: each model/config offset was updated by its small local gradient divided by the
+  global row count. Sparse offsets therefore moved orders of magnitude too slowly even though
+  identical response rows were aggregated. Raising the iteration ceiling or loosening the
+  convergence flag after observing FIT would change the instrument without solving that scaling
+  defect.
+- Permitted repair: preserve the identical penalized logistic objective, fixed ridge grid,
+  outer/inner folds, slope constraint and convergence tolerance, but solve it with per-coordinate
+  curvature and a deterministic descent safeguard. Require small-fixture objective equivalence,
+  raw/aggregated equality, deterministic coefficients, and demonstrated convergence before the
+  unchanged full fit restarts. No holdout result may inform the repair.
+
 ## Retracted claims from the 14 August session
 
 ### Frozen persuasion posterior guarantees zero payoff — retracted claim
