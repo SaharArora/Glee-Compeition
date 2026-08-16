@@ -30,12 +30,78 @@ from glee_eval.population.opponent_fit import (
 from glee_eval.population.crossfit import CrossfitRouter, fold_count
 from glee_eval.population.sampler import ARCHETYPES
 from glee_eval.population.splits import HOLDOUT, is_holdout_key, keeps
-from glee_eval.storage.trajectories import iter_jsonl
+from glee_eval.storage.trajectories import canonical_json_sha256, iter_jsonl
 
 try:  # Optional acceleration; the bundled workspace runtime provides NumPy.
     import numpy as _np
 except ImportError:  # pragma: no cover - exercised by the system Python in CI.
     _np = None
+
+
+def response_reference_errors(payload: dict[str, Any], *, require_schema: bool = False) -> list[str]:
+    """Validate compact bundle references against the one canonical family fit."""
+    joint = payload.get("joint_model") or {}
+    fits = joint.get("response_estimators") or {}
+    schema = joint.get("response_estimator_reference_schema") or {}
+    if not schema:  # schema-v2 artifacts predating normalized references
+        return ["missing_reference_schema"] if require_schema else []
+    required=["family","channel","canonical_fit_reference","canonical_fit_sha256"]
+    expected_schema_keys = {
+        "version", "canonical_root", "required_fields", "canonical_fit_sha256_by_family",
+        "references_by_family", "total_references", "canonical_full_fit_count",
+    }
+    if set(schema) != expected_schema_keys: return ["reference_schema_keys"]
+    if schema.get("version")!=1: return ["reference_schema_version"]
+    if schema.get("canonical_root")!="joint_model.response_estimators": return ["reference_schema_root"]
+    if schema.get("required_fields")!=required: return ["reference_schema_required_fields"]
+    if set(fits) != {"bargaining", "negotiation", "persuasion"}: return ["canonical_fit_families"]
+    fit_hashes={family:canonical_json_sha256(fit) for family,fit in fits.items()}
+    if schema.get("canonical_fit_sha256_by_family")!=fit_hashes: return ["canonical_fit_hashes"]
+    allowed = {
+        ("bargaining", "player_1"): {"accept_threshold": "bargaining|player_1"},
+        ("bargaining", "player_2"): {"accept_threshold": "bargaining|player_2"},
+        ("negotiation", "seller"): {"accept_margin": "negotiation|seller"},
+        ("negotiation", "buyer"): {"accept_margin": "negotiation|buyer"},
+        ("persuasion", "seller"): {"honesty": "persuasion|seller_high", "yes_on_low_rate": "persuasion|seller_low"},
+        ("persuasion", "buyer"): {"trust_prior": "persuasion|buyer_yes", "buy_after_no_rate": "persuasion|buyer_no"},
+    }
+    errors=[]; counts=defaultdict(int)
+    for family,bundles in sorted((payload.get("joint_bundles") or {}).items()):
+        counts[family] += 0
+        if family not in fits: errors.append(f"{family}:missing_canonical_fit")
+        for bundle in bundles:
+            identity=str(bundle.get("bundle_id")); role=str(bundle.get("role")); entries=bundle.get("response_estimator") or {}
+            expected=allowed.get((family,role),{})
+            for parameter,entry in entries.items():
+                counts[family]+=1
+                channel=entry.get("channel"); reference=entry.get("canonical_fit_reference")
+                if entry.get("family")!=family: errors.append(f"{identity}:{parameter}:cross_family")
+                if expected.get(parameter)!=channel: errors.append(f"{identity}:{parameter}:channel")
+                if reference!=f"joint_model.response_estimators.{family}": errors.append(f"{identity}:{parameter}:reference")
+                if entry.get("canonical_fit_sha256")!=fit_hashes.get(family): errors.append(f"{identity}:{parameter}:fit_hash")
+                fit=fits.get(family)
+                if not fit: continue
+                value,provenance=response_parameter(fit,channel=str(channel),player_model=str(bundle.get("player_model")),signature=str(bundle.get("config_signature")))
+                parameters=bundle.get("parameters") or {}; stored=parameters.get(parameter)
+                if (parameter in parameters)!=(value is not None): errors.append(f"{identity}:{parameter}:parameter_presence")
+                elif value is not None and (
+                    not math.isfinite(float(value)) or not math.isfinite(float(stored))
+                    or float(value) != float(stored)
+                ): errors.append(f"{identity}:{parameter}:recompute")
+                expected_entry={"family":family,"channel":channel,"canonical_fit_reference":f"joint_model.response_estimators.{family}","canonical_fit_sha256":fit_hashes[family],**{key:provenance[key] for key in ("parameter_kind","raw_threshold","fit_min","fit_max","clipped","monotone_slope","channel_support") if key in provenance}}
+                if set(entry)!=set(expected_entry): errors.append(f"{identity}:{parameter}:metadata_keys")
+                for key in set(entry)|set(expected_entry):
+                    left=entry.get(key); right=expected_entry.get(key)
+                    if isinstance(left,float) and isinstance(right,float):
+                        equal=math.isfinite(left) and math.isfinite(right) and left == right
+                    else: equal=left==right
+                    if not equal: errors.append(f"{identity}:{parameter}:metadata:{key}")
+            if set(entries)!=set(expected): errors.append(f"{identity}:reference_completeness")
+    declared=schema.get("references_by_family") or {}
+    if dict(counts)!={key:int(value) for key,value in declared.items()}: errors.append("reference_counts")
+    if int(schema.get("total_references",-1))!=sum(counts.values()): errors.append("total_reference_count")
+    if int(schema.get("canonical_full_fit_count",-1))!=len(fits): errors.append("canonical_fit_count")
+    return errors
 
 
 def empirical_cdf(value: float, fit_values: Sequence[float]) -> float:
@@ -1524,6 +1590,8 @@ def run_validation(
     artifact_path = Path(artifact_path)
     raw_artifact = artifact_path.read_bytes()
     payload = json.loads(raw_artifact)
+    if reference_errors := response_reference_errors(payload):
+        raise ValueError(f"response estimator references rejected: {json.dumps(reference_errors, sort_keys=True)}")
     provenance = payload.get("provenance") or {}
     if provenance.get("split_mode") != split_mode or provenance.get("split") != "fit":
         raise ValueError(
@@ -1647,6 +1715,12 @@ def run_crossfit_validation(
     axis_reports: dict[str, Any] = {}
     for axis, (router_axis, specs) in axes.items():
         router = CrossfitRouter(manifest, router_axis, specs)
+        reference_failures = {
+            str(fold): errors for fold, artifact in sorted(router.artifacts.items())
+            if (errors := response_reference_errors(artifact.payload, require_schema=True))
+        }
+        if reference_failures:
+            raise ValueError(f"cross-fit response references rejected on {axis}: {json.dumps(reference_failures, sort_keys=True)}")
         artifact_fit_errors = {
             f"fold={fold},family={family}": errors
             for fold, artifact in sorted(router.artifacts.items())

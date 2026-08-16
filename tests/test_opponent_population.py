@@ -5,6 +5,7 @@ import statistics as st
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from glee_eval.opponents.policies import PolicyFactory
 from glee_eval.population.opponent_fit import (
@@ -15,7 +16,7 @@ from glee_eval.population.opponent_fit import (
 )
 from glee_eval.population.sampler import ARCHETYPES, sample_opponent_spec
 from glee_eval.population.crossfit import build_manifest, row_fold
-from glee_eval.storage.trajectories import write_json, write_json_atomic, write_jsonl
+from glee_eval.storage.trajectories import canonical_json_sha256, write_json, write_json_atomic, write_jsonl
 
 
 def _quantile_table(low: float, high: float) -> dict[str, float]:
@@ -49,6 +50,48 @@ class OpponentPopulationDrawTests(unittest.TestCase):
             write_json_atomic(path,{"large":[{"value":index} for index in range(1000)]})
             self.assertEqual(__import__('json').loads(path.read_text())["large"][-1]["value"],999)
             self.assertEqual(list(Path(tmp).glob(".artifact.json.*.tmp")),[])
+
+    def test_atomic_stream_failure_preserves_previous_complete_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/"artifact.json"; path.write_text('{"old":true}\n')
+            def fail(payload, handle, **kwargs):
+                handle.write('{"partial":')
+                raise RuntimeError("injected stream failure")
+            with patch("glee_eval.storage.trajectories.json.dump",side_effect=fail):
+                with self.assertRaisesRegex(RuntimeError,"injected"):
+                    write_json_atomic(path,{"new":True})
+            self.assertEqual(path.read_text(),'{"old":true}\n')
+            self.assertEqual(list(Path(tmp).glob(".artifact.json.*.tmp")),[])
+
+    def test_streaming_writer_forbids_monolithic_json_and_root_conversion(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            payload={"rows":[{"index":index,"value":"x"*40} for index in range(5000)]}
+            with patch("glee_eval.storage.trajectories.json.dumps",side_effect=AssertionError("monolithic dumps")), \
+                 patch("glee_eval.storage.trajectories.to_jsonable",side_effect=AssertionError("root conversion")):
+                write_json_atomic(Path(tmp)/"artifact.json",payload)
+            self.assertEqual(__import__('json').loads((Path(tmp)/"artifact.json").read_text())["rows"][-1]["index"],4999)
+
+    def test_canonical_hash_stream_is_deterministic_for_enum_and_dataclass(self) -> None:
+        from dataclasses import dataclass
+        from enum import Enum
+        class Kind(str,Enum): A="a"
+        @dataclass
+        class Record: kind: Kind; count: int
+        left={"z":[Record(Kind.A,2)],"a":1}; right={"a":1,"z":[{"kind":"a","count":2}]}
+        with patch("glee_eval.storage.trajectories.json.dumps",side_effect=AssertionError("monolithic dumps")):
+            self.assertEqual(canonical_json_sha256(left),canonical_json_sha256(right))
+
+    def test_compact_bundle_streaming_peak_does_not_scale_with_output_bytes(self) -> None:
+        import tracemalloc
+        with tempfile.TemporaryDirectory() as tmp:
+            peaks=[]; sizes=[]
+            for count in (200,2000):
+                entry={"family":"persuasion","channel":"persuasion|buyer_yes","canonical_fit_reference":"joint_model.response_estimators.persuasion","canonical_fit_sha256":"a"*64,"channel_support":{"rows":10,"games":2}}
+                payload={"joint_model":{"response_estimators":{"persuasion":{"status":"ok"}}},"joint_bundles":{"persuasion":[{"bundle_id":str(i),"response_estimator":{"trust_prior":entry}} for i in range(count)]}}
+                path=Path(tmp)/f"{count}.json"; tracemalloc.start(); write_json_atomic(path,payload); _,peak=tracemalloc.get_traced_memory(); tracemalloc.stop()
+                peaks.append(peak); sizes.append(path.stat().st_size)
+            self.assertGreater(sizes[1],sizes[0]*9)
+            self.assertLess(peaks[1],peaks[0]*3)
 
     def setUp(self) -> None:
         self.population = OpponentPopulation(_payload())
@@ -348,6 +391,14 @@ class FitSmokeTests(unittest.TestCase):
             write_jsonl(root / "processed" / "events.jsonl", events)
 
             payload = fit_opponent_population(root, root / "out")
+            schema=payload["joint_model"]["response_estimator_reference_schema"]
+            self.assertEqual(schema["canonical_full_fit_count"],3)
+            self.assertEqual(payload["joint_model"]["serialization"]["writer"],"atomic_streaming_json")
+            for bundles in payload["joint_bundles"].values():
+                for bundle in bundles:
+                    for entry in bundle["response_estimator"].values():
+                        self.assertNotIn("inner_cv_convergence",entry)
+                        self.assertEqual(set(("family","channel","canonical_fit_reference"))-set(entry),set())
 
             self.assertEqual(payload["events_scanned"], 5)
             # Far below the minimum segment count, so nothing may be silently invented.

@@ -44,7 +44,7 @@ from glee_eval.data.transcripts import (
 from glee_eval.population.splits import DEFAULT_HOLDOUT_FRACTION, add_split_arguments, is_holdout_key, keeps, split_provenance
 from glee_eval.population.config_keys import canonical_config, canonical_config_key
 from glee_eval.population.crossfit import row_fold
-from glee_eval.storage.trajectories import ensure_dir, iter_jsonl, write_json_atomic
+from glee_eval.storage.trajectories import canonical_json_sha256, ensure_dir, iter_jsonl, write_json_atomic
 
 
 # Where each archetype sits in the observed behavioral distribution, as a
@@ -1267,6 +1267,12 @@ def fit_opponent_population(
         "persuasion_buyer_segments": len(pers_trust),
     }
 
+    # These first-pass sufficient statistics have no consumer below this
+    # point. Releasing them prevents overlap with bundle/response fitting.
+    del (barg_shares, barg_concessions, barg_curve, neg_prices, neg_concessions,
+         neg_curve, pers_truth, pers_yes_on_low, pers_trust, pers_buy_after_no,
+         last_share, last_price)
+
     filtered_events = (
         event
         for event in iter_jsonl(events_path)
@@ -1291,6 +1297,8 @@ def fit_opponent_population(
         family: fit_hierarchical_responses([row for row in response_rows if row["family"] == family])
         for family in ("bargaining", "negotiation", "persuasion")
     }
+    response_fit_hashes = {family: canonical_json_sha256(fit) for family, fit in response_fits.items()}
+    del response_rows
     channel_parameters = {
         ("bargaining", "player_1"): (("accept_threshold", "bargaining|player_1"),),
         ("bargaining", "player_2"): (("accept_threshold", "bargaining|player_2"),),
@@ -1306,7 +1314,16 @@ def fit_opponent_population(
                 response_fits[row["family"]], channel=channel,
                 player_model=row["player_model"], signature=row["config_signature"],
             )
-            attached[parameter] = provenance
+            attached[parameter] = {
+                "family": row["family"],
+                "channel": channel,
+                "canonical_fit_reference": f"joint_model.response_estimators.{row['family']}",
+                "canonical_fit_sha256": response_fit_hashes[row["family"]],
+                **{key: provenance[key] for key in (
+                    "parameter_kind", "raw_threshold", "fit_min", "fit_max",
+                    "clipped", "monotone_slope", "channel_support",
+                ) if key in provenance},
+            }
             if value is not None:
                 row["parameters"][parameter] = value
                 support = provenance.get("channel_support") or {}
@@ -1370,6 +1387,13 @@ def fit_opponent_population(
                 row["latent_percentile"] = index / denominator
         joint_bundles[family] = sorted(bundles, key=lambda row: (row["role"], row["latent_percentile"], row["bundle_id"]))
 
+    reference_counts = {
+        family: sum(len(bundle.get("response_estimator") or {}) for bundle in bundles)
+        for family, bundles in joint_bundles.items()
+    }
+    raw_bundle_count=len(raw_bundles); retained_bundle_count=len(retained)
+    del raw_bundles, retained
+
     payload = {
         "schema_version": 2,
         "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -1399,6 +1423,20 @@ def fit_opponent_population(
             # summary-only serialization would make the fitted response model
             # impossible to reproduce from the frozen artifact.
             "response_estimators": response_fits,
+            "response_estimator_reference_schema": {
+                "version": 1,
+                "canonical_root": "joint_model.response_estimators",
+                "required_fields": ["family", "channel", "canonical_fit_reference", "canonical_fit_sha256"],
+                "canonical_fit_sha256_by_family": response_fit_hashes,
+                "references_by_family": reference_counts,
+                "total_references": sum(reference_counts.values()),
+                "canonical_full_fit_count": len(response_fits),
+            },
+            "serialization": {
+                "writer": "atomic_streaming_json",
+                "whole_tree_materialization": False,
+                "phase_local_release": True,
+            },
             "outer_crossfit": {
                 "axis": crossfit_axis,
                 "excluded_fold": excluded_fold,
@@ -1408,9 +1446,9 @@ def fit_opponent_population(
         },
         "joint_bundles": dict(joint_bundles),
         "joint_bundle_observations": {
-            "raw_segments": len(raw_bundles),
-            "retained_segments": len(retained),
-            "dropped_below_identification_or_game_support": len(raw_bundles) - len(retained),
+            "raw_segments": raw_bundle_count,
+            "retained_segments": retained_bundle_count,
+            "dropped_below_identification_or_game_support": raw_bundle_count - retained_bundle_count,
             "by_family": {family: len(joint_bundles.get(family, [])) for family in families},
         },
         "notes": [

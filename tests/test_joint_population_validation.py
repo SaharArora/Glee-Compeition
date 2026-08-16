@@ -4,12 +4,14 @@ import unittest
 import json
 import tempfile
 import copy
+import math
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 from functools import lru_cache
 
 from glee_eval.population.opponent_fit import fit_hierarchical_responses
+from glee_eval.storage.trajectories import canonical_json_sha256
 
 from glee_eval.diagnostics.joint_population import (
     binary_log_loss,
@@ -27,6 +29,7 @@ from glee_eval.diagnostics.joint_population import (
     summarize_validation,
     run_validation,
     response_fit_provenance_errors,
+    response_reference_errors,
     transform_parameters,
 )
 
@@ -48,6 +51,50 @@ def _actual_response_fit():
 
 
 class JointPopulationValidationTests(unittest.TestCase):
+    def test_compact_response_references_validate_recompute_and_detect_tampering(self) -> None:
+        fit=copy.deepcopy(_actual_response_fit())
+        fit_hash=canonical_json_sha256(fit)
+        value,_=__import__('glee_eval.population.opponent_fit',fromlist=['response_parameter']).response_parameter(
+            fit,channel="persuasion|buyer_yes",player_model="model-0",signature="config-0")
+        support=fit["channel_support"]["persuasion|buyer_yes"]
+        entries={
+            "trust_prior":{"family":"persuasion","channel":"persuasion|buyer_yes","canonical_fit_reference":"joint_model.response_estimators.persuasion","canonical_fit_sha256":fit_hash,"parameter_kind":"probability","channel_support":support},
+            "buy_after_no_rate":{"family":"persuasion","channel":"persuasion|buyer_no","canonical_fit_reference":"joint_model.response_estimators.persuasion","canonical_fit_sha256":fit_hash,"channel_support":None},
+        }
+        payload={"joint_model":{"response_estimators":{"bargaining":copy.deepcopy(fit),"negotiation":copy.deepcopy(fit),"persuasion":fit},"response_estimator_reference_schema":{"version":1,"canonical_root":"joint_model.response_estimators","required_fields":["family","channel","canonical_fit_reference","canonical_fit_sha256"],"canonical_fit_sha256_by_family":{"bargaining":fit_hash,"negotiation":fit_hash,"persuasion":fit_hash},"references_by_family":{"bargaining":0,"negotiation":0,"persuasion":2},"total_references":2,"canonical_full_fit_count":3}},"joint_bundles":{"bargaining":[],"negotiation":[],"persuasion":[{"bundle_id":"b","family":"persuasion","role":"buyer","player_model":"model-0","config_signature":"config-0","parameters":{"trust_prior":value},"response_estimator":entries}]}}
+        self.assertEqual(response_reference_errors(payload),[])
+        for field,bad in (("family","bargaining"),("channel","persuasion|seller_high"),("canonical_fit_reference","wrong")):
+            tampered=copy.deepcopy(payload); tampered["joint_bundles"]["persuasion"][0]["response_estimator"]["trust_prior"][field]=bad
+            self.assertTrue(response_reference_errors(tampered))
+        tampered=copy.deepcopy(payload); tampered["joint_bundles"]["persuasion"][0]["parameters"]["trust_prior"]+=.1
+        self.assertTrue(any("recompute" in error for error in response_reference_errors(tampered)))
+        tampered=copy.deepcopy(payload); del tampered["joint_bundles"]["persuasion"][0]["response_estimator"]["buy_after_no_rate"]
+        self.assertTrue(any("completeness" in error for error in response_reference_errors(tampered)))
+        for schema_field,bad in (("version",2),("canonical_root","wrong"),("required_fields",[])):
+            tampered=copy.deepcopy(payload); tampered["joint_model"]["response_estimator_reference_schema"][schema_field]=bad
+            self.assertTrue(response_reference_errors(tampered))
+        tampered=copy.deepcopy(payload); tampered["joint_model"]["response_estimators"]["persuasion"]["tolerance"]=9
+        self.assertTrue(response_reference_errors(tampered))
+        tampered=copy.deepcopy(payload); del tampered["joint_model"]["response_estimator_reference_schema"]
+        self.assertEqual(response_reference_errors(tampered),[])
+        self.assertEqual(response_reference_errors(tampered,require_schema=True),["missing_reference_schema"])
+        tampered=copy.deepcopy(payload); tampered["joint_model"]["response_estimator_reference_schema"]["extra"]=True
+        self.assertEqual(response_reference_errors(tampered),["reference_schema_keys"])
+        tampered=copy.deepcopy(payload); tampered["joint_model"]["response_estimators"]["extra"]={}
+        self.assertEqual(response_reference_errors(tampered),["canonical_fit_families"])
+        for field in ("parameter_kind","channel_support"):
+            tampered=copy.deepcopy(payload); tampered["joint_bundles"]["persuasion"][0]["response_estimator"]["trust_prior"][field]="tampered"
+            self.assertTrue(response_reference_errors(tampered))
+        tampered=copy.deepcopy(payload); del tampered["joint_bundles"]["persuasion"][0]["response_estimator"]["buy_after_no_rate"]["channel_support"]
+        self.assertTrue(response_reference_errors(tampered))
+        tampered=copy.deepcopy(payload); tampered["joint_bundles"]["persuasion"][0]["response_estimator"]["trust_prior"]["contrast_audit"]={}
+        self.assertTrue(response_reference_errors(tampered))
+        tampered=copy.deepcopy(payload); tampered["joint_bundles"]["persuasion"][0]["parameters"]["buy_after_no_rate"]=None
+        self.assertTrue(any("parameter_presence" in error for error in response_reference_errors(tampered)))
+        tampered=copy.deepcopy(payload)
+        tampered["joint_bundles"]["persuasion"][0]["parameters"]["trust_prior"]=math.nextafter(value,math.inf)
+        self.assertTrue(any("recompute" in error for error in response_reference_errors(tampered)))
+
     def test_oof_decision_scores_are_paired_against_both_declared_comparators(self) -> None:
         scored = score_oof_decision(
             outcome=1, model_b_probability=0.8, neutral_probability=0.5, v1_probability=0.6,

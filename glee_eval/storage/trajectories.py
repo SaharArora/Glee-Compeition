@@ -4,6 +4,7 @@ import csv
 import json
 import os
 import tempfile
+import hashlib
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -27,13 +28,13 @@ def write_json_atomic(path: str | Path, payload: Any) -> Path:
     """Write complete JSON beside its destination, then atomically replace it."""
     p = Path(path)
     ensure_dir(p.parent)
-    text = json.dumps(to_jsonable(payload), indent=2, sort_keys=True) + "\n"
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=p.parent,
                                          prefix=f".{p.name}.", suffix=".tmp", delete=False) as handle:
             temporary = Path(handle.name)
-            handle.write(text)
+            json.dump(payload, handle, indent=2, sort_keys=True, default=to_jsonable)
+            handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, p)
@@ -41,6 +42,15 @@ def write_json_atomic(path: str | Path, payload: Any) -> Path:
         if temporary is not None and temporary.exists():
             temporary.unlink()
     return p
+
+
+def canonical_json_sha256(payload: Any) -> str:
+    """Hash canonical JSON incrementally without materializing canonical bytes."""
+    digest=hashlib.sha256()
+    encoder=json.JSONEncoder(sort_keys=True,separators=(",",":"),default=to_jsonable)
+    for chunk in encoder.iterencode(payload):
+        digest.update(chunk.encode("utf-8"))
+    return digest.hexdigest()
 
 
 def read_json(path: str | Path) -> Any:
