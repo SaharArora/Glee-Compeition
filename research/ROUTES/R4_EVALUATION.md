@@ -1,4 +1,32 @@
-# R4 — paired factorial evaluation, Wave 1 kill-check
+# R4 — paired factorial evaluation
+
+## Wave 2 implementation and hostile verdict
+
+Status: **blocked for active-treatment scoring; usable only as an inert-parity
+canary and paired-scenario constructor.**
+
+Wave 2 added `glee_eval/experiments/factorial.py`, a four-arm row surface with
+one frozen scenario per row, balanced roles, arm-invariant support and eligibility,
+named candidate/environment/opponent seeds, fixed arm order, immutable manifest
+hashes, factorial contrasts, and a hard `require_inert_parity` mode.  The seven
+requested canaries pass: four no-op wrappers, extra treatment draws on an isolated
+stream, inert-language zero effect, four-way scenario/role/mask parity, arm-order
+invariance, label-stripped parity, and a contaminated fixture rejected in inert mode.
+
+The independent hostile audit found that this is not an active-treatment isolation
+certificate.  With `require_inert_parity=False`, the same language fixture can consume
+the economic RNG and is accepted because the evaluator records declared seeds, not
+capability-separated RNG use or realized draw traces.  It produces nonzero effects in
+4 of 12 synthetic rows; the first spurious language main effect is approximately
+`-0.05`.  This is an evaluator failure, not a treatment result.
+
+The exact obstruction and reproduction are version-bound in
+`research/AUDITS/R4_FACTORIAL_VERIFICATION.md`.  No payoff study is eligible.  A
+future repair must enforce stream capabilities/traces during active treatment and add
+the frozen estimand/Holm report validator; another inert-parity test or seed is not a
+material repair.
+
+## Wave 1 kill-check
 
 Status: candidate obstruction; no treatment result has been measured.
 

@@ -80,3 +80,23 @@
 - Materially new retry: a four-arm runner that emits immutable scenario/support hashes and hard
   rejects any non-treatment action/RNG difference. A new seed in the same two-arm runner is not
   new.
+
+## R4 Wave 2 four-arm runner — inert parity is not active-treatment isolation
+
+- Closest prior route: the Wave 1 two-arm obstruction above. Wave 2 is materially different
+  because it implements four arms, one frozen scenario, named seed manifests, arm-invariant
+  masks, fixed ordering, factorial contrasts, and a hard inert-parity mode.
+- Version: `glee_eval/experiments/factorial.py` SHA256
+  `bda3da00922ffcb9e931a95febfa885673a0f778b67d04771243398127011f14`;
+  independent audit `research/AUDITS/R4_FACTORIAL_VERIFICATION.md` SHA256
+  `f37dc7454ef90018e31dfb22d06ba51f838723b94108dee917628d02f56dfd35`.
+- Attempt: pass all seven requested inert canaries, then adversarially rerun the contaminated
+  language fixture with the equality-only inert guard disabled as an active treatment requires.
+- Obstruction: active mode accepts language code consuming the economic RNG. Four of twelve
+  synthetic rows acquire nonzero effects; the first language main effect is approximately
+  `-0.05`. Declared seed hashes do not prove which RNG capability was consumed.
+- Classification: verifier-backed evaluator-integrity failure, not a language effect and not a
+  payoff result. The paired scenario constructor and inert canary survive as narrow utilities.
+- Materially new retry: enforce capability-separated RNG objects or realized draw traces during
+  active treatment and independently validate the frozen estimands/Holm report. More inert
+  equality tests, a new seed, or merely hashing the declared seed again are not new.

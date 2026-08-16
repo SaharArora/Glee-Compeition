@@ -1,0 +1,38 @@
+{
+  "route": "R3",
+  "artifact": "research/ROUTES/R3_LANGUAGE_DECISION.md",
+  "artifact_sha256": "de9e61acca92ffee876bce8d80da09a60c13ce248697f1fb2b7f21c4bc115438",
+  "base_commit": "895ffee341cd4893373e32d5f8c1a5375549e0e6",
+  "claim": "The frozen offline evaluator has no verified candidate-generated-text to text-responsive-receiver path; observational/feasibility-only is recommended pending an explicit user decision.",
+  "recommendation": "observational/feasibility only",
+  "decision_status": "waiting_for_user",
+  "test": {
+    "command": "python -m unittest -v tests.test_r3_language_feasibility",
+    "result": "PASS",
+    "tests": 1,
+    "family_perturbation_pairs": 3,
+    "receiver_action_divergences": 0,
+    "opponent_seed": 104729,
+    "competition_games": 0,
+    "payoff_evaluations": 0
+  },
+  "boundary_findings": {
+    "bargaining": "Candidate text may be present at structured.message, but BargainingPolicy and terminal payoff ignore it.",
+    "negotiation": "Candidate text may be present at structured.message, but NegotiationPolicy and terminal payoff ignore it.",
+    "persuasion_candidate_seller": "Buyer policy consumes buy_no_buy or structured.decision and ignores candidate words.",
+    "persuasion_candidate_buyer": "Candidate can optionally consume opponent-seller free text, but this reverses the intervention direction and is not an eligible candidate-language cell."
+  },
+  "input_sha256": {
+    "research/RESEARCH_QUESTION.md": "cbe48c76aaec6e00c05d0a80fe3f6d3193aeffbd2ac7c9f24f3fe3de41293ff2",
+    "research/AUDIT_CHECKLIST.md": "57212a4be5f034f72278d45852abbb19922c9dd988aa97e60a73e29a9d293a54",
+    "research/ROUTES/R3_LANGUAGE.md": "58f472eaf981590d261fb588bcafaad4790bd1925c140b05ec10978ab041d8d8",
+    "tests/test_r3_language_feasibility.py": "23e32d0319010dd42c8b8a332033120b1ecd0ab4ea6c785717a5d9a9ad9b93e3",
+    "glee_eval/data/schemas.py": "1868a0535529666880717459b6f9201a1c64e0e86f185593be30fa43cd481577",
+    "glee_eval/data/transcripts.py": "0369fc28815fe8e034b335d44a16d84fdf9f33099ae5754b8a8fe699cc74da90",
+    "glee_eval/tournament/runner.py": "0142f3354759bad9038c1e93b331ccca762cf8ee4b09653f0b4a0903b380566b",
+    "glee_eval/opponents/policies.py": "0bf5002395d6e8b2ac27b1f876548eccd43daa264e0778db3ac1f6b52a983ce1",
+    "glee_eval/live/schema.py": "4fbf1f8858e4abeed2c63335007f5b4b43cddbc37359c37e74e9b71be1480c9a",
+    "glee_eval/data/ingest.py": "03bf86e0b0a9e10504e8f4b6db6946dfc422961e0d5f9f3f102ba940f28c3fab",
+    "my_agents/jordan_strategic.py": "27526fc4801a856cbf0db4690a336f1f375a98fbe52256c3672935a3ea24fc82"
+  }
+}

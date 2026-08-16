@@ -1,0 +1,33 @@
+{
+  "schema": "glee.research.r4_factorial_integrity.v1",
+  "route": "R4",
+  "base_commit": "895ffee341cd4893373e32d5f8c1a5375549e0e6",
+  "verdict": "blocked_for_active_treatment_scoring_pass_only_for_inert_parity",
+  "evidence_maturity": "verifier-backed obstruction",
+  "implementation": {
+    "path": "glee_eval/experiments/factorial.py",
+    "sha256": "bda3da00922ffcb9e931a95febfa885673a0f778b67d04771243398127011f14"
+  },
+  "test": {
+    "path": "tests/test_factorial_evaluator.py",
+    "sha256": "536d2ce44e06e1063b5499a8ee0f8de3798559cd3876b71474fb66bc5130ff45",
+    "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_factorial_evaluator.py' -v",
+    "tests": 7,
+    "result": "PASS_INERT_CANARIES_ONLY"
+  },
+  "hostile_audit": {
+    "path": "research/AUDITS/R4_FACTORIAL_VERIFICATION.md",
+    "sha256": "f37dc7454ef90018e31dfb22d06ba51f838723b94108dee917628d02f56dfd35",
+    "active_mode_contaminated_run_accepted": true,
+    "synthetic_rows": 12,
+    "nonzero_effect_rows": 4,
+    "first_spurious_language_main_effect": -0.04999999999999993
+  },
+  "boundaries": {
+    "payoff_study_run": false,
+    "treatment_comparison_authorized": false,
+    "wave_3_authorized": false,
+    "live_or_rated_games": 0
+  },
+  "remaining_gap": "Active mode must enforce capability-separated RNG use or audited draw traces and must validate the frozen estimands/Holm report before any treatment payoff is scored."
+}

@@ -21,3 +21,9 @@
   can be contaminated while looking perfectly matched.
 - Delivery is weaker than observability, and observability is weaker than causal responsiveness.
   Test the receiver policy with a text-only perturbation before designing a language payoff run.
+- A named seed manifest is weaker than RNG capability isolation. In active-treatment mode,
+  record or constrain the stream actually consumed; an equality guard that must be disabled for
+  a real effect cannot certify that treatment code stayed off the economic stream.
+- Green canaries can certify a narrow constructor while a hostile counterexample blocks the
+  study. Record both claims at their exact scope instead of promoting the implementation as a
+  whole.

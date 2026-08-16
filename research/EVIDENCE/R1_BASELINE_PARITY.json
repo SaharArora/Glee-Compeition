@@ -1,0 +1,30 @@
+{
+  "schema": "glee.research.r1_baseline_parity.v1",
+  "route": "R1",
+  "base_commit": "895ffee341cd4893373e32d5f8c1a5375549e0e6",
+  "claim": "One treatment-off economic core and four thin wrappers are action- and metadata-identical with both treatment flags inactive across the bounded family/role/action and adapter fixture matrix.",
+  "evidence_maturity": "self-audited",
+  "implementation": {
+    "path": "research/CANDIDATES/r1_treatment_off_baseline.py",
+    "sha256": "95bf90cfb63bde3b78aa9bdd5140de902016bd6413b25b910d8bebf80f885fef"
+  },
+  "test": {
+    "path": "tests/test_r1_treatment_off_baseline.py",
+    "sha256": "0df7e2cb5bd4e10edc16f57770df448231a749a0014263e1ef1c6852daf28795",
+    "command": "env -u GLEE_RESPONSE_MODEL -u GLEE_SUPPORT_INDEX PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_r1_treatment_off_baseline.py' -v",
+    "tests": 8,
+    "result": "PASS",
+    "family_role_action_cells": 10,
+    "live_adapter_fixtures": 8,
+    "strategy_fallbacks": 0
+  },
+  "boundaries": {
+    "payoff_evaluation_run": false,
+    "holdout_inspected": false,
+    "fit_run": false,
+    "live_or_rated_games": 0,
+    "active_treatment_installed": false,
+    "active_factorial_evaluator_eligible": false
+  },
+  "remaining_gap": "The independent R4 audit blocks active-treatment scoring; this manifest certifies interface/parity only, not payoff quality or a treatment effect."
+}

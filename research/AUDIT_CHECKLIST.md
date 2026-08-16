@@ -70,3 +70,17 @@ to the exact revision used.
   they may not receive a mutable live agent instance.
 - Message delivery and receiver consumption are separate audited boundaries. A delivered string
   read only as a pre-existing structured stance is not a language-responsive cell.
+
+## Wave-2 additions
+
+- In active-treatment mode, declared stream names and equal seeds are insufficient. The
+  evaluator must fail closed when treatment code consumes the economic, opponent, or nature RNG.
+- An inert-parity equality check cannot be the only contamination detector because a legitimate
+  treatment may change actions. Active-mode provenance must distinguish intended treatment
+  mediation from direct cross-stream consumption.
+- Factorial reports reject duplicate scenario identities, missing mandatory cells,
+  nonreportable estimands, and a Holm decision that cannot be reconstructed from paired rows.
+- A mathematically valid e-process certificate is scoped to its declared conditional null and
+  multiplicity design; it is not evidence that the null describes economic opponents.
+- Empty candidate-language-to-responsive-receiver cells are reported as an identification
+  obstruction, never as a zero language effect.

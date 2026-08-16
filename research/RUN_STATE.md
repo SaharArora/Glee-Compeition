@@ -1,12 +1,13 @@
 # Research run state
 
-- Campaign state: `running`
-- Latest user directive: establish the separate research/2x2 campaign under the root
-  orchestrator contract; close R0 after its already-frozen failure; use bounded waves and
-  durable repository state.
+- Campaign state: `paused_after_wave_2_checkpoint`
+- Latest user directive: execute only Research Wave 2's four bounded deliverables, update
+  durable evidence, commit/push a checkpoint, and report before any treatment payoff,
+  Wave 3, rated game, generation project, or Model-B reuse.
 - Branch: `research/2x2-eprocess-language`
 - Worktree: `/Users/sahararora/Glee-Research-2x2`
-- Current commit: `bce578597dbfacf2ebca38399edb41a5dde2f936`
+- Wave-2 base commit: `895ffee341cd4893373e32d5f8c1a5375549e0e6`
+- Current checkpoint commit: this durable Wave-2 checkpoint (see branch `HEAD`).
 - Competition worktree: `/Users/sahararora/Glee-Compeition`, branch
   `agent/parallel-offline-work`, same committed revision plus uncommitted interrupted
   actor-factor construction work.
@@ -21,19 +22,30 @@
   models/actor_factor_crossfit_v2/crossfit_manifest.json --axis actor --fold 0`.
   It was interrupted by the user-supplied R0 completion contract. It wrote no fold artifact
   or checkpoint and is not safe/authorized to resume unless the user explicitly reopens R0.
-- Current orchestration wave: Wave 1 reconciled. Wave 2 may begin only with the bounded R1
-  baseline isolation and fresh hostile audits of the exact R2/R3 candidates; R4 is paused on
-  those dependencies. See `research/ROUTES/WAVE_1_SYNTHESIS.md`.
-- Frozen baseline revision: none yet. Commit `bce5785` is rejected as the treatment-off
-  mapping because its heuristic `E_*` control changes the first adversarial bargaining offer
-  from the projected core's `56.0` to `62.0`. R1 owns a new isolated candidate version.
-- Frozen evaluation protocol revision: `research/RESEARCH_QUESTION.md` revision 1 and
-  `research/AUDIT_CHECKLIST.md` revision 1; R4 owns the executable pairing certificate.
+- Current orchestration wave: Wave 2 is complete and stopped at its required report boundary.
+  R1 exists as a self-audited treatment-off interface; R2 has a verifier-backed narrow theorem
+  but no justified economic null; R3 recommends observational/feasibility only and awaits user
+  choice; R4 is verifier-backed blocked for active-treatment scoring.
+- Frozen baseline revision: `research/CANDIDATES/r1_treatment_off_baseline.py` SHA256
+  `95bf90cfb63bde3b78aa9bdd5140de902016bd6413b25b910d8bebf80f885fef` at base
+  `895ffee`; 8 parity tests pass. No baseline payoff or treatment run occurred.
+- Frozen evaluator candidate: `glee_eval/experiments/factorial.py` SHA256
+  `bda3da00922ffcb9e931a95febfa885673a0f778b67d04771243398127011f14`.
+  Its seven inert canaries pass, but hostile audit SHA256
+  `f37dc7454ef90018e31dfb22d06ba51f838723b94108dee917628d02f56dfd35`
+  blocks active scoring because cross-stream RNG consumption is accepted when inert equality is
+  disabled.
 - Live/rated authorization: no research arm has live/rated authorization. The competition
   campaign retains the user's instruction to start one leaderboard run after competition
   completion, but its exact durable command/cap must be reconciled in R5 before launch.
+- Wave-2 execution boundary: no holdout, fit, treatment payoff comparison, Wave 3, generation
+  logic, text-opponent project, Model-B gate, or live/rated game was run.
 - Wave-1 evidence: R1 counterexample SHA `144cb7a943de614421deea2762891287b6cd6a98b2a61bf6dc2f893597baaa67`;
   R2 exact evidence SHA `f10597b69a18a0eaadfeae756f56ab8878178ad29189641547e742c59ad454fc`;
   R3 feasibility test SHA `23e32d0319010dd42c8b8a332033120b1ecd0ab4ea6c785717a5d9a9ad9b93e3`;
   R4 evaluator test SHA `2cdbe38545769d9f0dda0a91fc67ce2d8b1fa6b874b813410552300c4b03ef70`.
-- Last reconciled: 2026-08-16 America/New_York, Wave 1 complete.
+- Wave-2 evidence: `research/EVIDENCE/R1_BASELINE_PARITY.json`,
+  `research/EVIDENCE/R2_EPROCESS_WAVE2_VERIFICATION.json`,
+  `research/EVIDENCE/R3_LANGUAGE_DECISION.json`, and
+  `research/EVIDENCE/R4_FACTORIAL_INTEGRITY.json`.
+- Last reconciled: 2026-08-16 America/New_York, Wave 2 complete; awaiting user direction.

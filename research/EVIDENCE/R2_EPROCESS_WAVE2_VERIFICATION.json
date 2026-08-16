@@ -1,0 +1,33 @@
+{
+  "route": "R2",
+  "verdict": "pass_narrow_single_stream_mathematical_claim_only",
+  "repository_commit": "895ffee341cd4893373e32d5f8c1a5375549e0e6",
+  "candidate_sha256": "458a72d3d6b13cf1d8b83713a2b209895e942bd0c17c2dcfde1c5c7325840c7f",
+  "candidate": {
+    "p0": "1/2",
+    "q": "3/4",
+    "failure_increment": "1/2",
+    "success_increment": "3/2",
+    "initial_value": "1"
+  },
+  "null_distribution": "Composite class of all adaptive/dependent laws with P(X_t=1 | F_{t-1}) <= 1/2 almost surely at every predictably indexed opportunity; not Model B, actor factor, iid Bernoulli, or a fitted population distribution.",
+  "exact_checks": {
+    "conditional_expectation_at_p_0": "1/2",
+    "conditional_expectation_at_p_half": "1",
+    "maximum_over_composite_null": "1",
+    "historical_receiver_obedient_fair_null_mean": "4/3",
+    "naive_laplace_plugin_fair_null_mean": "21/16"
+  },
+  "optional_stopping": "Valid for one nonnegative supermartingale: bounded stops by optional sampling, almost-surely finite unbounded stops by Fatou, and single-process crossings by Ville.",
+  "not_covered": [
+    "selection or maximum across hypotheses, roles, families, games, or mode resets",
+    "training-estimated p0 without a certified conditional upper bound",
+    "accept, buy, recommendation, continuous-offer, censored, or aggregate events without separate proofs",
+    "myopic persuasion histories not visible to the acting buyer",
+    "payoff relevance or acting-treatment benefit"
+  ],
+  "smallest_remaining_mathematical_gap": "No frozen evidence establishes the substantive conditional concession bound P(X_t=1 | F_{t-1}) <= 1/2 for the intended economic population.",
+  "acting_implementation_authorized": false,
+  "fit_or_simulation_run": false,
+  "live_run": false
+}
