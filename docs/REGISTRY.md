@@ -265,6 +265,46 @@ Add sample size and seed here before executing any independent confirmation run.
   channel or axis retracts this mixed-fold formulation. A predictive pass still authorizes only
   later prospectively declared payoff work and no live play.
 
+- `model_b_response_newton_pcg` numerical-instrument declaration (declared 2026-08-15 after
+  the stationarity-certified coordinate solver failed actor FIT fold 0, and before code or a
+  new corpus fit): preserve the exact summed binomial-logistic likelihood, `.5 * ridge *
+  (||model_offsets||^2 + ||config_offsets||^2)` penalty, ridge grid `[.1, 1, 10, 100]`,
+  three training-only game-hash CV folds, pooled validation-decision log-loss selection,
+  larger-ridge exact tie rule, standardized production-unit response feature, slope lower bound
+  `1e-8`, 300 outer-Newton limit and original-coordinate projected-KKT tolerance `1e-7`.
+  Neither response rows nor any predictive/payoff endpoint may change.
+
+  Fit each family/role response channel in a deterministic zero-sum contrast basis for actor and
+  canonical-config offsets. The last level equals minus the remaining levels, and the full ridge
+  penalty is evaluated after reconstructing every raw offset; this is an exact reparameterization,
+  not reference coding. At every outer iteration, form stable sorted sufficient-statistic
+  gradient and sparse Hessian-vector products. Solve the active-set Newton system by deterministic
+  preconditioned conjugate gradients. The preconditioner is an exact channel intercept/slope
+  `1x1`/`2x2` block plus ridge-and-weighted diagonals for contrasts. The zero initial PCG vector,
+  fixed coefficient ordering and stable summation make output deterministic. The PCG residual
+  target is `max(1e-12, min(.5, sqrt(KKT)) * KKT)`; its iteration cap is
+  `min(2000, max(50, 4 * free_parameter_count))`. A nonpositive-curvature or nondescent solve may
+  retry only the deterministic Newton-system shift schedule `[0, 1e-12, 1e-10, 1e-8, 1e-6,
+  1e-4]`; the shift never enters the fitted objective, and exhaustion makes the fit unavailable.
+
+  Globalize with projected Armijo backtracking (`c1=1e-4`, factor `.5`, floor `2^-30`). A failed
+  line search is nonconverged. Declare convergence only after reconstructing raw coefficients and
+  independently recomputing the original-coordinate projected-KKT infinity norm `<=1e-7`; step
+  size, contrast-space gradient, relative loss and elapsed iterations cannot substitute. Serialize
+  coefficient-order hash, contrast reconstruction, KKT/objective histories, active slopes, every
+  PCG target/residual/iteration/curvature/shift/descent product, every Armijo alpha/backtrack/pass,
+  and stop reason. Every inner CV fold must pass the same contract before a ridge is eligible.
+
+  Pre-corpus kill-checks: sparse HVP must match a dense Hessian and finite-difference gradient;
+  PCG direction must match a dense constrained Newton solve; original and zero-sum objectives
+  must match; raw/aggregated and input-order variants must be deterministic; bound-slope,
+  near-separation, nonfinite/negative-curvature, forced-line-search and 300-limit fixtures must
+  fail or pass without false convergence. After those tests, actor fold 0 is again the only
+  permitted FIT checkpoint. All B/N/P final and inner fits must be `status=ok`, finite and KKT
+  certified before later folds continue. Any failure retracts this solver; iterations/tolerance,
+  PCG cap/forcing, shift schedule or Armijo constants may not be relaxed in place. No holdout may
+  be scored until all seven mixed-fold artifacts freeze, and no payoff/live work is authorized.
+
 - `bargaining_opponent_timing_parity` theory-anchor evidence audit (declared 2026-08-15 before
   measurement): make exactly two simulator-fidelity corrections and no fitted-parameter changes:
   apply fitted `concession_rate` by successive own-offer index `(state.round - 1) // 2` rather
