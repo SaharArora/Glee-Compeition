@@ -13,6 +13,7 @@ from glee_eval.population.opponent_fit import (
     _sparse_logistic_numerics_for_test,
     _sparse_hvp,
     _armijo_projected_for_test,
+    _CompensatedSum,
     extract_response_observations,
     fit_hierarchical_responses,
     response_probability,
@@ -31,6 +32,33 @@ def _rows(channel: str, cutoff: float, *, model: str = "m", config: str = "c") -
 
 
 class HierarchicalResponseFitTests(unittest.TestCase):
+    def test_compensated_accumulator_cancellation_and_constant_state(self) -> None:
+        import math
+        values=[1e16,1.0,-1e16,3.0,-3.0]*2000
+        accumulator=_CompensatedSum()
+        slots_before=len(accumulator.__slots__)
+        for value in values: accumulator.add(value)
+        self.assertLessEqual(abs(accumulator.value()-math.fsum(values)),1e-12)
+        self.assertEqual(len(accumulator.__slots__),slots_before)
+        self.assertFalse(hasattr(accumulator,"__dict__"))
+        self.assertEqual(accumulator.count,len(values))
+        for residual in (0.999e-7, 1.001e-7):
+            threshold_values = [1e16, residual, -1e16]
+            threshold_accumulator = _CompensatedSum()
+            for value in threshold_values:
+                threshold_accumulator.add(value)
+            reference = math.fsum(threshold_values)
+            self.assertAlmostEqual(threshold_accumulator.value(), reference, places=15)
+            self.assertEqual(threshold_accumulator.value() <= 1e-7, reference <= 1e-7)
+
+    def test_compensated_solver_is_row_order_deterministic(self) -> None:
+        rows=[]
+        for x,hits in ((.1,2),(.3,5),(.5,10),(.7,15),(.9,18)):
+            for i in range(20): rows.append({"channel":"bargaining|player_1","x":x,"outcome":int(i<hits),"game_id":str(i),"player_model":f"m{i%2}","config_signature":f"c{i%3}"})
+        first=_fit_response_coefficients(rows,10.0)
+        second=_fit_response_coefficients(list(reversed(rows)),10.0)
+        self.assertEqual(first,second)
+
     def test_sparse_hvp_dense_hessian_and_finite_difference_gradient(self) -> None:
         encoded=[(3,1,{0:1.0,1:-.4}),(2,2,{0:1.0,1:.7})]
         beta=[.2,-.3]; vector=[.6,-.8]

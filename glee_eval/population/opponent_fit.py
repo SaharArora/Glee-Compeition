@@ -296,6 +296,20 @@ def _fit_response_coefficients(
 _fit_response_coefficients_coordinate_reference = _fit_response_coefficients
 
 
+class _CompensatedSum:
+    """Deterministic Neumaier accumulator with constant-size state."""
+    __slots__ = ("total", "correction", "count")
+    def __init__(self) -> None:
+        self.total=0.0; self.correction=0.0; self.count=0
+    def add(self, value: float) -> None:
+        candidate=self.total+value
+        if abs(self.total)>=abs(value): self.correction+=(self.total-candidate)+value
+        else: self.correction+=(value-candidate)+self.total
+        self.total=candidate; self.count+=1
+    def value(self) -> float:
+        return self.total+self.correction
+
+
 def _pcg_solve(hvp, rhs: list[float], precondition, *, target: float, cap: int, active_index: int|None=None) -> tuple[list[float], dict[str, Any]]:
     """Deterministic PCG used by production and dense-reference tests."""
     n=len(rhs); x=[0.0]*n; r=rhs[:]
@@ -325,14 +339,15 @@ def _pcg_direction_for_test(matrix: list[list[float]], rhs: list[float], *, targ
 
 
 def _sparse_hvp(vector, weights, shift, ridge, penalty_groups, active_index=None):
-    terms=[[shift*x] for x in vector]
+    terms=[_CompensatedSum() for _ in vector]
+    for accumulator,x in zip(terms,vector): accumulator.add(shift*x)
     for weight,features in weights:
         dot=math.fsum(vector[i]*a for i,a in features.items())
-        for i,a in features.items(): terms[i].append(weight*a*dot)
+        for i,a in features.items(): terms[i].add(weight*a*dot)
     for inds in penalty_groups:
         total=math.fsum(vector[i] for i in inds)
-        for i in inds: terms[i].append(ridge*(vector[i]+total))
-    out=[math.fsum(x) for x in terms]
+        for i in inds: terms[i].add(ridge*(vector[i]+total))
+    out=[x.value() for x in terms]
     if active_index is not None: out[active_index]=vector[active_index]
     return out
 
@@ -413,34 +428,34 @@ def _fit_response_coefficients(
             ms=math.fsum(b[i] for i in mi.values()); cs=math.fsum(b[i] for i in ci.values())
             return .5*ridge*math.fsum([*(b[i]**2 for i in mi.values()),ms*ms,*(b[i]**2 for i in ci.values()),cs*cs])
         def obj(b):
-            terms=[penalty(b)]
+            accumulator=_CompensatedSum(); accumulator.add(penalty(b))
             for r,f in enc:
                 eta=math.fsum(b[i]*v for i,v in f.items()); sp=eta+math.log1p(math.exp(-eta)) if eta>=0 else math.log1p(math.exp(eta))
-                terms.append(r["n"]*sp-r["y"]*eta)
-            return math.fsum(terms)
+                accumulator.add(r["n"]*sp-r["y"]*eta)
+            return accumulator.value()
         def gh(b):
-            gterms=[[] for _ in range(dim)]; dterms=[[] for _ in range(dim)]; weights=[]
+            gterms=[_CompensatedSum() for _ in range(dim)]; dterms=[_CompensatedSum() for _ in range(dim)]; weights=[]
             for r,f in enc:
                 eta=math.fsum(b[i]*v for i,v in f.items()); p=_sigmoid(eta); e=r["n"]*p-r["y"]; w=r["n"]*p*(1-p); weights.append((w,f))
-                for i,v in f.items(): gterms[i].append(e*v); dterms[i].append(w*v*v)
+                for i,v in f.items(): gterms[i].add(e*v); dterms[i].add(w*v*v)
             for inds in (list(mi.values()),list(ci.values())):
                 s=math.fsum(b[i] for i in inds)
-                for i in inds: gterms[i].append(ridge*(b[i]+s)); dterms[i].append(2*ridge)
-            return [math.fsum(x) for x in gterms],[math.fsum(x) for x in dterms],weights
+                for i in inds: gterms[i].add(ridge*(b[i]+s)); dterms[i].add(2*ridge)
+            return [x.value() for x in gterms],[x.value() for x in dterms],weights
         def hv(v,weights,shift):
             return _sparse_hvp(v,weights,shift,ridge,(list(mi.values()),list(ci.values())))
         def original_kkt(b):
             """Raw constrained KKT in reconstructed original coordinates."""
-            scores_m={m:[] for m in models}; scores_c={c:[] for c in configs}
-            giterms=[]; gsterms=[]
+            scores_m={m:_CompensatedSum() for m in models}; scores_c={c:_CompensatedSum() for c in configs}
+            giterms=_CompensatedSum(); gsterms=_CompensatedSum()
             for r,f in enc:
                 eta=math.fsum(b[i]*v for i,v in f.items()); error=r["n"]*_sigmoid(eta)-r["y"]
-                giterms.append(error); scores_m[r["model"]].append(error); scores_c[r["config"]].append(error)
-                if slope_i is not None: gsterms.append(error*f[slope_i])
-            gi=math.fsum(giterms); gs=math.fsum(gsterms)
+                giterms.add(error); scores_m[r["model"]].add(error); scores_c[r["config"]].add(error)
+                if slope_i is not None: gsterms.add(error*f[slope_i])
+            gi=giterms.value(); gs=gsterms.value()
             mvals={m:(b[mi[m]] if m in mi else -math.fsum(b[i] for i in mi.values())) for m in models}
             cvals={c:(b[ci[c]] if c in ci else -math.fsum(b[i] for i in ci.values())) for c in configs}
-            mg=[math.fsum(scores_m[m])+ridge*mvals[m] for m in models]; cg=[math.fsum(scores_c[c])+ridge*cvals[c] for c in configs]
+            mg=[scores_m[m].value()+ridge*mvals[m] for m in models]; cg=[scores_c[c].value()+ridge*cvals[c] for c in configs]
             keyed={"intercept":gi,**{f"model:{m}":v for m,v in zip(models,mg)},**{f"config:{c}":v for c,v in zip(configs,cg)}}
             if slope_i is not None: keyed["slope"]=0.0 if b[slope_i]<=1e-8+1e-14 and gs>=0 else gs
             worst=max(keyed,key=lambda k:abs(keyed[k])); return abs(keyed[worst]),worst,keyed
