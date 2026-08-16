@@ -73,7 +73,7 @@ def fit_crossfit_population(
 
     spec = {
         "schema_version": 1,
-        "declaration": "docs/REGISTRY.md model_b_crossfit_joint_opponents",
+        "declaration": "docs/REGISTRY.md model_b_mixed_fold_crossfit; model_b_response_decimal_armijo",
         "data_events_path": str(events_path.resolve()),
         "manifest_path": str(manifest_path.resolve()),
         "manifest_file_sha256": _sha256(manifest_path),
