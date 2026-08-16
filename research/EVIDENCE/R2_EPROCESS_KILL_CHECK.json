@@ -1,0 +1,41 @@
+{
+  "alternative": "P(X_t=1 | F_{t-1}) = 3/4 (working Bernoulli alternative)",
+  "base_commit": "bce578597dbfacf2ebca38399edb41a5dde2f936",
+  "candidate_increment": {
+    "X_t=0": "1/2",
+    "X_t=1": "3/2"
+  },
+  "claim": "The fixed-bound Bernoulli product is an e-process for the declared composite null; the historical E_receiver_obedient score is not a one-step e-value under the fair boundary null.",
+  "command": "python -c 'from fractions import Fraction as F; p0=F(1,2); q=F(3,4); vals=[p*q/p0+(1-p)*(1-q)/(1-p0) for p in (F(0),p0)]; old=F(1,2)*F(5,3)+F(1,2)*F(1); print({\"filtration\":\"visible completed economic events through t plus predictable candidate choices\", \"composite_null\":\"P(X_t=1 | F_{t-1}) <= 1/2 for every t\", \"candidate_increment\":\"(3/2)^X_t (1/2)^(1-X_t)\", \"conditional_expectation_endpoints\":[str(v) for v in vals], \"maximum\":str(max(vals)), \"historical_E_receiver_obedient_expectation_after_one_fair_trial\":str(old), \"candidate_valid\":max(vals)<=1, \"historical_score_invalid\":old>1})'",
+  "composite_null": "All adaptive, possibly dependent laws satisfying P(X_t=1 | F_{t-1}) <= 1/2 almost surely at every indexed opportunity.",
+  "filtration": "F_{t-1} contains fixed inputs, all prior legally visible completed economic events, the current opportunity definition, the already-selected candidate action and its random coin, and fixed/predictable p0_t and q_t; F_t additionally contains X_t.",
+  "input_sha256": {
+    "glee_eval/data/schemas.py": "1868a0535529666880717459b6f9201a1c64e0e86f185593be30fa43cd481577",
+    "glee_eval/tournament/runner.py": "0142f3354759bad9038c1e93b331ccca762cf8ee4b09653f0b4a0903b380566b",
+    "my_agents/jordan_strategic.py": "27526fc4801a856cbf0db4690a336f1f375a98fbe52256c3672935a3ea24fc82",
+    "research/AUDIT_CHECKLIST.md": "f8b03c63546d4ca863b3c8a2ec6d297c416e7b6b594e4b4c15acb08afadea5f9",
+    "research/RESEARCH_QUESTION.md": "cbe48c76aaec6e00c05d0a80fe3f6d3193aeffbd2ac7c9f24f3fe3de41293ff2",
+    "research/ROUTES/R2_EPROCESS.md": "458a72d3d6b13cf1d8b83713a2b209895e942bd0c17c2dcfde1c5c7325840c7f",
+    "research/ROUTES/WAVE_1.md": "cc2d96ea000c902b22c4d847ae27e9495c3a7dc3503b8825457a5649e801922d"
+  },
+  "method": "Exact rational endpoint check supporting an algebraic affine-in-p proof; no simulation or fitting.",
+  "result": {
+    "candidate_valid": true,
+    "conditional_expectation_endpoints": [
+      "1/2",
+      "1"
+    ],
+    "historical_E_receiver_obedient_expectation_after_one_fair_trial": "4/3",
+    "historical_score_invalid": true,
+    "maximum_candidate_conditional_expectation_under_null": "1"
+  },
+  "route": "R2",
+  "sample_size": {
+    "counterexamples": 1,
+    "exact_null_endpoint_evaluations": 2,
+    "sampled_observations": 0
+  },
+  "seed": null,
+  "stopping_rule": "Any filtration stopping time; Ville crossing at 1/alpha is valid. Game termination and the fixed horizon are stopping times.",
+  "treatment_implementation": "not performed"
+}
