@@ -65,3 +65,18 @@ Transferable process guidance only. Game-specific mathematical and empirical cla
 - Preserve units between fitting and simulation: a rate measured per same-player action cannot
   be multiplied by global turns. Also measure realized branch reach before attributing an
   aggregate live gap to a broad latent curve difference.
+- Make a structural split key identical to the conditioning key used by the fitted model.
+  Source-prefixed configuration IDs do not test unseen canonical configurations when the model
+  conditions on normalized public parameters.
+- Validate the semantics of every fitted endpoint against its runtime consumer before fitting:
+  a mean offer is not an opening intercept, accepted surplus is not an acceptance threshold,
+  and pooled truthfulness is not P(recommend=yes | quality=high).
+- To test joint dependence, compare against independently shuffled parameters from the same
+  conditional pool with the same weights and defaults. Beating a stale global marginal sampler
+  can come from repaired conditioning or marginals and does not validate correlation.
+- Count split clusters and coverage before expensive scoring, while retaining the declared hard
+  failure if they are insufficient. A nominal 25% split over 16 models has only four model
+  clusters and cannot satisfy a preregistered minimum of five.
+- Sparse segment crossings select behavior-rich players and silently turn missing response
+  parameters into defaults. Use leak-free decision-level partial pooling and validate all held-
+  out decisions rather than claiming population validity from retained crossings alone.

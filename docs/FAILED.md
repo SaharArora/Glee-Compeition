@@ -380,6 +380,33 @@ append a correction and update `docs/REGISTRY.md` instead.
 - Materially new retry: a changed mechanism with a new preregistered hypothesis; never submit
   the unchanged candidate to another seed hoping for variance.
 
+## One-shot empirical joint opponent bundles (Model B v2) — retracted
+
+- Tried: replace stipulated independent parameter quantiles with one empirical
+  `(player_model, config_id, role)` parameter bundle sampled through a canonical exact/coarse/
+  role ladder. Parameter units, actor/config structural splits, policy defaults and the
+  same-support conditional-shuffle comparator were frozen before holdout scoring.
+- Model-axis failure: the 25% actor split contained only four held-out actor-model clusters in
+  every family, below the prospectively required five, so no family was reportable. Bargaining
+  retained 9,928/14,602 eligible games (.6799); negotiation 7,195/14,417 (.4991); persuasion
+  1,174/5,800 (.2024). The latter two also failed the 50% coverage floor.
+- Config-axis failure: bargaining and negotiation were reportable, but preserving whole-bundle
+  dependence made the primary energy score significantly worse than independently shuffling
+  parameters inside the identical conditional pool. Bargaining joint-minus-shuffle was
+  +0.003458 with 95% CI [+0.002525,+0.004512]; negotiation +0.001593 with
+  [+0.000703,+0.002490]. Both were much better than the old v1 operational sampler, showing
+  that config conditioning/marginal repair helped while the claimed joint dependence did not.
+  Persuasion retained only 1,192/3,185 eligible games (.3743) and was unreportable.
+- The exact formulation is retracted and may not be retried with a new seed, relaxed cluster or
+  retention threshold, or pooled in-sample rows. Closest earlier failure was attributing a
+  live/offline gap to independently sampled marginals; this validation isolates and rejects the
+  stronger claim that raw exact-segment bundles improve joint out-of-sample prediction.
+- Materially new retry condition: exhaustive out-of-fold prediction over all actor identities
+  and canonical configurations, plus decision-level hierarchical response estimates that cure
+  sparse per-segment crossings without importing held-out outcomes. This is declared separately
+  in REGISTRY before fitting; it must still beat the same-support conditional shuffle, not only
+  the defective v1 sampler.
+
 ## Retracted claims from the 14 August session
 
 ### Frozen persuasion posterior guarantees zero payoff — retracted claim

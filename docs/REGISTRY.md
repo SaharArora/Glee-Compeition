@@ -28,7 +28,8 @@ Durable status for policy, scoring, and evidence work. Statuses follow
 | `live_terminal_results` | Audit terminal outcomes with `live-episodes`, capture full SDK move responses, and GET-backfill games ending on opponent moves. | Historical pre-fix log remains incomplete; new capture path is verified. | Authorized confirmation: 31/31 authoritative terminal payoffs (15 direct +16 backfill), zero capture errors. Means B .383075, N .116996, P .235000. Manifest records support index off. | `shipped` | none | Account counter advanced 30 while capture has 31 terminal games; retain both denominators. No further live games without explicit authorization. | `docs/LIVE_INTEGRATION.md`; `glee_eval/live/episodes.py`; `glee_eval/live/run.py` |
 | `live_strict_game_limit` | Replace reliance on SDK `max_games` with bounded matchmaking waves and a unique-game-ID cap including opponent-ended games. | Upstream `--max-games 12` produced 31 terminals; repository wrapper no longer delegates this limit. | Two real verifications completed exactly 75/75 each, balanced 25 per family. The second had 35 direct +40 backfill, 860 clean turns, and zero capture errors/fallbacks/schema violations. | `shipped` | none | Do not call upstream `GleeClient.run(max_games=...)` directly. No further live games without explicit authorization. | `docs/FAILED.md`; `tests/test_live_run.py`; `reports/live/volume2_20260815` |
 | `live_simulator_alignment` | Diagnose live/offline payoff differences against fitted opponent/config assumptions without changing policy. | Bargaining's deterministic simulator timing defect is fixed, but it explains only part of the live gap and produced no acting-policy candidate. Persuasion's residual buyer-rate/role premise is killed after message-mode conditioning. Negotiation's true no-trade exit rate remains unidentified. | Bargaining authoritative n=61 mean .407409; all agreed, gross share .54511 minus .13770 mean discount loss. Live opponent offer-transition mean .00657/median 0 versus fitted concession median .025. Corrected theory audit +.0551 and confirmation +.0601 both pass. A production-visible low-delta/stagnation override is killed at n=2 with opposite signs; flat theory-off replay is only +.00484/61 with 4 gains/7 losses. | `candidate` | unassigned | Fitted opponent marginals are independently sampled and do not preserve real joint player/config behavior; this is model risk, not an identified live policy fix. Persuasion/negotiation conclusions remain as recorded in FAILED. | `bargaining_opponent_timing_parity`; `docs/FAILED.md`; three terminal-complete live batches |
-| `model_b_joint_opponents` | Fit and empirically sample one correlated opponent-parameter bundle per stable `(player_model, config_id, role)` segment instead of independently drawing marginal quantiles. Bundles preserve actor/model identity, role, configuration and within-segment parameter covariance; the sampled bundle derives a descriptive compatibility label after selection. | Fit/serialization/sampler implementation and predictive validation only; no payoff gate or default-policy claim is authorized in this track. | Kill-check: closest FAILED mechanisms are simulator/live distribution mismatch and rejected policy candidates measured on marginal opponents. Material difference: this changes the fit-only opponent distribution itself, not an acting policy or a retry seed. Exact declaration below. | `candidate` | h6_scoring | `opponent_fit.py`, population sampler, opponent-policy parameter contract; calibration_bins owns separate holdout diagnostics. Structural split isolation is mandatory. | Model B declaration below; `docs/FAILED.md`; `docs/PROCESS_LESSONS.md` |
+| `model_b_joint_opponents` | Fit and empirically sample one correlated opponent-parameter bundle per stable `(player_model, config_id, role)` segment instead of independently drawing marginal quantiles. | Frozen predictive validation failed. Config-holdout whole bundles were significantly worse than the same-support conditional shuffle for bargaining and negotiation; persuasion was below the declared coverage floor. This exact fit/validation formulation may not be retried. | Model axis: all families unreportable at 4 actor-model clusters; retention B/N/P .680/.499/.202. Config axis: energy delta joint-minus-shuffle B +.003458, CI upper +.004512; N +.001593, upper +.002490; P retention .374. | `retracted` | none | The v2 sampler remains an experimental compatibility surface only and is not trusted for payoff gates. | `reports/model_b_validation`; `docs/FAILED.md`; declaration below |
+| `model_b_crossfit_joint_opponents` | Exhaustive four-fold out-of-fold joint opponent model with hierarchical decision-level response estimates attached to each actor/config/role bundle. | New formulation only: prove predictive value on all actor/config folds before any tournament or policy gate. No production default or candidate status is inherited from the failed one-shot model. | Closest failure is `model_b_joint_opponents`. Material difference: every identity/signature receives exactly one leak-free OOF prediction; all 16 actor models become validation clusters; sparse acceptance/persuasion rates are partially pooled from all FIT decisions rather than selected per-segment crossings/defaults. Exact prospective declaration below. | `candidate` | unassigned | Cross-fit manifests/router, hierarchical response fit, joint validator. No payoff gate or live play authorized. | Prospective cross-fit declaration below; `docs/FAILED.md` |
 | `persuasion_text_stance` | Default-off buyer parser for unequivocal natural-language recommendations when the live text payload contains no structured yes/no stance; ambiguous text remains a conservative decline and binary inputs are unchanged. | Gate rejected; do not rerun unchanged and do not flip the default. Production mechanism remains diagnosed: 180/180 text buyer turns across nine complete live games defaulted to no despite 101 clearly positive and 79 clearly negative messages. | Frozen 420-turn replay: 0 polarity errors, 420 raw messages preserved, 240/240 binary actions unchanged, 84 text actions reached. Seed 314159, n=1600 structural holdout: +0.1390, t=13.04, 241W/12L/1347T; all archetypes nonnegative, but config-regime concentration 0.5437 > 0.50. | `candidate` | unassigned | Default remains false. Shares persuasion transcript parsing with the live adapter, synthetic runner, fitted opponent policy, and buyer decision path. No live payoff claim is allowed from declined rounds because their qualities are unobserved. | `reports/promotion/persuasion_text_stance_seed314159`; `reports/live/confirmation_20260815`; `reports/live/volume_20260815`; `docs/FAILED.md` |
 | `h6_percentile` | Preserve official-style percentile/rating and add a separate run-specific trade-zone diagnostic using the identical exact-to-family fallback ladder. | Candidate implemented; real-log replay unavailable locally. | Adversarial review caught and corrected an initial family-wide comparison that dropped config conditioning. Zone-suffixed buckets now mirror primary fallback/min-support semantics; exact-bucket equality and fallback divergence are tested. | `candidate` | root | Scoring/reporting only; primary percentile/rating contract unchanged. | `glee_eval/scoring/shadow.py`; `tests/test_shadow_scoring.py`; `docs/HANDOVER.md` §2/§6 |
 
@@ -179,6 +180,65 @@ Add sample size and seed here before executing any independent confirmation run.
   covariance error, but these are diagnostic and may not replace or select the endpoints.
   This predictive all-pass result, if achieved, authorizes only a later prospectively declared
   payoff gate; it does not promote Model B or change a production default.
+
+- `model_b_crossfit_joint_opponents` materially-new validation declaration (declared
+  2026-08-15 after the frozen one-shot verdict failed, and before any cross-fit model is fit or
+  scored): the closest failure is `model_b_joint_opponents`. A new seed, relaxed retention
+  floor, pooled in-sample bundle, or marginal imputation is not new. This formulation changes
+  the estimand to exhaustive out-of-fold prediction and changes sparse response estimation to
+  decision-level partial pooling.
+
+  Use exactly four immutable outer folds on each axis. Actor-model folds are the SHA-256-sorted
+  set of the 16 observed model identities assigned round-robin, exactly four identities per
+  fold. Canonical-configuration folds are
+  `int(SHA256(canonical_config_key)[:16], 16) % 4`. An acting role's own model determines its
+  actor fold even when the other player belongs to another fold. Each event, bundle, actor and
+  canonical signature is evaluated in exactly one outer fold and excluded from every statistic
+  fitted for that fold. Serialize fold membership, training-identity/signature hashes, artifact
+  SHA-256s and routing provenance; duplicate OOF rows or a routed artifact containing its held-
+  out identity/signature are fatal leakage errors. Pool OOF predictions only after all four
+  fold-specific predictions are frozen.
+
+  Preserve production units and attach all estimates belonging to an actor/config/role segment
+  to that one bundle. For bargaining and negotiation acceptance, fit all legally visible FIT
+  response decisions, with outside-option responses labeled non-acceptance. Bargaining x is
+  responder share; negotiation x is role-oriented normalized own gain. Use a monotone logistic
+  slope plus role intercept and actor-model/canonical-config offsets, with fixed ridge grid
+  `[0.1, 1, 10, 100]`. Select the penalty by training-only three-fold game-hash cross-validation,
+  minimum log loss with ties choosing the larger penalty; an outer-fold row may never select a
+  penalty. The p=.5 threshold is transformed back to policy units, clipped only to the FIT
+  decision-margin range, and serialized with source, decision/game support, accepts/rejects,
+  coefficients, penalty, convergence and clipping metadata. Fit persuasion seller
+  P(yes|high)/P(yes|low) and buyer P(buy|yes)/P(buy|no) from all corresponding FIT decisions
+  using the same outer-fold isolation and training-only ridge selection, with explicit
+  actor/config partial pooling. Existing first-offer, successive-own-offer concession and
+  residual-noise endpoints retain their corrected production units; missingness remains
+  explicit and no held-out outcome is used to fill it.
+
+  Bundle validation retains the prior fixed master seed **20260815**, exactly **256** draws per
+  sampler/bundle, and **2,000** deterministic cluster-bootstrap replicates. It retains the
+  same-support conditional shuffle as the primary dependence comparator, the actual v1 sampler
+  as the operational comparator, FIT-only ECDF scaling, both energy-delta mean/upper-bound < 0
+  requirements, both marginal-CRPS safety ceilings, zero Model-B/shuffle support or nonfinite
+  violations, role counts, neutral-default ceiling and the exact/coarse/role production ladder.
+  Pool only OOF rows. Model-axis inference clusters by all eligible actor models and requires at
+  least **12** overall and **3 per outer fold**; config-axis inference clusters by canonical
+  signature and requires at least **20** overall and **3 per fold**. Every family/axis cell must
+  still cover at least **50%** of eligible distinct games and at least **25** bundles per role;
+  role fallback remains <=25% model and <=50% config, and config-axis exact fallback remains
+  exactly zero. No failed or unreportable cell may be pooled away.
+
+  Add a mandatory OOF decision endpoint for each bargaining and negotiation axis/role cell.
+  Against both the neutral-default response model and v1 response model, hierarchical Model B
+  must improve clustered log loss with paired mean and 95% upper bound < 0, and Brier score with
+  paired mean < 0 and upper bound <= 0. Require both outcomes, >=25 evaluation games, >=5 split
+  clusters, >=50% decision/game reach, finite in-domain thresholds and complete support/
+  convergence provenance; report calibration intercept/slope without selecting on them. For
+  persuasion, apply the same log-loss/Brier requirements separately to seller high/low
+  recommendation and buyer yes/no purchase channels. Any family, role, channel or structural
+  axis failure retracts this formulation. A full predictive pass authorizes only the later
+  prospectively declared payoff comparisons and negotiation gates; it cannot itself ship a
+  production policy or authorize live play.
 
 - `bargaining_opponent_timing_parity` theory-anchor evidence audit (declared 2026-08-15 before
   measurement): make exactly two simulator-fidelity corrections and no fitted-parameter changes:
