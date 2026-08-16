@@ -11,6 +11,9 @@
 - Wave-3 implementation state: reviewed, tested, committed, and pushed to
   `origin/research/2x2-eprocess-language`; a follow-up provenance commit records that immutable
   implementation SHA without pretending a git commit can contain its own identity.
+- Wave-4 implementation checkpoint: `a715b2a3e651db2a0f573f7f4940337ccfe62004`;
+  contains the baseline freeze, R2 settlement, R3/environment memo, family feasibility,
+  revision-2 estimands, and verifier-backed R4 obstruction.
 - Competition worktree: `/Users/sahararora/Glee-Compeition`, branch
   `agent/parallel-offline-work`, same committed revision plus uncommitted interrupted
   actor-factor construction work.

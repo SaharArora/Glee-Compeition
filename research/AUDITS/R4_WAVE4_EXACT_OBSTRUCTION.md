@@ -5,6 +5,7 @@ study.**
 
 Version bound:
 
+- implementation checkpoint: `a715b2a3e651db2a0f573f7f4940337ccfe62004`;
 - `glee_eval/experiments/factorial_report.py` SHA256
   `23cdbe690170b1d7eb598590e43e9bd7833d013019903b6acda7899e3455f270`;
 - `glee_eval/experiments/factorial.py` SHA256
