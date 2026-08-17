@@ -247,3 +247,29 @@
   deploy the research baseline. The unexecuted canary selects the already operational Jordan.
 - Reopen-only-if: a competition-scoped candidate clears an independent ordinary gate and live-safe
   artifact/adapter review. The 900-game diagnostic or a different seed is insufficient.
+
+## Wave 5D Design-A row-independent production inference — rejected pre-outcome
+
+- Closest prior route: the Wave 5C Design-A recommendation of 300 base economic strata crossed
+  with two roles and two receiver replicates per family.
+- Attempt: justify 3,600 paired rows and exercise the frozen manifest/evaluator/report path without
+  inspecting treatment or receiver-capability outcomes.
+- Obstruction: the proposed 600 eligible persuasion-seller rows contain at most 300 independent
+  base-stratum clusters, but the current report estimates variance from paired row contrasts as if
+  the two receiver replicates were independent and the manifest does not enforce a base-stratum
+  cluster identifier. In addition, outcome admission retains receiver failure statuses while the
+  report requires numeric payoffs and no treatment-blind failure-to-environment/payoff rule is
+  frozen.
+- Precision result: under the explicitly prospective central grid cell (contrast SD `.20`, ICC
+  `.50`, 10% information loss, 80% power, worst two-sided Holm step), A300 has effective N `360`
+  and MDE `.03411`. It is not justified for the existing `.0100` practical reference; that target
+  would require 3,490 base strata per family under the same assumptions.
+- Classification: verifier/statistical-contract failure before production activation, not evidence
+  against either treatment. A 12-row local synthetic happy path passed and is labelled
+  `infrastructure_only_non_evidence`.
+- Surviving recommendation: A300 remains the single prospective design because two receiver
+  replicates are needed for a nondeterministic hosted receiver and every evaluated smaller
+  A-shaped design worsens precision. Both authorization pins remain unset.
+- Reopen-only-if: exact base-stratum/role/replicate factorization is manifest-bound; clustered
+  inference and ITT failure-to-payoff handling are implemented; exact rows and both pins are
+  prospectively frozen; and a fresh hostile audit passes before outcomes.

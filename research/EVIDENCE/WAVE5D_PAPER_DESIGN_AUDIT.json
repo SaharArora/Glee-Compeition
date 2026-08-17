@@ -1,0 +1,197 @@
+{
+  "schema": "glee.research.wave5d.paper_design_audit.v1",
+  "status": "candidate_self_audited_preoutcome_design",
+  "evidence_class": "prospective_design_and_synthetic_infrastructure_only_no_scientific_outcomes",
+  "source_checkpoint": "80a2b828ef92dbbd504b4384a64a39ac872d3c5a",
+  "hard_boundaries": {
+    "treatment_outcomes_accessed": false,
+    "receiver_capability_outputs_accessed": false,
+    "external_api_calls": false,
+    "live_or_rated_games": false,
+    "model_b_used": false,
+    "production_pins_changed": false
+  },
+  "recommendation": {
+    "design_id": "A300",
+    "factorization": "300_base_economic_strata_x_2_candidate_roles_x_2_receiver_replicates_per_family_x_3_families",
+    "reason": "two replicates preserve direct hosted-receiver variability measurement; every evaluated smaller A-shaped design materially worsens already limited precision",
+    "interpretation": "prospective recommendation only; approximately 0.035-or-larger effects under the central planning assumptions; not powered for 0.0100",
+    "production_ready": false,
+    "production_authorization_pins": null
+  },
+  "unit_structure": {
+    "paired_comparison_unit": "scenario_row_reused_by_all_four_arms",
+    "independent_cluster": "family_x_base_economic_stratum",
+    "primary_population": "immutable_eprocess_or_language_or_joint_eligible_persuasion_candidate_seller_text_rows_as_applicable",
+    "primary_maximum_paired_rows": 600,
+    "primary_maximum_independent_clusters": 300,
+    "receiver_replicates_per_primary_cluster": 2,
+    "four_arm_episodes_are_repeated_measures": true,
+    "twenty_receiver_decisions_per_episode_are_serial_nested_measurements": true,
+    "episode_count_is_sample_size": false,
+    "request_count_is_sample_size": false
+  },
+  "mde_contract": {
+    "alpha_familywise": 0.05,
+    "holm_hypotheses": 3,
+    "planning_step": "most_stringent_first_holm_step_two_sided_alpha_over_3",
+    "power": 0.8,
+    "critical_value": 2.39397979981851,
+    "formula": "(z_(1-.05/(2*3))+z_.80)*contrast_sd/sqrt(K*m*(1-information_loss)/(1+(m-1)*icc))",
+    "contrast_sd_grid": [0.1, 0.2, 0.3, 0.5, 0.75, 1.0],
+    "intraclass_correlation_grid": [0.0, 0.25, 0.5, 0.75],
+    "information_loss_grid": [0.0, 0.05, 0.1, 0.2],
+    "information_loss_is_not_permission_for_complete_case_exclusion": true,
+    "full_grid_generator": "glee_eval.experiments.wave5d_paper_design:mde_grid",
+    "central_case": {
+      "contrast_sd": 0.2,
+      "intraclass_correlation": 0.5,
+      "information_loss": 0.1,
+      "A300": {"effective_n": 360.0, "mde": 0.03410622955037141},
+      "A200": {"effective_n": 240.0, "mde": 0.04177142972432164},
+      "A140": {"effective_n": 168.0, "mde": 0.049926407859310316},
+      "A100": {"effective_n": 120.0, "mde": 0.05907372243585031}
+    },
+    "a300_sd_0_20_mde_by_icc_and_loss": [
+      {"icc": 0.0, "loss": 0.0, "effective_n": 600.0, "mde": 0.02642},
+      {"icc": 0.0, "loss": 0.05, "effective_n": 570.0, "mde": 0.02710},
+      {"icc": 0.0, "loss": 0.1, "effective_n": 540.0, "mde": 0.02785},
+      {"icc": 0.0, "loss": 0.2, "effective_n": 480.0, "mde": 0.02954},
+      {"icc": 0.25, "loss": 0.0, "effective_n": 480.0, "mde": 0.02954},
+      {"icc": 0.25, "loss": 0.05, "effective_n": 456.0, "mde": 0.03030},
+      {"icc": 0.25, "loss": 0.1, "effective_n": 432.0, "mde": 0.03113},
+      {"icc": 0.25, "loss": 0.2, "effective_n": 384.0, "mde": 0.03302},
+      {"icc": 0.5, "loss": 0.0, "effective_n": 400.0, "mde": 0.03236},
+      {"icc": 0.5, "loss": 0.05, "effective_n": 380.0, "mde": 0.03320},
+      {"icc": 0.5, "loss": 0.1, "effective_n": 360.0, "mde": 0.03411},
+      {"icc": 0.5, "loss": 0.2, "effective_n": 320.0, "mde": 0.03618},
+      {"icc": 0.75, "loss": 0.0, "effective_n": 342.85714285714283, "mde": 0.03495},
+      {"icc": 0.75, "loss": 0.05, "effective_n": 325.7142857142857, "mde": 0.03586},
+      {"icc": 0.75, "loss": 0.1, "effective_n": 308.57142857142856, "mde": 0.03684},
+      {"icc": 0.75, "loss": 0.2, "effective_n": 274.2857142857143, "mde": 0.03907}
+    ],
+    "sd_scaling_for_table": {"0.10": 0.5, "0.20": 1.0, "0.30": 1.5, "0.50": 2.5, "0.75": 3.75, "1.00": 5.0},
+    "central_clusters_required_for_0_0100": 3490,
+    "central_0_0100_design_implication": {
+      "paired_rows": 41880,
+      "agent_episodes": 167520,
+      "whole_route_nominal_requests": 558500,
+      "whole_route_max_attempts": 1117000,
+      "primary_nominal_cost_usd": "2359.104000",
+      "primary_retry_cap_cost_usd": "4718.208000"
+    }
+  },
+  "design_envelopes": [
+    {
+      "design": "A300",
+      "paired_rows": 3600,
+      "agent_episodes": 14400,
+      "eligible_rows": 600,
+      "independent_clusters": 300,
+      "confirmatory_nominal_requests": 48000,
+      "whole_route_nominal_requests": 48100,
+      "whole_route_max_attempts": 96200,
+      "primary_usd_nominal_retry_cap": ["203.174400", "406.348800"],
+      "fallback_usd_nominal_retry_cap": ["40.6348800", "81.2697600"],
+      "idealized_30s_service_seconds_nominal_retry_cap": [45120, 90210]
+    },
+    {
+      "design": "A200",
+      "paired_rows": 2400,
+      "agent_episodes": 9600,
+      "eligible_rows": 400,
+      "independent_clusters": 200,
+      "confirmatory_nominal_requests": 32000,
+      "whole_route_nominal_requests": 32100,
+      "whole_route_max_attempts": 64200,
+      "primary_usd_nominal_retry_cap": ["135.590400", "271.180800"],
+      "fallback_usd_nominal_retry_cap": ["27.1180800", "54.2361600"],
+      "idealized_30s_service_seconds_nominal_retry_cap": [30120, 60210]
+    },
+    {
+      "design": "A140",
+      "paired_rows": 1680,
+      "agent_episodes": 6720,
+      "eligible_rows": 280,
+      "independent_clusters": 140,
+      "confirmatory_nominal_requests": 22400,
+      "whole_route_nominal_requests": 22500,
+      "whole_route_max_attempts": 45000,
+      "primary_usd_nominal_retry_cap": ["95.040000", "190.080000"],
+      "fallback_usd_nominal_retry_cap": ["19.0080000", "38.0160000"],
+      "idealized_30s_service_seconds_nominal_retry_cap": [21120, 42210]
+    },
+    {
+      "design": "A100",
+      "paired_rows": 1200,
+      "agent_episodes": 4800,
+      "eligible_rows": 200,
+      "independent_clusters": 100,
+      "confirmatory_nominal_requests": 16000,
+      "whole_route_nominal_requests": 16100,
+      "whole_route_max_attempts": 32200,
+      "primary_usd_nominal_retry_cap": ["68.006400", "136.012800"],
+      "fallback_usd_nominal_retry_cap": ["13.6012800", "27.2025600"],
+      "idealized_30s_service_seconds_nominal_retry_cap": [15120, 30210]
+    }
+  ],
+  "production_blockers": [
+    {
+      "id": "base_stratum_clustering_not_encoded_or_used",
+      "finding": "the current pre-outcome/report path lacks an enforced base-stratum cluster identity and factorial_report computes row-level variance",
+      "required_resolution": "bind exact base_stratum_id/role/replicate factorization in the manifest and implement clustered report inference before pins"
+    },
+    {
+      "id": "receiver_failure_to_numeric_itt_payoff_unspecified",
+      "finding": "outcome admission retains failed receiver envelopes but FactorialRow/report requires numeric payoff and does not bind a failure-to-environment/payoff rule",
+      "required_resolution": "freeze one treatment-blind environment continuation/payoff rule; otherwise missing terminal payoff makes confirmatory analysis nonreportable"
+    },
+    {
+      "id": "absolute_power_adequacy_not_identified",
+      "finding": "no blinded contrast variance or smallest effect of scientific interest is frozen; A300 central-case MDE is 0.03411 and not 0.0100",
+      "required_resolution": "accept the explicit precision target prospectively or select a materially larger design before outcomes"
+    },
+    {
+      "id": "attempt_and_wall_caps_not_jointly_exhaustible",
+      "finding": "at concurrency 32 and 30 seconds per attempt A300 needs 45120 seconds nominal and 90210 seconds at retry cap before overhead, exceeding 12 hours",
+      "required_resolution": "declare wall-cap truncation precedence and ITT consequence or revise the prospective resource contract before authorization"
+    }
+  ],
+  "synthetic_pipeline": {
+    "label": "infrastructure_only_non_evidence",
+    "paired_rows": 12,
+    "agent_episodes": 48,
+    "manifest_sha256": "4c1b7eec8cb32c8a2ab7e2740c365c070d5f735ec18b07a11052009c41c309aa",
+    "manifest_contract_sha256": "134aa41677e62473e9a677d57e21e2f85d4a9d1b15bd092715386876f079702b",
+    "scenario_design_sha256": "4f595499876688d88dedc73041bea8be08c0e8d9c5c8734d4eeeb38da0339605",
+    "report_sha256": "c5e4e8664ddea008f208ceed02440b65942b8a124a81cf7022b99334aebe352b",
+    "report_contract_sha256": "52664a0f720f8c1d3ff64a6db15c0c934a8f3418d7cd2ecb373d281e876642dd",
+    "report_preoutcome_projection_sha256": "6bd7c5f59ff369694a9c7da4db038f7b4686fedfbf4147818b0b788b41d5a53b",
+    "row_digest_root_sha256": "845c9e9ea5d93bd98aa552d581eeb69b501d2ebaf5c591d77a830fd6a69c46f9",
+    "one_synthetic_missing_receiver_envelope_retained_in_itt_admission": true,
+    "production_pins_remained_none": true,
+    "scientific_claim": "none"
+  },
+  "implementation": {
+    "planning_module": "glee_eval/experiments/wave5d_paper_design.py",
+    "planning_module_sha256": "1b5d4266cd7cbd7eb0f2f3bbcca73ab2d7bac19a5902f67e0e3011edf5660b81",
+    "test_module": "tests/test_wave5d_paper_design.py",
+    "test_module_sha256": "f3972e5014cc791f8bd3553a0f8c9e97d5213d2553bb149f050910907672fd9d",
+    "methods_sha256": "5cd2165237c0e1e38b62893ae19d4dc7bab874dd8ac9665444b4aae87553763d",
+    "sap_sha256": "ace60f86ffb7b08ddb963bffd6777c86aca725117f78b843527b15e102dd5f60",
+    "route_specific_tests": {"passed": 6, "failed": 0},
+    "integrated_focused_regression": {"passed": 79, "failed": 0}
+  },
+  "claims_gained": [
+    "exact outcome-blind unit, cluster, repeated-measure, workload, cost, runtime, and MDE arithmetic",
+    "one prospective A300 recommendation with explicit precision limitations",
+    "synthetic local manifest/evaluator/admission/report stage reconstruction"
+  ],
+  "claims_prohibited": [
+    "A300 is powered for a 0.0100 effect",
+    "current report is valid for Design-A clustered production inference",
+    "receiver failure handling already yields a complete ITT payoff estimator",
+    "hosted receiver capability or responsiveness",
+    "any e-process, language, interaction, payoff, Model-A, Model-B, competition, or leaderboard effect"
+  ]
+}

@@ -76,3 +76,13 @@
 - A decision-ready live canary starts with telemetry, not queueing. Bind exact commit/dirty state,
   one agent identity, per-game official scoring capability, terminal capture and stop rules before
   spending the first game; otherwise more volume only compounds the same evidence gap.
+- Replicated rows increase workload faster than independent information. If a design crosses the
+  same economic stratum with receiver replicates or roles, manifest the cluster identity and make
+  the report estimate variance from cluster means; paired episodes, rounds and API calls are not
+  substitute sample units.
+- Intent-to-treat admission is incomplete until a failed external decision has a prospectively
+  defined path to environment behavior and terminal payoff. Merely retaining a failure envelope
+  while the report accepts only numeric payoffs creates a silent complete-case gap.
+- Attempt, timeout and wall-clock ceilings must be jointly feasible or explicitly ordered. A large
+  retry ceiling is not an executable guarantee when saturated timeout service alone exceeds the
+  wall cap.
