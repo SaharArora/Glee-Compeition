@@ -1,0 +1,97 @@
+{
+  "schema": "glee.wave5c.bargaining_model_a_prefit_audit.v1",
+  "verdict": "fail",
+  "contract_sha256": "377f771a6ac6fb70bbd1f3ed4a4c075f07911cc84df199812f18422739908adb",
+  "audited_commit": "8d4e6e9e940563cdb8fd4341ad252fd176f67266",
+  "identity_note": "Owner first supplied invalid prefix 8d4e6e9c; root explicitly corrected it to exact clean HEAD 8d4e6e9e940563cdb8fd4341ad252fd176f67266 before substantive audit.",
+  "reviewed_code_sha256": {
+    "glee_eval/population/bargaining_model_a.py": "6b1086bed9af4ee296539cc2728c805f440ea8a5ab16ff2da8877060b92aec73",
+    "glee_eval/diagnostics/bargaining_model_a_evaluator.py": "99df90ff0886f8d5c78df9434383ccf0f21685a14cfa948d96e5e0cda926afe2",
+    "glee_eval/diagnostics/bargaining_model_a_campaign.py": "cddce37da8a29064539238c3f0d1d624b8327bf9089e7a77fc8f504d1943e241"
+  },
+  "auditor_id": "wave5c_paper_fresh_auditor",
+  "auditor_fresh_context": true,
+  "auditor_implemented_route_a": false,
+  "source_hash_checks": {
+    "released_events_sha256": "afc50fdf2f9c08feaf86355494db2bbd257c29ff4f9fbc8ed65f15e005329ad6",
+    "released_events_bytes": 8214931069,
+    "operational_v1_sha256": "e7aa19ea6fe819ddb4efbe17c3e3c411f2a7c3d0ef571dd40fce4712c2fdf0e5",
+    "model_c_sha256": "9daec869b3e4950945a1a370486e8841874fe9f5e611a7e8638dcdaa2b08b82c",
+    "necessity_sha256": "ff5cd471e87660bc81d37f8600b794a453c1837de2f7750c03158510bf899c8e",
+    "wave5b_campaign_sha256": "ba74a12a5426e3d34aba8a465ff5b24a2cb748bd203c9c6cfe11bee3a22d28de",
+    "all_match_contract": true,
+    "structural_holdout_outcomes_inspected": false
+  },
+  "reviewed_test_command": "PYTHONPYCACHEPREFIX=/private/tmp/glee_wave5c_a_audit_pycache PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -q tests.test_bargaining_model_a tests.test_crossfit tests.test_crossfit_fit tests.test_model_a_necessity tests.test_opponent_population tests.test_response_models",
+  "reviewed_test_result": "64 passed, 0 failed, 4.892s",
+  "checks": {
+    "target_and_feature_visibility": "fail",
+    "actor_and_config_exclusion": "pass",
+    "inner_selection_training_only": "fail",
+    "proper_score_formulas": "pass",
+    "clustered_inference": "pass",
+    "support_and_per_role_reporting": "pass",
+    "post_outcome_selection_absent": "pass",
+    "source_and_comparator_hashes": "fail",
+    "resource_stops": "fail",
+    "trajectory_definition": "fail",
+    "degenerate_walkaway_is_fatal": "pass",
+    "audit_gate_schema_enforcement": "fail",
+    "mandatory_role_channel_axis_construction": "pass",
+    "model_b_or_integration_absent": "pass",
+    "no_scoring_or_extraction_artifacts_present": "pass"
+  },
+  "hostile_mutations": {
+    "minimal_pass_audit_missing_auditor_id_tests_checks_objections_notes": "accepted_by__verify_audit (fail-open)",
+    "future_round_99_transcript_item": "accepted_and_changed_features",
+    "empty_public_parameters_with_hidden_incomplete_information_deltas_in_configuration": "accepted_and_changed_config_key",
+    "two_empty_event_ids": "both accepted; no stable-row uniqueness rejection",
+    "censored_final_callback": "game retained as a terminal trajectory at last uncensored prefix instead of being excluded/censor-aware",
+    "zero_walkaway_support": "fit status failed_component and walkaway head degenerate_target (correct fatal behavior)",
+    "v1_sampled_specs_retain_archetype": false
+  },
+  "objections": [
+    {
+      "id": "A-AUDIT-GATE-FAILOPEN",
+      "fatal": true,
+      "detail": "_verify_audit accepts a six-field synthetic pass document with no auditor_id, reviewed test command/result, checks, objections, or notes. The static root token is then sufficient to release the run. The exact audit schema/all-pass checks are not enforced."
+    },
+    {
+      "id": "A-FUTURE-PRIVATE-LEAKAGE-GUARDS",
+      "fatal": true,
+      "detail": "Extractor trusts transcript_so_far without ordering/pre-action validation; a synthetic round-99 item changes features. If public_parameters is empty it falls back to full configuration, and hidden incomplete-information deltas alter the canonical config effect. Exact source hash matches, but the frozen extractor does not fail closed against the required future/private leakage attacks."
+    },
+    {
+      "id": "A-CENSORED-TRAJECTORY-AS-TERMINAL",
+      "fatal": true,
+      "detail": "_trajectory_rows drops the censored row, then uses max round/count among remaining stop-observed prefixes as the actual terminal target and forces residual survival mass onto that prefix. Missing callbacks are therefore converted into terminal-round/action-count targets despite the censoring contract."
+    },
+    {
+      "id": "A-V1-COMPARATOR-NOT-EXACT",
+      "fatal": true,
+      "detail": "OperationalV1Predictor discards sampled archetype identity. Its offer_distribution always applies target_share - concession_rate * own_offer_index, while exact schema-v1 BargainingPolicy freezes early offers for the present `boulware` archetype before 75% of horizon. Thus the mandatory operational-v1 offer/trajectory comparator is not the exact policy named in the contract."
+    },
+    {
+      "id": "A-INNER-OBJECTIVE-WEIGHTING",
+      "fatal": true,
+      "detail": "Inner selection is outer-training-only, but computes mean of three fold means. With unequal hash-fold game counts this is not the frozen unweighted mean over games. validation_loss also averages all row/channel loss entries within game rather than an explicit frozen joint channel aggregate. Hyperparameter selection can change."
+    },
+    {
+      "id": "A-STABLE-ROW-ID-MISSING",
+      "fatal": true,
+      "detail": "event_id is copied without nonempty/unique validation and no canonical row_id is built. Two empty IDs are accepted, so exact once-per-axis row reconciliation and coherent duplicate detection are not mechanically auditable."
+    },
+    {
+      "id": "A-HARD-RESOURCE-CAPS-NOT-PREEMPTIVE",
+      "fatal": true,
+      "detail": "No RLIMIT/RSS limiter exists. CPU, RSS, and artifact ceilings are checked only after a fold, and extraction has no artifact-size guard; a process can exceed the hard 8 CPU-hour/12 GiB/3 GiB limits before detection or OOM without an atomic failure certificate. The 90-minute parent timeout is enforced."
+    },
+    {
+      "id": "A-LIVE-BRANCH-DIAGNOSTIC-PENDING",
+      "fatal": true,
+      "detail": "The frozen campaign requires separate diagnostics on immutable Jordan-reached branch labels. The result only lists those labels and records exact rescoring as pending; no implementation produces the required diagnostic."
+    }
+  ],
+  "notes": "CRPS, categorical/binary log loss, Brier, ECE/calibration bounds, central coverage, deterministic 256-point univariate energy/CRPS, nested actor/config then game bootstrap, fixed grids/ties/iteration tolerance, outer fold exclusion, mandatory role/channel/axis loops, Model-C diagnostic restriction, status ceiling, no Model B/integration, and degenerate-walkaway fatality were otherwise consistent. Existing synthetic tests pass but do not cover the fatal mutations above. No A files were written and no outcome rows were inspected.",
+  "authorization": "NONE. This fail verdict does not authorize extraction, fit, scoring, claims, integration, or any live/payoff action. Reopen only with new code/contract hashes and a fresh pre-fit audit."
+}

@@ -1,0 +1,51 @@
+{
+  "schema": "glee.wave5c.bargaining_model_a_terminal.v1",
+  "route": "A",
+  "branch": "research/wave5c-model-a",
+  "base_commit": "9691117d11415519d1e8e0c42810957b714663c6",
+  "audited_prefit_commit": "8d4e6e9e940563cdb8fd4341ad252fd176f67266",
+  "contract_sha256": "377f771a6ac6fb70bbd1f3ed4a4c075f07911cc84df199812f18422739908adb",
+  "audit": {
+    "path": "research/EVIDENCE/WAVE5C_MODEL_A_PREFIT_AUDIT.json",
+    "sha256": "56d32cb3d7f9f1068f9d18f5e126afb5fa8040cff6eaf8624d290e014fc49e2d",
+    "verdict": "fail",
+    "auditor_id": "wave5c_paper_fresh_auditor",
+    "auditor_fresh_context": true,
+    "auditor_implemented_route_a": false,
+    "structural_holdout_outcomes_inspected": false
+  },
+  "terminal_status": "prefit_failed_campaign_not_executed",
+  "fatal_objections": [
+    "A-AUDIT-GATE-FAILOPEN",
+    "A-FUTURE-PRIVATE-LEAKAGE-GUARDS",
+    "A-CENSORED-TRAJECTORY-AS-TERMINAL",
+    "A-V1-COMPARATOR-NOT-EXACT",
+    "A-INNER-OBJECTIVE-WEIGHTING",
+    "A-STABLE-ROW-ID-MISSING",
+    "A-HARD-RESOURCE-CAPS-NOT-PREEMPTIVE",
+    "A-LIVE-BRANCH-DIAGNOSTIC-PENDING"
+  ],
+  "execution": {
+    "root_go_received": false,
+    "released_corpus_extracted": false,
+    "model_fit_started": false,
+    "outer_fold_artifacts": 0,
+    "oof_rows_scored": 0,
+    "structural_holdout_scored": false,
+    "live_branch_candidate_diagnostic_run": false,
+    "payoff_gate_run": false,
+    "live_or_rated_games_run": false,
+    "model_b_used": false,
+    "integration_changed": false
+  },
+  "evidence_maturity": {
+    "need_for_model_a": "prior Wave-5B candidate/self-audited necessity evidence only",
+    "implementation": "candidate_code_rejected_by_independent_prefit_audit",
+    "candidate_predicts_better": "not_tested",
+    "structural_validation": "not_tested",
+    "untouched_confirmation": "not_tested",
+    "agent_payoff_improvement": "not_tested"
+  },
+  "reopen_rule": "new formulation only, with new code and contract hashes plus a fresh independent hostile pre-fit audit",
+  "authorization": "none"
+}
