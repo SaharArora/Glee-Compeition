@@ -1,0 +1,48 @@
+{
+  "schema": "glee.research.wave5c.receiver_independent_audit.v1",
+  "auditor": "root",
+  "audited_implementation_commit": "c27cd2aae9fc0fb5bb6fb2dbfdea31960cb5e8c3",
+  "evidence_maturity": "independent_offline_infrastructure_audit",
+  "checks": {
+    "exact_13_field_proposal": "pass",
+    "model_snapshot_documentation_verified": {
+      "status": "pass",
+      "primary": "openai/gpt-4.1-2025-04-14",
+      "fallback": "openai/gpt-4.1-mini-2025-04-14",
+      "sources": [
+        "https://developers.openai.com/api/docs/models/gpt-4.1",
+        "https://developers.openai.com/api/docs/models/gpt-4.1-mini"
+      ]
+    },
+    "accounting": {
+      "status": "pass",
+      "paired_scenario_rows": 3600,
+      "agent_executions": 14400,
+      "confirmatory_nominal_receiver_requests": 48000,
+      "capability_plus_confirmatory_max_attempts": 96200
+    },
+    "full_proposal_tamper_rejection": "pass",
+    "hidden_field_and_value_capability_checks": "pass",
+    "exact_cache_replay_without_new_transport": "pass",
+    "production_authorization_pins": {
+      "factorial_report": null,
+      "preoutcome_manifest": null,
+      "status": "pass_both_unset"
+    },
+    "independent_test_command": "PYTHONPYCACHEPREFIX=/private/tmp/glee_wave5c_root_pycache PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -q tests.test_controlled_receiver tests.test_wave5c_receiver tests.test_preoutcome_manifest tests.test_factorial_report",
+    "independent_tests": {
+      "passed": 48,
+      "failed": 0
+    }
+  },
+  "limitations": [
+    "The request schema cannot prove that an upstream producer did not encode hidden information inside an otherwise allowed visible or candidate-text value.",
+    "Hosted seed support, strict-schema endpoint behavior, account access, and provider-internal field consumption remain unverified.",
+    "No real capability evidence or factorial payoff evidence was generated."
+  ],
+  "verdict": {
+    "offline_decision_packet": "GO",
+    "production_or_external_receiver_execution": "NO_GO",
+    "meaning": "The packet may be presented for user decision; it may not set production pins, call a provider, or run payoff rows."
+  }
+}
