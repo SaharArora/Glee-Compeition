@@ -1,0 +1,119 @@
+{
+  "schema": "glee.research.wave5b_architecture_checkpoint.v1",
+  "created_at_utc": "2026-08-17T03:11:00Z",
+  "branch": "research/wave5b-architecture",
+  "base_commit": "41f77bce9ed37f801210d9ef09b1628154bb8bbb",
+  "implementation_commit": "a26f95319657230da557027eea36b71a781edd0d",
+  "scope": "bounded architecture and feasibility only",
+  "boundaries": {
+    "model_a_fit_run": false,
+    "model_b_used": false,
+    "factorial_treatment_outcomes_generated": false,
+    "external_receiver_called": false,
+    "policy_promoted": false,
+    "live_or_rated_games_run": false
+  },
+  "results": {
+    "model_a_necessity": {
+      "status": "model_a_campaign_warranted",
+      "scope": "bargaining only",
+      "evidence_maturity": "candidate_self_audited_architecture_evidence",
+      "released_events": 1188434,
+      "live_terminal_games": {
+        "bargaining": 61,
+        "negotiation": 60,
+        "persuasion": 60
+      },
+      "replicated_candidate_reached_signatures": [
+        "bargaining/player_1/offer/coverage_low",
+        "bargaining/player_2/offer/coverage_low",
+        "bargaining/player_2/offer/mae_high"
+      ],
+      "status_ceiling": "candidate_pending_independent_structural_validation",
+      "long_campaign_started": false,
+      "estimated_campaign_cpu_hours": "3-6",
+      "hard_resource_stop": "8 CPU-hours, 12 GiB RSS, 3 GiB artifacts"
+    },
+    "shared_backbone": {
+      "scenarios": 900,
+      "seed": 20260816,
+      "factorial00_minus_jordan_overall": 0.0475677,
+      "family_effects": {
+        "bargaining": 0.159954,
+        "negotiation": 0.00894885,
+        "persuasion": -0.0262
+      },
+      "selected_for_live_canary": false,
+      "evidence_maturity": "bounded_offline_diagnostic"
+    },
+    "leaderboard_proxy": {
+      "formal_fully_attributable_batches": 0,
+      "exact_obstruction": "historical launch manifests omit exact commit and official per-game score/adjustment outputs",
+      "count_reconciled_batches": 2,
+      "endpoint_proxy_minus_official_bias": {
+        "bargaining": 55.6048,
+        "negotiation": 125.7749,
+        "persuasion": 69.978
+      },
+      "empirically_calibrated_proxy_available": false,
+      "private_adjustment_envelope": "unbounded from captured fields"
+    },
+    "live_readiness": {
+      "state_1_operationally_ready": true,
+      "state_2_bounded_canary_ready": false,
+      "state_3_preliminary_competitive_performance": false,
+      "state_4_plausibly_top_five": false,
+      "state_5_winning_agent": false,
+      "prospective_candidate": "my_agents.jordan_strategic:MyAgent",
+      "canary_executed": false,
+      "blockers": [
+        "exact commit and dirty-tree digest are not recorded by the live adapter",
+        "official per-game scoring/update capability is not recorded"
+      ]
+    }
+  },
+  "frozen_sources": {
+    "released_events": {
+      "path": "/Users/sahararora/Glee-Compeition/data/processed/events.jsonl",
+      "bytes": 8214931069,
+      "events": 1188434,
+      "games": 80872,
+      "sha256": "afc50fdf2f9c08feaf86355494db2bbd257c29ff4f9fbc8ed65f15e005329ad6"
+    },
+    "operational_population_schema": 1,
+    "operational_population_sha256": "e7aa19ea6fe819ddb4efbe17c3e3c411f2a7c3d0ef571dd40fce4712c2fdf0e5",
+    "shared_backbone_population_sha256": "3371131752a83dde73adba341aec78aab14af9bfd02b94b0bf7b773c317e051d",
+    "config_catalogue_sha256": "2a32c01dd02f08663c54b9f149c7fc8eda9e0d3b4ade59a0d463c0c55b67e2ae",
+    "model_c_sha256": "9daec869b3e4950945a1a370486e8841874fe9f5e611a7e8638dcdaa2b08b82c",
+    "support_index_sha256": "b958776534e764ed14099f4194af5437d4b9f8d6e5be3ec6537276eb133d9145"
+  },
+  "artifacts": {
+    "research/EVIDENCE/WAVE5B_MODEL_A_NECESSITY.json": "ff5cd471e87660bc81d37f8600b794a453c1837de2f7750c03158510bf899c8e",
+    "research/EVIDENCE/WAVE5B_LEADERBOARD_PROXY.json": "cc4fd0eaed0bcc434ff7d55e6ed795ccd6f419896e6d28ad4521a30ce59a3c90",
+    "research/EVIDENCE/WAVE5B_SHARED_BACKBONE/summary.json": "1031dd237f7092b7ac8be00ccaf079166595827d74a5d9d64645835df9253936",
+    "research/EVIDENCE/WAVE5B_SHARED_BACKBONE/observations.jsonl": "66ffc4c3ebfdf80fec9cad677c92f5151074088c643e5fd75f9e350861959211",
+    "research/ROUTES/WAVE5B_ABCD_AND_MODEL_A_CAMPAIGN.md": "ba74a12a5426e3d34aba8a465ff5b24a2cb748bd203c9c6cfe11bee3a22d28de",
+    "research/ROUTES/WAVE5B_DATA_FEEDBACK.md": "3e6a416c387d0b6c59460f9f7e48064b06931481317b147873228a9a8dc3ce55",
+    "research/ROUTES/WAVE5B_RECEIVER_FACTORIZATION_DECISION.md": "c8f3fe9464a483cd077082006c25d1926538c80e4dea5708d543f7539fb528bb",
+    "research/ROUTES/WAVE5B_LEADERBOARD_AND_CANARY.md": "1f6a55bbcd5d25f8a2ff2138f2e1787382f2ac44ab1fc851e639b874e6d9c7b3"
+  },
+  "implementation_sources": {
+    "glee_eval/diagnostics/model_a_necessity.py": "79668af98e232852d913ff40662cdc7ace9b1d3b8cd3e5474c71220dc967da93",
+    "glee_eval/diagnostics/leaderboard_proxy_backtest.py": "24416724c32d723a0d81d86d7de08f83344d89613333add7a9a1664eaf73d049",
+    "glee_eval/diagnostics/shared_backbone_benchmark.py": "da817539e55d18a80a2f1b4f35cec23c6728a194f7ad7633792c2d41cd3226ba"
+  },
+  "verification": {
+    "command": "env -u GLEE_RESPONSE_MODEL -u GLEE_SUPPORT_INDEX PYTHONPYCACHEPREFIX=/private/tmp/glee_wave5b_pycache PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_model_a_necessity tests.test_leaderboard_proxy_backtest tests.test_shadow_scoring tests.test_r1_treatment_off_baseline tests.test_wave3_factorial_agents tests.test_r2_population_bound_kill_check tests.test_r3_language_feasibility tests.test_controlled_receiver tests.test_preoutcome_manifest tests.test_factorial_evaluator tests.test_factorial_report -q",
+    "tests_run": 86,
+    "failures": 0,
+    "wall_seconds": 3.99,
+    "diff_check": "pass",
+    "evidence_json_parse": "pass"
+  },
+  "completion": {
+    "wave_5b_complete": true,
+    "next_model_a_action": "stop and await explicit authorization for the frozen bargaining-only campaign and fresh hostile audit",
+    "next_live_action": "repair and test telemetry, then seek separate authorization for the frozen Jordan canary",
+    "default_factorial_reconnection": "preserve current theory-plus-Model-C four-arm study; treat any later validated Model A as second-generation robustness infrastructure"
+  }
+}

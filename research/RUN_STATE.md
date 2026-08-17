@@ -4,6 +4,8 @@
 
 - Worktree: `/Users/sahararora/Documents/Codex/Glee-Research-Wave5B`; branch
   `research/wave5b-architecture`; base `41f77bce9ed37f801210d9ef09b1628154bb8bbb`.
+- Implementation commit: `a26f95319657230da557027eea36b71a781edd0d`; durable evidence
+  manifest: `research/EVIDENCE/WAVE5B_ARCHITECTURE_CHECKPOINT.json`.
 - Scope: Model-A necessity/misfit audit, A/B/C/D architecture, leaderboard-proxy back-test,
   shared-backbone benchmark, data-feedback contract, receiver/factorization packet and an
   unexecuted canary contract. No Model-A fit, Model B, external receiver call, factorial treatment
