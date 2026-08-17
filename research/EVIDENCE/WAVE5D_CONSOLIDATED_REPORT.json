@@ -1,0 +1,110 @@
+{
+  "schema": "glee.wave5d.consolidated_report.v1",
+  "status": "terminal_offline_no_external_actions",
+  "campaign_clock": {
+    "started_utc": "2026-08-17T04:20:34Z",
+    "safe_shutdown_boundary_utc": "2026-08-17T11:50:34Z",
+    "hard_stop_utc": "2026-08-17T12:20:34Z",
+    "all_routes_terminal_before_first_90_minute_interval": true
+  },
+  "boundaries": {
+    "network_calls": 0,
+    "external_api_calls": 0,
+    "openai_receiver_calls": 0,
+    "glee_live_or_rated_games": 0,
+    "model_b_used": false,
+    "memory_heavy_processes_started": 0,
+    "dirty_main_worktree_touched": false,
+    "production_pins_changed": false
+  },
+  "isolation": {
+    "normal_worktree_creation_blocked_without_approval": true,
+    "fallback": "three_local_shared_clones_under_private_tmp",
+    "source_objects_shared_read_only": true,
+    "network_push_permitted": false
+  },
+  "routes": {
+    "paper": {
+      "branch": "research/wave5d-paper",
+      "route_commit": "5590a5c1ff505a8395cdbe8c37ddddd5edc232d8",
+      "base_commit": "80a2b828ef92dbbd504b4384a64a39ac872d3c5a",
+      "terminal": "conditional_A300_recommendation_production_blocked",
+      "tests_passed": 79,
+      "tests_failed": 0,
+      "evidence_sha256": "e99a921edc3d86be4cde750ef7b71e02584d5ea7edc91041edb0c134d60433c2",
+      "methods_sha256": "5cd2165237c0e1e38b62893ae19d4dc7bab874dd8ac9665444b4aae87553763d",
+      "sap_sha256": "ace60f86ffb7b08ddb963bffd6777c86aca725117f78b843527b15e102dd5f60",
+      "recommendation": {
+        "design": "A300",
+        "production_ready": false,
+        "primary_clusters": 300,
+        "central_effective_n": 360,
+        "central_mde": 0.03410622955037141,
+        "powered_for_0_0100": false,
+        "paired_rows": 3600,
+        "agent_episodes": 14400,
+        "nominal_requests": 48100,
+        "maximum_attempts": 96200,
+        "primary_nominal_cost_usd": 203.1744,
+        "primary_retry_cap_cost_usd": 406.3488
+      },
+      "blockers": [
+        "base_stratum_clustering_not_encoded_or_used",
+        "receiver_failure_to_numeric_itt_payoff_unspecified",
+        "absolute_power_adequacy_not_identified",
+        "attempt_and_wall_caps_not_jointly_exhaustible"
+      ]
+    },
+    "model_a_v2": {
+      "branch": "research/wave5d-model-a-v2",
+      "prefit_commit": "1a1e8f7977e758faf4256993d3b75397a55057de",
+      "terminal_commit": "854ea7bec45e6eb790081dd7318e9387d923e2a1",
+      "base_commit": "c9c2c030606e1eca4676e6f9f7b0ed4561f52592",
+      "terminal": "independent_prefit_fail_no_fit",
+      "contract_sha256": "e431284df3ee243b175a02412a343e01d9db7b85f33a97d33a2f0c25d6fd315f",
+      "audit_sha256": "e2e65b0e37906d72b27265a1c47aeb877d0f3b45a2c6273a3db8deaeca72dc6d",
+      "terminal_evidence_sha256": "e02fecdba4c67154c299c40edd2f2483544b7fb4a1474a5c8151cb152729a974",
+      "frozen_tests_passed": 16,
+      "frozen_tests_failed": 0,
+      "fatal_objections": [
+        "R2-TMINUS1-SEQUENCE-FAILOPEN",
+        "R2-MALFORMED-TERMINAL-BECOMES-CENSORING",
+        "R2-ROLE-TRAJECTORY-ENCODING-IMPOSSIBLE",
+        "R2-INNER-CV-FAILED-GAMES-SILENTLY-DROPPED",
+        "R2-SUPERVISOR-DESCENDANT-ESCAPE",
+        "R2-SUPERVISOR-TERMINAL-CERTIFICATE-AND-ARTIFACT-GAPS"
+      ],
+      "rows_extracted": 0,
+      "fits": 0,
+      "structural_rows_scored": 0,
+      "third_formulation_attempted": false
+    },
+    "competition_preparation": {
+      "branch": "research/wave5d-competition-prep",
+      "terminal_commit": "2810a124407e55371edf88efc889e01d1ff1d6a9",
+      "base_commit": "f2a1bb5afe6f83c3a8a03201a0e5939f748ecda9",
+      "terminal": "two_hypotheses_only_unimplemented",
+      "tests_run": 58,
+      "test_failures": 0,
+      "test_skips": 1,
+      "evidence_sha256": "6fbd48e6df62d0e50c15b4e9e4bec69f93786f4d1513ba6eaed8e0f17c2b3eb1",
+      "route_sha256": "b4c41d3cf2a86a4b67a0229a6103459c99d142d8e441a9580c8f24ea33d6dfcd",
+      "morning_checklist_sha256": "c299fdd2586a80caf8e4eb570eaf0fad5a0ba995128ad450fe76b63c447e4c25",
+      "development_rows_reused": 900,
+      "untouched_rows_used": 0,
+      "persuasion_seller_jordan_minus_factorial00": 0.0572992700729927,
+      "causal_status": "underidentified_no_action_traces",
+      "hypotheses": [
+        "jordan_v2_family_local_neutral_control",
+        "jordan_v2_memory_aware_seller_exploitation"
+      ],
+      "candidate_implemented": false,
+      "jordan_modified": false
+    }
+  },
+  "first_actions_tomorrow": {
+    "research": "repair_and_independently_audit_A300_cluster_and_receiver_failure_ITT_contract_before_capability_or_pins",
+    "leaderboard": "attended_frozen_Route_L_secret_stats_active_zero_launch_reconcile_audit_without_policy_change"
+  },
+  "authorization": "none"
+}
