@@ -1,0 +1,184 @@
+{
+  "authorization": "Wave 5D Route 2 permits exactly one materially new bargaining-only Model-A v2 formulation. Extraction and fit require a fresh independent all-pass audit plus the separate root token.",
+  "campaign_clock": {
+    "hard_stop_utc": "2026-08-17T12:20:34Z",
+    "safe_shutdown_not_after_wall_time_ns": 1786967434000000000,
+    "safe_shutdown_utc": "2026-08-17T11:50:34Z",
+    "start_utc": "2026-08-17T04:20:34Z"
+  },
+  "campaign_id": "wave5d_bargaining_model_a_strict_public_censor_v2",
+  "candidate": {
+    "factorization": "coherent binary chain P(offer), P(accept|response), P(walkaway|nonaccept response), a separately censored stop hazard, and conditional empirical-residual offer distribution",
+    "history_windows": [1, 3, 5],
+    "max_iterations": 300,
+    "residual_bins_grid": [32, 64],
+    "ridge_grid": [0.1, 1.0, 10.0, 100.0],
+    "solver": "frozen Wave-5C deterministic ridge primitives reused only after v2 extraction and v2 selection",
+    "tie_break": "larger ridge, then shorter history, then fewer residual bins"
+  },
+  "censoring": {
+    "complete_terminal": "accept, walkaway, or reject at the explicit public horizon",
+    "right_censored": "all other last observed actions, including an offer at the public horizon with a missing response callback",
+    "row_hazard_rule": "observed pre-censor non-stop rows remain eligible; the last censored row has no stop target",
+    "trajectory_rule": "right-censored games never receive terminal-round or action-count targets; complete and censored support is reported separately"
+  },
+  "comparators": {
+    "model_c": {
+      "artifact": "frozen_sources.model_c",
+      "role": "diagnostic acceptance comparator only"
+    },
+    "operational_v1": {
+      "implementation": "execute pinned sample_opponent_spec plus BargainingPolicy for every Monte-Carlo draw",
+      "integration_draws": 4096,
+      "retained_state": ["archetype", "parameters", "action-noise seed", "round", "horizon", "visible history", "valid action kind"],
+      "seed": 20260816
+    },
+    "simple_role_intercept": "training-only Jeffreys action/stop and empirical-offer baseline"
+  },
+  "created_at_utc": "2026-08-17T05:08:00Z",
+  "evidence_boundaries": {
+    "agent_payoff_improvement": false,
+    "integration_or_promotion_permitted": false,
+    "maximum_development_pass_status": "candidate_pending_postfit_audit",
+    "model_b_used": false,
+    "postfit_audit_required": true,
+    "structural_outcomes_inspected_before_prefit_audit": false,
+    "untouched_confirmation": false
+  },
+  "feature_visibility": {
+    "configuration_source": "nonempty public_parameters only; private configuration fallback is fatal",
+    "public_allowlist": ["money_to_divide", "max_rounds", "complete_information", "messages_allowed", "delta_1", "delta_2"],
+    "private_information_rule": "deltas enter only when complete_information is true and the fields exist in public_parameters",
+    "target_boundary": "features at t use only public configuration and validated transcript_so_far through t-1",
+    "transcript_guards": [
+      "integer nondecreasing rounds no later than target round",
+      "same-role target-round history forbidden",
+      "terminal action before target forbidden",
+      "unsupported or unparseable items fatal"
+    ]
+  },
+  "folds_and_selection": {
+    "actor_axis": "three frozen acting-identity folds from build_manifest; held-out identity effects exactly zero",
+    "config_axis": "four frozen public-config hash folds; held-out config effects exactly zero",
+    "inner_assignment": "SHA256(game_id) first 16 hex digits modulo 3",
+    "inner_objective": "within each game, mean loss per available action/observed-stop/observed-offer channel, then equal mean across available channels; equal unweighted mean across all validation games pooled over folds",
+    "outer_rule": "each stable row identity scored exactly once on actor and once on config axes"
+  },
+  "frozen_sources": {
+    "model_c": {
+      "path": "/Users/sahararora/Glee-Compeition/models/response_v1/model.json",
+      "sha256": "9daec869b3e4950945a1a370486e8841874fe9f5e611a7e8638dcdaa2b08b82c"
+    },
+    "operational_v1": {
+      "path": "/Users/sahararora/Glee-Compeition/models/opponent_population/opponent_population.json",
+      "schema_version": 1,
+      "sha256": "e7aa19ea6fe819ddb4efbe17c3e3c411f2a7c3d0ef571dd40fce4712c2fdf0e5"
+    },
+    "released_events": {
+      "bytes": 8214931069,
+      "path": "/Users/sahararora/Glee-Compeition/data/processed/events.jsonl",
+      "sha256": "afc50fdf2f9c08feaf86355494db2bbd257c29ff4f9fbc8ed65f15e005329ad6"
+    },
+    "wave5b_campaign": {
+      "path": "research/ROUTES/WAVE5B_ABCD_AND_MODEL_A_CAMPAIGN.md",
+      "sha256": "ba74a12a5426e3d34aba8a465ff5b24a2cb748bd203c9c6cfe11bee3a22d28de"
+    },
+    "wave5b_necessity": {
+      "path": "research/EVIDENCE/WAVE5B_MODEL_A_NECESSITY.json",
+      "sha256": "ff5cd471e87660bc81d37f8600b794a453c1837de2f7750c03158510bf899c8e"
+    },
+    "wave5c_failed_audit": {
+      "path": "research/EVIDENCE/WAVE5C_MODEL_A_PREFIT_AUDIT.json",
+      "sha256": "56d32cb3d7f9f1068f9d18f5e126afb5fa8040cff6eaf8624d290e014fc49e2d"
+    },
+    "wave5c_terminal": {
+      "path": "research/EVIDENCE/WAVE5C_MODEL_A_TERMINAL.json",
+      "sha256": "c7b4e05d7ebde3bdffbd89530a6e11cddcbf94e92e9366fe54350043284ca70e"
+    }
+  },
+  "independent_prefit_audit": {
+    "audit_schema": "research/ROUTES/WAVE5D_MODEL_A_V2_PREFIT_AUDIT_SCHEMA.json",
+    "required_checks": [
+      "contract_and_hash_identity",
+      "feature_visibility_and_hostile_canaries",
+      "explicit_censoring",
+      "operational_v1_exact_execution",
+      "inner_cv_game_weighting",
+      "stable_content_row_identity",
+      "external_resource_supervisor",
+      "jordan_reached_diagnostics",
+      "no_model_b_or_integration",
+      "structural_outcomes_uninspected"
+    ],
+    "root_go_token_after_pass": "WAVE5D_MODEL_A_V2_GO",
+    "verdict": "pending"
+  },
+  "jordan_reached_diagnostics": {
+    "labels": [
+      "bargaining/player_1/offer/coverage_low",
+      "bargaining/player_2/offer/coverage_low",
+      "bargaining/player_2/offer/mae_high"
+    ],
+    "mae_rule": "candidate normalized MAE minus exact operational-v1 MAE below zero on both axes",
+    "coverage_rule": "candidate central-80 coverage within [0.75,0.85] on both axes",
+    "selection_role": "diagnostic only; never model selection or live evidence"
+  },
+  "locked_code": {
+    "glee_eval/data/ingest.py": "03bf86e0b0a9e10504e8f4b6db6946dfc422961e0d5f9f3f102ba940f28c3fab",
+    "glee_eval/data/schemas.py": "1868a0535529666880717459b6f9201a1c64e0e86f185593be30fa43cd481577",
+    "glee_eval/diagnostics/bargaining_model_a_campaign_v2.py": "51b1003537a5bd7ae2d6248dc99eb83867a69763cea64f407e3f291a190f2ccc",
+    "glee_eval/diagnostics/bargaining_model_a_evaluator.py": "99df90ff0886f8d5c78df9434383ccf0f21685a14cfa948d96e5e0cda926afe2",
+    "glee_eval/diagnostics/bargaining_model_a_evaluator_v2.py": "649327999a44c5d8a5a4d9a8ba052c23c113e5e103e0c20f16d797dd4ebac0d4",
+    "glee_eval/diagnostics/model_a_necessity.py": "79668af98e232852d913ff40662cdc7ace9b1d3b8cd3e5474c71220dc967da93",
+    "glee_eval/diagnostics/operational_v1_bargaining.py": "031edd449c2588fa4433ee87ed7d605b11082575ca4881a6de4df34fe220f9dc",
+    "glee_eval/diagnostics/wave5d_supervisor.py": "cc50064002b8ee25446f06d1f9a1c292efb43fcacc480e40f5f25a16be9e7a85",
+    "glee_eval/opponents/base.py": "8d32bc6d1ca0f54212ec2a8ac9a300b678e7b31347a423c694dce0a29e77ff9c",
+    "glee_eval/opponents/policies.py": "0bf5002395d6e8b2ac27b1f876548eccd43daa264e0778db3ac1f6b52a983ce1",
+    "glee_eval/population/bargaining_model_a.py": "6b1086bed9af4ee296539cc2728c805f440ea8a5ab16ff2da8877060b92aec73",
+    "glee_eval/population/bargaining_model_a_v2.py": "3a5ddd024c994098fce9baea00205b68aac6602bf57b229cda31213350a0435a",
+    "glee_eval/population/config_keys.py": "7519b6c5d4801958369ea9c58edff44e871192e62ff0519c82e3dd9c7a097655",
+    "glee_eval/population/crossfit.py": "7a9ba1f4d0cf3ac71d72ca2406b7b56266247bcdfdca6d98a0b9beb1f50ac484",
+    "glee_eval/population/opponent_fit.py": "40356931fd94f7266aeee41a53a924c9cf0449e659b9b0fbded557a9d44947ae",
+    "glee_eval/population/sampler.py": "63313280b041e5b596c756a340e709ea5839ccc2f400804ca3985d0d004141a9",
+    "glee_eval/response_models/runtime.py": "bd3645031e085f5f5b11d62a60dd7d756ebba34b41f6000d2daf4e8158cd82ba",
+    "glee_eval/storage/trajectories.py": "f6db939b161580be94d4d715b37093add37259e965f2a729fcb47288fd5e4e99",
+    "research/ROUTES/WAVE5D_MODEL_A_V2_PREFIT_AUDIT_SCHEMA.json": "ced5786dfdca5569b87662e1ea71091877faff54bee828e8318bf8b27eb0e7a5",
+    "tests/test_bargaining_model_a_v2.py": "8a739faa9cf71e8474dd8476ab8f9d3a4018d0e5d2e796ecbde3fddeed61f9a8",
+    "tests/test_wave5d_supervisor.py": "cc388bd6c2305eddf6dd422c2711608280029e77307a4d22c4333b8e08461a1c"
+  },
+  "model_definition": "P(next bargaining action, offer distribution and censor-aware stop hazard | acting role's strictly public pre-action history through t-1)",
+  "post_outcome_change_policy": "Any model, feature, target, censoring, row identity, split, grid, seed, comparator, diagnostic, threshold, audit-gate, supervisor, or code-hash change after independent pre-fit review terminates this formulation. No third formulation is authorized in Wave 5D.",
+  "resource_ceiling": {
+    "aggregate_rss_bytes": 7516192768,
+    "artifact_bytes": 3221225472,
+    "automatic_restarts": 0,
+    "max_worker_threads": 6
+  },
+  "row_identity": {
+    "algorithm": "SHA256 canonical JSON",
+    "duplicate_rule": "fatal during extraction and OOF reconciliation",
+    "fields": ["game_id", "source", "role", "round", "actor_model", "projected public configuration", "validated visible history", "observed action target"],
+    "observational_event_id_role": "retained only for provenance; may be empty and never defines identity"
+  },
+  "schema": "glee.wave5d.bargaining_model_a_v2_prefit.v1",
+  "scope": {
+    "family": "bargaining",
+    "integration_changes": false,
+    "live_or_rated_games": false,
+    "model_b_used": false,
+    "payoff_gate": false,
+    "released_corpus_extraction_before_audit": false,
+    "roles": ["player_1", "player_2"]
+  },
+  "supervisor": {
+    "address_space_backstop": "Linux RLIMIT_AS plus mandatory aggregate RSS polling; Darwin mandatory libproc aggregate RSS polling because finite RLIMIT_AS is not supported on the runner",
+    "artifact_monitor": "aggregate bytes under the new output root, plus extraction pre-write ceiling",
+    "cpu_backstop": "RLIMIT_CPU equal to effective monotonic budget times six workers",
+    "deadline": "monotonic budget capped by fixed 2026-08-17T11:50:34Z safe-shutdown boundary",
+    "memory_monitor": "independent process-tree RSS via Darwin libproc or Linux procfs",
+    "restart": "none; preexisting certificate or nonempty output is fatal",
+    "termination": "process-group SIGTERM, bounded grace, then SIGKILL",
+    "worker_limit": "aggregate process-tree thread count at most six plus numerical-library environment caps",
+    "write": "single fsync-backed atomic terminal certificate on every spawned-child terminal path"
+  }
+}

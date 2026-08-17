@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "audited_commit": {"pattern": "^[0-9a-f]{40}$", "type": "string"},
+    "auditor_fresh_context": {"const": true},
+    "auditor_id": {"minLength": 1, "type": "string"},
+    "auditor_implemented_route_2": {"const": false},
+    "authorization": {"const": "prefit_go_eligible_root_token_still_required"},
+    "checks": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_and_hash_identity": {"const": "pass"},
+        "explicit_censoring": {"const": "pass"},
+        "external_resource_supervisor": {"const": "pass"},
+        "feature_visibility_and_hostile_canaries": {"const": "pass"},
+        "inner_cv_game_weighting": {"const": "pass"},
+        "jordan_reached_diagnostics": {"const": "pass"},
+        "no_model_b_or_integration": {"const": "pass"},
+        "operational_v1_exact_execution": {"const": "pass"},
+        "stable_content_row_identity": {"const": "pass"},
+        "structural_outcomes_uninspected": {"const": "pass"}
+      },
+      "required": [
+        "contract_and_hash_identity",
+        "feature_visibility_and_hostile_canaries",
+        "explicit_censoring",
+        "operational_v1_exact_execution",
+        "inner_cv_game_weighting",
+        "stable_content_row_identity",
+        "external_resource_supervisor",
+        "jordan_reached_diagnostics",
+        "no_model_b_or_integration",
+        "structural_outcomes_uninspected"
+      ],
+      "type": "object"
+    },
+    "contract_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+    "notes": {"type": "string"},
+    "objections": {"maxItems": 0, "type": "array"},
+    "reviewed_code_sha256": {
+      "additionalProperties": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+      "minProperties": 1,
+      "type": "object"
+    },
+    "reviewed_test_command": {"minLength": 1, "type": "string"},
+    "reviewed_test_result": {"minLength": 1, "type": "string"},
+    "schema": {"const": "glee.wave5d.bargaining_model_a_v2_prefit_audit.v1"},
+    "structural_outcomes_inspected": {"const": false},
+    "verdict": {"const": "pass"}
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "contract_sha256",
+    "audited_commit",
+    "reviewed_code_sha256",
+    "auditor_id",
+    "auditor_fresh_context",
+    "auditor_implemented_route_2",
+    "reviewed_test_command",
+    "reviewed_test_result",
+    "checks",
+    "objections",
+    "notes",
+    "structural_outcomes_inspected",
+    "authorization"
+  ],
+  "title": "Wave 5D bargaining Model-A v2 independent pre-fit audit",
+  "type": "object"
+}
