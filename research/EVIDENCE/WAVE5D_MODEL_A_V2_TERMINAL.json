@@ -1,0 +1,50 @@
+{
+  "schema": "glee.wave5d.bargaining_model_a_v2_terminal.v1",
+  "route": "wave5d_model_a_v2",
+  "branch": "research/wave5d-model-a-v2",
+  "base_commit": "c9c2c030606e1eca4676e6f9f7b0ed4561f52592",
+  "audited_prefit_commit": "1a1e8f7977e758faf4256993d3b75397a55057de",
+  "contract_sha256": "e431284df3ee243b175a02412a343e01d9db7b85f33a97d33a2f0c25d6fd315f",
+  "audit": {
+    "path": "research/EVIDENCE/WAVE5D_MODEL_A_V2_PREFIT_AUDIT.json",
+    "sha256": "e2e65b0e37906d72b27265a1c47aeb877d0f3b45a2c6273a3db8deaeca72dc6d",
+    "verdict": "fail",
+    "auditor_id": "wave5d_route1_owner_fresh_route2_hostile_auditor",
+    "auditor_fresh_context": true,
+    "auditor_implemented_route_2": false,
+    "structural_outcomes_inspected": false
+  },
+  "terminal_status": "independent_prefit_failed_campaign_not_executed",
+  "fatal_objections": [
+    "R2-TMINUS1-SEQUENCE-FAILOPEN",
+    "R2-MALFORMED-TERMINAL-BECOMES-CENSORING",
+    "R2-ROLE-TRAJECTORY-ENCODING-IMPOSSIBLE",
+    "R2-INNER-CV-FAILED-GAMES-SILENTLY-DROPPED",
+    "R2-SUPERVISOR-DESCENDANT-ESCAPE",
+    "R2-SUPERVISOR-TERMINAL-CERTIFICATE-AND-ARTIFACT-GAPS"
+  ],
+  "execution": {
+    "root_go_received": false,
+    "released_corpus_extracted": false,
+    "model_fit_started": false,
+    "outer_fold_artifacts": 0,
+    "oof_rows_scored": 0,
+    "structural_outcomes_scored": false,
+    "jordan_reached_diagnostic_run_on_outcomes": false,
+    "payoff_gate_run": false,
+    "live_or_rated_games_run": false,
+    "network_or_api_calls": false,
+    "model_b_used": false,
+    "integration_changed": false
+  },
+  "evidence_maturity": {
+    "need_for_model_a": "prior Wave-5B candidate/self-audited necessity evidence only",
+    "implementation": "candidate_code_rejected_by_independent_prefit_audit",
+    "candidate_predicts_better": "not_tested",
+    "structural_validation": "not_tested",
+    "untouched_confirmation": "not_tested",
+    "agent_payoff_improvement": "not_tested"
+  },
+  "wave5d_reopen_rule": "none; the authorization allowed exactly one v2 formulation and explicitly prohibited a third formulation after audit failure",
+  "authorization": "none"
+}

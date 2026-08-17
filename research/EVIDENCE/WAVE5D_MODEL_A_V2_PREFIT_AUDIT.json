@@ -1,0 +1,130 @@
+{
+  "schema": "glee.wave5d.bargaining_model_a_v2_prefit_audit.v1",
+  "verdict": "fail",
+  "contract_sha256": "e431284df3ee243b175a02412a343e01d9db7b85f33a97d33a2f0c25d6fd315f",
+  "audit_schema_sha256": "ced5786dfdca5569b87662e1ea71091877faff54bee828e8318bf8b27eb0e7a5",
+  "audit_schema_compatibility": "intentional failure record: the frozen JSON schema is pass-only, so this FAIL document must and does fail that schema and the campaign verifier",
+  "audited_commit": "1a1e8f7977e758faf4256993d3b75397a55057de",
+  "audited_worktree": "/private/tmp/Glee-Wave5D-R2",
+  "audited_worktree_clean_before_and_after": true,
+  "auditor_id": "wave5d_route1_owner_fresh_route2_hostile_auditor",
+  "auditor_fresh_context": true,
+  "auditor_implemented_route_2": false,
+  "structural_outcomes_inspected": false,
+  "corpus_extraction_or_fit_performed": false,
+  "network_api_live_or_model_b_activity": false,
+  "reviewed_code_sha256": {
+    "glee_eval/data/ingest.py": "03bf86e0b0a9e10504e8f4b6db6946dfc422961e0d5f9f3f102ba940f28c3fab",
+    "glee_eval/data/schemas.py": "1868a0535529666880717459b6f9201a1c64e0e86f185593be30fa43cd481577",
+    "glee_eval/diagnostics/bargaining_model_a_campaign_v2.py": "51b1003537a5bd7ae2d6248dc99eb83867a69763cea64f407e3f291a190f2ccc",
+    "glee_eval/diagnostics/bargaining_model_a_evaluator.py": "99df90ff0886f8d5c78df9434383ccf0f21685a14cfa948d96e5e0cda926afe2",
+    "glee_eval/diagnostics/bargaining_model_a_evaluator_v2.py": "649327999a44c5d8a5a4d9a8ba052c23c113e5e103e0c20f16d797dd4ebac0d4",
+    "glee_eval/diagnostics/model_a_necessity.py": "79668af98e232852d913ff40662cdc7ace9b1d3b8cd3e5474c71220dc967da93",
+    "glee_eval/diagnostics/operational_v1_bargaining.py": "031edd449c2588fa4433ee87ed7d605b11082575ca4881a6de4df34fe220f9dc",
+    "glee_eval/diagnostics/wave5d_supervisor.py": "cc50064002b8ee25446f06d1f9a1c292efb43fcacc480e40f5f25a16be9e7a85",
+    "glee_eval/opponents/base.py": "8d32bc6d1ca0f54212ec2a8ac9a300b678e7b31347a423c694dce0a29e77ff9c",
+    "glee_eval/opponents/policies.py": "0bf5002395d6e8b2ac27b1f876548eccd43daa264e0778db3ac1f6b52a983ce1",
+    "glee_eval/population/bargaining_model_a.py": "6b1086bed9af4ee296539cc2728c805f440ea8a5ab16ff2da8877060b92aec73",
+    "glee_eval/population/bargaining_model_a_v2.py": "3a5ddd024c994098fce9baea00205b68aac6602bf57b229cda31213350a0435a",
+    "glee_eval/population/config_keys.py": "7519b6c5d4801958369ea9c58edff44e871192e62ff0519c82e3dd9c7a097655",
+    "glee_eval/population/crossfit.py": "7a9ba1f4d0cf3ac71d72ca2406b7b56266247bcdfdca6d98a0b9beb1f50ac484",
+    "glee_eval/population/opponent_fit.py": "40356931fd94f7266aeee41a53a924c9cf0449e659b9b0fbded557a9d44947ae",
+    "glee_eval/population/sampler.py": "63313280b041e5b596c756a340e709ea5839ccc2f400804ca3985d0d004141a9",
+    "glee_eval/response_models/runtime.py": "bd3645031e085f5f5b11d62a60dd7d756ebba34b41f6000d2daf4e8158cd82ba",
+    "glee_eval/storage/trajectories.py": "f6db939b161580be94d4d715b37093add37259e965f2a729fcb47288fd5e4e99",
+    "research/ROUTES/WAVE5D_MODEL_A_V2_PREFIT_AUDIT_SCHEMA.json": "ced5786dfdca5569b87662e1ea71091877faff54bee828e8318bf8b27eb0e7a5",
+    "tests/test_bargaining_model_a_v2.py": "8a739faa9cf71e8474dd8476ab8f9d3a4018d0e5d2e796ecbde3fddeed61f9a8",
+    "tests/test_wave5d_supervisor.py": "cc388bd6c2305eddf6dd422c2711608280029e77307a4d22c4333b8e08461a1c"
+  },
+  "source_hash_checks": {
+    "verify_contract_v2_verify_large_sources": "pass",
+    "locked_code_files_verified": 21,
+    "frozen_sources_verified": 7,
+    "released_events_sha256": "afc50fdf2f9c08feaf86355494db2bbd257c29ff4f9fbc8ed65f15e005329ad6",
+    "released_events_structural_outcomes_inspected": false
+  },
+  "reviewed_test_command": "PYTHONPYCACHEPREFIX=/private/tmp/wave5d_r2_audit_pycache PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_wave5d_supervisor tests.test_bargaining_model_a_v2",
+  "reviewed_test_result": "16 passed, 0 failed, 0.588s",
+  "checks": {
+    "contract_and_hash_identity": "pass",
+    "feature_visibility_and_hostile_canaries": "fail",
+    "explicit_censoring": "fail",
+    "operational_v1_exact_execution": "pass",
+    "inner_cv_game_weighting": "fail",
+    "stable_content_row_identity": "pass",
+    "external_resource_supervisor": "fail",
+    "jordan_reached_diagnostics": "pass",
+    "no_model_b_or_integration": "pass",
+    "structural_outcomes_uninspected": "pass"
+  },
+  "hostile_mutations": {
+    "same_round_counterpart_decision_before_target_offer": {
+      "expected": "VisibilityViolation because the decision is future relative to the current-round offer",
+      "observed": "accepted; the decision entered visible_history and features"
+    },
+    "unparseable_terminal_decision_callback": {
+      "expected": "fatal malformed bargaining action",
+      "observed": "silently dropped; preceding offer reclassified as right-censored"
+    },
+    "ordinary_two_role_offer_then_accept": {
+      "expected": "one complete game available for trajectory scoring without invalid encoding",
+      "observed": "player_1 invalid_games=1 and complete_games=0; player_2 complete_games=1"
+    },
+    "failed_inner_validation_prediction": {
+      "expected": "nonfinite/fatal grid score preserving every validation game",
+      "observed": "game_channel_objectives returned an empty fold and aggregate_inner_game_objective returned finite 0.75 from another fold"
+    },
+    "detached_descendant_new_session": {
+      "expected": "descendant remains supervised until terminal and cannot outlive success certificate",
+      "observed": "certificate status success; detached descendant wrote marker after certification; peak_process_count=1"
+    },
+    "fast_artifact_limit_violation": {
+      "expected": "failed certificate for 4096 bytes under a 1-byte monitored artifact limit",
+      "observed": "success certificate, peak_artifact_bytes=0, final monitored bytes=4096"
+    },
+    "child_spawn_failure": {
+      "expected": "one atomic failed terminal certificate",
+      "observed": "FileNotFoundError escaped and no certificate was written"
+    }
+  },
+  "objections": [
+    {
+      "id": "R2-TMINUS1-SEQUENCE-FAILOPEN",
+      "fatal": true,
+      "check": "feature_visibility_and_hostile_canaries",
+      "detail": "_visible_history validates only nondecreasing round numbers and forbids same-role target-round items. It permits an opposite-role decision at the target round before a target offer, although ingest constructs transcript_so_far from earlier CSV actions and a bargaining decision responds to an earlier offer. The hostile event was accepted and changed visible state. Therefore the promised strict pre-action t-1 boundary is not mechanically enforced."
+    },
+    {
+      "id": "R2-MALFORMED-TERMINAL-BECOMES-CENSORING",
+      "fatal": true,
+      "check": "explicit_censoring",
+      "detail": "_event_action returns None for an unparseable bargaining decision and extract_event_row_v2 silently drops it. In a synthetic offer plus malformed terminal callback, _finalize_game_rows_v2 retained only the offer and labeled it right-censored. Malformed terminal evidence can therefore change complete/censored membership instead of failing closed."
+    },
+    {
+      "id": "R2-ROLE-TRAJECTORY-ENCODING-IMPOSSIBLE",
+      "fatal": true,
+      "check": "explicit_censoring",
+      "detail": "For the ordinary valid sequence player_1 offer then player_2 accept, extraction correctly creates stop targets 0 then 1 and marks both rows trajectory_observed. _complete_trajectory_rows then filters by role and requires exactly one role-local stop_outcome=1, making player_1 invalid. summarize_oof_v2 makes any such invalid game fatal. The role not taking the terminal action is systematically invalidated, so the frozen trajectory endpoint cannot correctly score normal complete games and is structurally predisposed to fail independent of model quality."
+    },
+    {
+      "id": "R2-INNER-CV-FAILED-GAMES-SILENTLY-DROPPED",
+      "fatal": true,
+      "check": "inner_cv_game_weighting",
+      "detail": "game_channel_objectives returns {} when any validation action prediction is unavailable. aggregate_inner_game_objective then pools only records that remain and can return a finite score. The hostile mutation produced a finite 0.75 while silently omitting the failed fold/game, contradicting the frozen equal unweighted mean across all validation games and allowing hyperparameter selection on partial validation support."
+    },
+    {
+      "id": "R2-SUPERVISOR-DESCENDANT-ESCAPE",
+      "fatal": true,
+      "check": "external_resource_supervisor",
+      "detail": "A supervised child created a descendant with start_new_session=True and exited zero. The supervisor immediately certified success while the detached descendant wrote a marker afterward. Descendant discovery and killpg are both anchored to the original child/session, so double-fork/session escape defeats aggregate RSS/thread/deadline enforcement. The campaign-side WAVE5D_EXTERNAL_SUPERVISOR_ACTIVE environment flag is also caller-forgeable and supplies no parent/certificate binding."
+    },
+    {
+      "id": "R2-SUPERVISOR-TERMINAL-CERTIFICATE-AND-ARTIFACT-GAPS",
+      "fatal": true,
+      "check": "external_resource_supervisor",
+      "detail": "The monitoring loop checks process.poll before measuring artifacts and performs no final artifact measurement. A fast child wrote 4096 bytes under the actual monitored root with a 1-byte ceiling, exited, and received a success certificate reporting peak_artifact_bytes=0. Separately, subprocess spawn failure occurs before the try/finally and produced no atomic terminal certificate. Thus neither the hard artifact cap nor the promised one-certificate-on-every-terminal-path property is enforced."
+    }
+  ],
+  "notes": "Exact contract/schema/source/code hashes and all 16 frozen tests pass. Stable content IDs and duplicate rejection, exact executable schema-v1 sampling and BargainingPolicy behavior including boulware/late-conceding freeze, fixed comparator seed, Jordan labels/rules as diagnostic-only, strict audit field/check verification, and absence of Model B/integration imports were otherwise consistent. Passing frozen tests do not cover the fatal hostile mutations. No released outcome row was read, no corpus was extracted, no model was fitted, and the Route 2 worktree remained clean.",
+  "authorization": "NONE. FAIL terminates this frozen formulation. Do not extract, fit, score structural outcomes, invoke supervisor campaign execution, modify the contract/code under this route identity, integrate, promote, or perform payoff/live/API actions."
+}

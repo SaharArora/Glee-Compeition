@@ -110,3 +110,27 @@ promotion gate or a factorial treatment outcome.
   promote either policy. The benchmark only answers whether selecting Factorial00 as a live
   canary would preserve the currently deployed economic behavior closely enough to warrant a
   separate authorized test; it cannot estimate either factorial treatment.
+
+## Wave 5D Route 2 terminal checkpoint — Model-A v2 pre-fit FAIL
+
+- Exact claim attempted: a bargaining-only sequential Model A with strict t-1
+  public features, explicit censoring, an exact operational-v1 comparator,
+  corrected equal-game nested CV, stable content row IDs, Jordan-reached
+  diagnostics, and a fail-closed external supervisor can safely enter fit.
+- Frozen commit `1a1e8f7977e758faf4256993d3b75397a55057de`; contract SHA256
+  `e431284df3ee243b175a02412a343e01d9db7b85f33a97d33a2f0c25d6fd315f`.
+- Independent verdict: FAIL before extraction. Verbatim audit
+  `research/EVIDENCE/WAVE5D_MODEL_A_V2_PREFIT_AUDIT.json`, SHA256
+  `e2e65b0e37906d72b27265a1c47aeb877d0f3b45a2c6273a3db8deaeca72dc6d`;
+  six fatal objections cover event ordering, malformed-terminal censoring,
+  role-local trajectory semantics, dropped inner-validation failures, detached
+  descendants, and terminal certificate/artifact races.
+- Route state: **closed / terminal independent pre-fit failure**. Evidence
+  maturity: candidate code rejected by a fresh non-implementer; no predictive,
+  structural, untouched, payoff, or live evidence.
+- No root GO, released extraction, fit, scoring, Model B, integration, API,
+  network, payoff, or live action occurred.
+- Next decisive test: none in Wave 5D. The user explicitly prohibited a third
+  formulation after this audit failure. Reopening requires a future explicit
+  authorization with a new route identity; this exact route may not be altered
+  or resubmitted.

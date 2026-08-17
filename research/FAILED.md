@@ -247,3 +247,34 @@
   deploy the research baseline. The unexecuted canary selects the already operational Jordan.
 - Reopen-only-if: a competition-scoped candidate clears an independent ordinary gate and live-safe
   artifact/adapter review. The 900-game diagnostic or a different seed is insufficient.
+
+## Wave 5D bargaining Model-A v2 — independent pre-fit rejection
+
+- Route identity: `wave5d_bargaining_model_a_strict_public_censor_v2`; closest
+  prior route is the separately failed Wave 5C bargaining Model-A formulation.
+  This retry was materially new through a strict-public extractor, content row
+  identities, explicit censoring, executable operational-v1 comparator,
+  equal-game inner CV, Jordan diagnostics, and an external supervisor.
+- Frozen implementation commit:
+  `1a1e8f7977e758faf4256993d3b75397a55057de`; contract SHA256
+  `e431284df3ee243b175a02412a343e01d9db7b85f33a97d33a2f0c25d6fd315f`.
+- Fresh non-implementer audit FAIL: verbatim evidence
+  `research/EVIDENCE/WAVE5D_MODEL_A_V2_PREFIT_AUDIT.json`, SHA256
+  `e2e65b0e37906d72b27265a1c47aeb877d0f3b45a2c6273a3db8deaeca72dc6d`.
+- Fatal obstructions: the t-1 guard accepts an impossible same-round
+  opposite-role decision; an unparseable terminal callback is silently dropped
+  into censoring; ordinary offer/accept games invalidate the nonterminal actor's
+  role-local trajectory; failed validation predictions can disappear while
+  leaving a finite inner score; a detached descendant can outlive a success
+  certificate; and fast final artifacts or spawn failures can escape the
+  promised terminal certificate/cap.
+- Classification: verifier-backed pre-fit implementation failure, not a fit,
+  predictive result, structural validation, payoff result, or evidence against
+  the scientific need for a sequential opponent model.
+- Execution remained at zero: no root GO, extraction, fit, OOF/structural score,
+  integration, Model B, payoff/API/network action, or live game.
+- Reopen-only-if: **not within Wave 5D**. The overnight authorization allowed
+  exactly one materially new v2 and forbids a third formulation after FAIL. Any
+  future attempt requires a new explicit user authorization and a new route
+  identity; altering this frozen route, changing its tests, or resubmitting it is
+  prohibited.

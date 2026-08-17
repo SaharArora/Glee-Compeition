@@ -1,8 +1,7 @@
 # Wave 5D Route 2 — bargaining Model-A v2
 
-Status: **candidate implementation awaiting a fresh-context independent pre-fit
-audit. No extraction, fit, structural scoring, integration, API call, or live
-game is authorized by this artifact.**
+Status: **terminal independent pre-fit FAIL. No extraction, fit, structural
+scoring, integration, API call, or live game is authorized.**
 
 ## Materially new formulation
 
@@ -55,7 +54,16 @@ The machine gate is
 `research/ROUTES/WAVE5D_MODEL_A_V2_PREFIT_AUDIT_SCHEMA.json`. A passing audit
 only makes the package eligible for the root token `WAVE5D_MODEL_A_V2_GO`.
 
-## If independently released
+The fresh non-implementer audit of exact commit
+`1a1e8f7977e758faf4256993d3b75397a55057de` returned FAIL. The verbatim record
+is `research/EVIDENCE/WAVE5D_MODEL_A_V2_PREFIT_AUDIT.json`, SHA256
+`e2e65b0e37906d72b27265a1c47aeb877d0f3b45a2c6273a3db8deaeca72dc6d`.
+Its six fatal objections are the authoritative terminal explanation. The
+execution description below is retained only as the never-authorized frozen
+proposal; it must not be invoked. Wave 5D authorizes no repair or third
+formulation.
+
+## Frozen execution proposal — never released
 
 The only permitted execution shape is one campaign process under the external
 supervisor, with no parallel memory-heavy process:

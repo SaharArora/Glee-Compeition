@@ -76,3 +76,15 @@
 - A decision-ready live canary starts with telemetry, not queueing. Bind exact commit/dirty state,
   one agent identity, per-game official scoring capability, terminal capture and stop rules before
   spending the first game; otherwise more volume only compounds the same evidence gap.
+- A time index needs an executable event-order grammar, not just nondecreasing round numbers. In an
+  alternating game, a same-round counterpart action may still be future relative to the target;
+  hostile canaries must permute legal-looking roles and action kinds within the round.
+- Censoring must fail closed before filtering malformed targets. Silently dropping an unparseable
+  terminal callback can manufacture right censoring, and a role-local trajectory endpoint cannot
+  demand that every role personally takes the game's terminal action.
+- Equal validation weighting includes failures. Returning an empty fold on an unavailable
+  prediction and averaging the remaining games is selection on successful predictions; retain an
+  explicit infinite/fatal record for every prespecified validation game.
+- A process-group supervisor does not control descendants that create a new session. Successful
+  leader exit is not campaign completion until descendants and a final artifact measurement are
+  reconciled; spawn failure must also enter the same atomic terminal-certificate path.
