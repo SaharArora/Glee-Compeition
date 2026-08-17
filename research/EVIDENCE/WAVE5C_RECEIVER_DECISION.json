@@ -1,0 +1,310 @@
+{
+  "dry_run": {
+    "cache_sha256": "3b8835509a8a9fb78d3cc8a24c9579540ad84e05896c797619964a63e621fdab",
+    "capability_nominal_requests": 100,
+    "capability_probe_count": 50,
+    "evidence_label": "infrastructure_only_non_evidence",
+    "external_calls_performed": false,
+    "hostile_checks": {
+      "exact_replay_bytes_identical": true,
+      "exact_replay_is_cache_hit": true,
+      "hidden_arm_changes_request_hash": true,
+      "hidden_arm_does_not_change_outbound_bytes": true,
+      "hidden_names_and_canary_values_absent_from_outbound": true,
+      "replay_used_zero_additional_transport_calls": true
+    },
+    "parser_and_failure_sha256": "a227b3d3fe6ca075658fae8628874a256f7ae2f3f5191b7126aef27efbf5db2c",
+    "payoff_rows_generated": 0,
+    "production_authorization_pins_changed": false,
+    "proposal_sha256": "fd5724eeac0da19f27bd19d9b0023eb2543bd427cbbcc84f543c86742202a7d0",
+    "receiver_contract_sha256": "a752680abc2ed248bc5d6c31e78dbf124160d3e66760a0cd73dae473b7a81fcd",
+    "schema": "glee.research.wave5c.receiver_dry_run.v1",
+    "scientific_claim": "none_synthetic_transport_only",
+    "status": "self_audited_infrastructure_only",
+    "synthetic_certificate_passed": true,
+    "synthetic_certificate_sha256": "28a2750f91a87fce2dc1ad178c3ccb793e3f3df31f781ef66ba55f3daa9337ca",
+    "wave5c_capability_rule": {
+      "changed_states_by_receiver_seed": {
+        "530011": 25,
+        "530017": 25
+      },
+      "expected_probe_ids_complete": true,
+      "minimum_changed_states_per_receiver_seed": 5,
+      "passed": true,
+      "plumbing_checks": {
+        "candidate_text_delivered": true,
+        "exact_cache_replay": true,
+        "hidden_treatment_information_not_exposed": true,
+        "parsing_and_failures_arm_invariant": true,
+        "receiver_consumes_candidate_text": true
+      }
+    }
+  },
+  "proposal": {
+    "evidence_label": "infrastructure_only_non_evidence",
+    "fields": {
+      "adapter": {
+        "credential_environment_names": [
+          "OPENAI_API_KEY"
+        ],
+        "credential_values_never_serialized_or_hashed": true,
+        "dry_run_transport": "glee_eval.experiments.wave5c_receiver:dry_run_transport",
+        "dry_run_transport_is_ineligible_for_production": true,
+        "external_provider_adapter": "USER_MUST_SUPPLY_REVIEWED_MODULE_AND_SHA256",
+        "protocol": "ReceiverTransport(bytes, timeout_seconds) -> TransportResult",
+        "provider_internal_consumption_attestation": "unverified_unless_provider_exposes_it",
+        "provider_model_seed_schema_support_must_be_verified": true,
+        "provider_neutral_harness": "glee_eval.experiments.controlled_receiver",
+        "required_consumed_field_attestation": "adapter_records_candidate_text_serialized_to_provider_request; this is not provider-internal attention telemetry"
+      },
+      "cache_retention": {
+        "access": "principal_investigator_and_named_runner_only",
+        "conflict": "abort_do_not_overwrite",
+        "encryption": "required_at_rest",
+        "invalidation": "any identity, prompt, input, decoding, parser, failure, adapter, dependency, or execution-stack change creates a new contract hash and cache namespace",
+        "mode": "exact_envelope_sha256_read_write_replay",
+        "namespace": "contract_sha256/request_sha256",
+        "proposed_storage": "research/private_cache/wave5c_receiver",
+        "replay": "exact_cached_envelope_only_zero_external_calls",
+        "retention_days": 180,
+        "user_decisions_required": [
+          "storage_location",
+          "retention",
+          "access_policy"
+        ]
+      },
+      "capability_design": {
+        "failed_probes_are_not_replaced": true,
+        "fresh_independent_probe_owner_audit_required": true,
+        "generic_text_sha256": [
+          "249bb4dd631db71ff3677dfa3d1a1e17810fcc0fc64f7f3ce1619e2943014c82",
+          "96d684e5aefd88c23d87c06a5d716002792193768b8637b6446413a168597ded"
+        ],
+        "maximum_attempts": 200,
+        "nominal_requests": 100,
+        "pass_rule": "all delivery, consumed-field, hidden-input, parser-invariance, and replay checks pass; at least 5 of 25 states change decision in each replicate",
+        "probes_are_not_treatment_templates": true,
+        "receiver_replicates": 2,
+        "states": 25,
+        "texts_per_state": 2
+      },
+      "confirmatory_design": {
+        "agent_executions": 14400,
+        "base_strata_per_family": 300,
+        "cache_hits_reduce_external_calls_but_are_not_assumed_in_caps": true,
+        "capability_additional_retry_cap": 100,
+        "capability_max_attempts": 200,
+        "capability_nominal_requests": 100,
+        "capability_planned_retries": 0,
+        "capability_states": 25,
+        "capability_texts_per_state": 2,
+        "confirmatory_additional_retry_cap": 48000,
+        "confirmatory_max_attempts": 96000,
+        "confirmatory_nominal_requests": 48000,
+        "confirmatory_planned_retries": 0,
+        "design": "design_a_300_strata_x_2_roles_x_2_receiver_replicates",
+        "design_reason": "the proposed hosted receiver is not expected to be byte-deterministic; two receiver replicates measure variance while retaining 300 economic strata",
+        "design_recommendation": "A",
+        "factorial_arms": 4,
+        "families": 3,
+        "four_agent_entrypoints_unchanged": [
+          "Factorial00Agent",
+          "Factorial10Agent",
+          "Factorial01Agent",
+          "Factorial11Agent"
+        ],
+        "meaning_of_3600": "paired_scenario_rows_reused_by_all_four_arms",
+        "paired_scenario_rows": 3600,
+        "production_authorization_pins": "remain_unset",
+        "receiver_decisions_per_execution": 20,
+        "receiver_eligible_rows": 600,
+        "receiver_replicates": 2,
+        "receiver_scope": "persuasion_candidate_seller_only",
+        "roles_per_family": 2,
+        "rows_per_family": 1200,
+        "total_max_attempts": 96200,
+        "total_nominal_requests": 48100,
+        "total_planned_retries": 0
+      },
+      "failure_policy": {
+        "actions": {
+          "malformed": "retry_then_record_missing",
+          "missing": "record_missing",
+          "refusal": "record_missing",
+          "timeout": "retry_then_record_missing"
+        },
+        "backoff_seconds": 0,
+        "jitter": false,
+        "max_attempts": 2,
+        "missingness_rule": "retain_prespecified_row_mark_missing_no_post_treatment_exclusion",
+        "refusal_and_missing_are_not_retried": true,
+        "retry_scope": [
+          "timeout",
+          "malformed"
+        ],
+        "timeout_seconds": 30.0
+      },
+      "generation": {
+        "expected_byte_determinism": false,
+        "parameters": {
+          "max_output_tokens": 16,
+          "response_format": "strict_json_schema",
+          "temperature": 0,
+          "top_p": 1
+        },
+        "receiver_seeds": [
+          530011,
+          530017
+        ],
+        "seed_support_must_be_verified_before_capability": true
+      },
+      "identity": {
+        "fallback": {
+          "activation": "requires_new_explicit_authorization_after_primary_route_closes",
+          "endpoint_family": "Responses API",
+          "immutable_version": "gpt-4.1-mini-2025-04-14",
+          "model": "gpt-4.1-mini",
+          "provider": "openai"
+        },
+        "primary": {
+          "endpoint_family": "Responses API",
+          "immutable_version": "gpt-4.1-2025-04-14",
+          "model": "gpt-4.1",
+          "provider": "openai",
+          "status": "proposed_not_authorized_or_capability_verified"
+        },
+        "receiver_contract_sha256": "a752680abc2ed248bc5d6c31e78dbf124160d3e66760a0cd73dae473b7a81fcd",
+        "user_decision_required": "accept_primary_or_reject_and_select_fallback"
+      },
+      "independent_selection_provenance": {
+        "affirmation_required": true,
+        "owner_name": "USER_MUST_RECORD_NAME",
+        "proposed_owner_role": "user_principal_investigator",
+        "selection_rule": "pre-existing receiver selected without capability strength, four treatment templates, Factorial01/11 actions, or any factorial payoff",
+        "selection_timestamp_utc": "USER_MUST_RECORD_AT_AUTHORIZATION"
+      },
+      "input_boundary": {
+        "candidate_text_field": "candidate_text",
+        "economic_stance_field": "economic_stance",
+        "economic_stance_schema": {
+          "recommendation": "yes_or_no"
+        },
+        "hidden_fields": [
+          "treatment_arm",
+          "scenario_id",
+          "candidate_private_quality",
+          "template_id",
+          "eprocess_state",
+          "future_events",
+          "terminal_outcome",
+          "candidate_payoff",
+          "opponent_payoff"
+        ],
+        "hidden_values_committed_by_hash_but_never_sent": true,
+        "visible_fields": [
+          "round",
+          "total_rounds",
+          "product_price",
+          "prior_probability_high_quality",
+          "buyer_value_high_quality",
+          "buyer_value_low_quality",
+          "seller_message_type",
+          "is_myopic",
+          "prior_public_recommendations",
+          "prior_public_buyer_decisions"
+        ]
+      },
+      "output_parser": {
+        "allowed_decisions": [
+          "buy",
+          "pass"
+        ],
+        "decision_field": "decision",
+        "parser_id": "strict_json_decision_v1",
+        "refusal_decisions": [
+          "refuse"
+        ],
+        "schema": {
+          "additionalProperties": false,
+          "properties": {
+            "decision": {
+              "enum": [
+                "buy",
+                "pass",
+                "refuse"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "decision"
+          ],
+          "type": "object"
+        }
+      },
+      "prompt_bytes": {
+        "encoding": "utf-8",
+        "system_b64": "WW91IGFyZSB0aGUgY29udHJvbGxlZCBidXllciBpbiBhIHBlcnN1YXNpb24gZ2FtZS4gRGVjaWRlIG9ubHkgZnJvbSB0aGUgc3VwcGxpZWQgcHVibGljIHN0YXRlLCBmaXhlZCBzZWxsZXIgcmVjb21tZW5kYXRpb24sIGFuZCBjYW5kaWRhdGUgbWVzc2FnZS4gRG8gbm90IGluZmVyIG9yIHJlcXVlc3QgaGlkZGVuIGluZm9ybWF0aW9uLiBSZXR1cm4gZXhhY3RseSBvbmUgSlNPTiBvYmplY3QgbWF0Y2hpbmcgdGhlIHN1cHBsaWVkIHNjaGVtYSBhbmQgbm8gb3RoZXIgdGV4dC4=",
+        "system_sha256": "b8ba8c6deb5e5c1fdf5688ba6b2c850b259ccfe925f9f4b568e362416a77b724",
+        "user_b64": "RXZhbHVhdGUgdGhlIGNhbmRpZGF0ZSBtZXNzYWdlIHdoaWxlIGhvbGRpbmcgdGhlIGVjb25vbWljIHJlY29tbWVuZGF0aW9uIGZpeGVkLiBVc2Ugb25seSBpbnB1dHMudmlzaWJsZSwgaW5wdXRzLmVjb25vbWljX3N0YW5jZSwgYW5kIGlucHV0cy5jYW5kaWRhdGVfdGV4dC4gUmV0dXJuIHsiZGVjaXNpb24iOiJidXkifSwgeyJkZWNpc2lvbiI6InBhc3MifSwgb3IgeyJkZWNpc2lvbiI6InJlZnVzZSJ9Lg==",
+        "user_sha256": "234fcc2724aa12062753c880e1a35c2a212ed3a856878ae20b949269eb082857"
+      },
+      "resource_caps": {
+        "per_attempt": {
+          "cost_microusd": 10000,
+          "input_tokens": 2048,
+          "output_tokens": 16,
+          "timeout_seconds": 30
+        },
+        "planning_price_snapshot_2026_08_16": {
+          "capability_only_primary_hard_cap_reserved_cost_usd": 0.8448,
+          "capability_only_primary_nominal_reserved_cost_usd": 0.4224,
+          "fallback_hard_attempt_cap_reserved_cost_usd": 81.26976,
+          "fallback_input_usd_per_million_tokens": 0.4,
+          "fallback_output_usd_per_million_tokens": 1.6,
+          "primary_hard_attempt_cap_reserved_cost_usd": 406.3488,
+          "primary_input_usd_per_million_tokens": 2.0,
+          "primary_nominal_reserved_cost_usd": 203.1744,
+          "primary_output_usd_per_million_tokens": 8.0
+        },
+        "pricing_must_be_reverified_on_authorization_date": true,
+        "spend_authorization_required_usd": 1000,
+        "study_plus_capability": {
+          "max_attempts": 96200,
+          "max_concurrency": 32,
+          "max_cost_microusd": 1000000000,
+          "max_input_tokens": 197017600,
+          "max_output_tokens": 1539200,
+          "max_wall_runtime_hours": 12
+        }
+      },
+      "scope": {
+        "bargaining": "no_external_receiver_language_negative_control",
+        "eligible": "persuasion_candidate_seller_receiver_buyer_text_configuration",
+        "negotiation": "no_external_receiver_language_negative_control",
+        "numeric_action_or_stance_is_fixed_before_receiver_input": true,
+        "persuasion_candidate_buyer": "no_external_receiver_wrong_intervention_direction",
+        "persuasion_rounds": 20
+      }
+    },
+    "hard_boundaries": {
+      "external_calls_performed": false,
+      "fallback_automatic": false,
+      "payoff_study_performed": false,
+      "production_pins_set": false
+    },
+    "schema": "glee.research.wave5c.receiver_proposal.v1",
+    "status": "candidate_requires_user_decision_credentials_and_independent_audit",
+    "user_decisions_and_credentials": [
+      "accept primary identity or explicitly reject it and select the fallback",
+      "record independent selector name, UTC time, and treatment-blind affirmation",
+      "provide OPENAI_API_KEY only through the runner environment",
+      "approve the USD 1000 hard ceiling after current pricing is verified",
+      "approve encrypted cache location, access list, and 180-day retention",
+      "supply and audit the provider adapter source/dependency hashes",
+      "authorize capability calls separately; a payoff run needs a later authorization"
+    ]
+  },
+  "schema": "glee.research.wave5c.receiver_evidence.v1"
+}
+

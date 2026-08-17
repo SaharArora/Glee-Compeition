@@ -118,6 +118,16 @@ def _unb64(value: str) -> bytes:
         raise EnvelopeIntegrityError("invalid base64 in frozen envelope") from exc
 
 
+def _contains_mapping_key(value: Any, forbidden: str) -> bool:
+    if isinstance(value, Mapping):
+        return forbidden in value or any(
+            _contains_mapping_key(item, forbidden) for item in value.values()
+        )
+    if isinstance(value, (list, tuple)):
+        return any(_contains_mapping_key(item, forbidden) for item in value)
+    return False
+
+
 @dataclass(frozen=True)
 class ReceiverContract:
     """Canonical, hash-addressed receiver contract.
@@ -537,8 +547,54 @@ class RequestEnvelope:
             raise EnvelopeIntegrityError("outbound request hash mismatch")
         if sha256_hex(canonical_json_bytes(self.unsigned_dict())) != self.request_sha256:
             raise EnvelopeIntegrityError("request envelope hash mismatch")
-        if contract is not None and self.contract_sha256 != contract.sha256:
-            raise EnvelopeIntegrityError("request does not bind the supplied receiver contract")
+        if contract is not None:
+            if self.contract_sha256 != contract.sha256:
+                raise EnvelopeIntegrityError("request does not bind the supplied receiver contract")
+            if tuple(self.hidden_input_fields) != tuple(contract.hidden_input_fields):
+                raise EnvelopeIntegrityError("request hidden-field commitment changed")
+            outbound = self.outbound_object()
+            expected_top_level = {
+                "schema",
+                "contract_sha256",
+                "receiver_identity",
+                "system_prompt_b64",
+                "user_prompt_b64",
+                "decoding_parameters",
+                "seed",
+                "inputs",
+            }
+            if set(outbound) != expected_top_level:
+                raise EnvelopeIntegrityError("outbound receiver fields differ from the contract")
+            expected_static = {
+                "schema": REQUEST_SCHEMA,
+                "contract_sha256": contract.sha256,
+                "receiver_identity": contract.to_dict()["receiver_identity"],
+                "system_prompt_b64": _b64(contract.system_prompt_bytes),
+                "user_prompt_b64": _b64(contract.user_prompt_bytes),
+                "decoding_parameters": _plain_json(contract.decoding_parameters),
+            }
+            if any(outbound.get(key) != value for key, value in expected_static.items()):
+                raise EnvelopeIntegrityError("outbound receiver contract bytes changed")
+            if outbound.get("seed") not in contract.receiver_seeds:
+                raise EnvelopeIntegrityError("outbound receiver seed is not frozen")
+            inputs = outbound.get("inputs")
+            if not isinstance(inputs, Mapping) or set(inputs) != {
+                contract.economic_stance_field,
+                contract.candidate_text_field,
+                "visible",
+            }:
+                raise EnvelopeIntegrityError("outbound input fields differ from the contract")
+            if not isinstance(inputs.get(contract.economic_stance_field), Mapping):
+                raise EnvelopeIntegrityError("economic stance must be a JSON object")
+            if not isinstance(inputs.get(contract.candidate_text_field), str):
+                raise EnvelopeIntegrityError("candidate text must be a string")
+            visible = inputs.get("visible")
+            if not isinstance(visible, Mapping) or set(visible) != set(
+                contract.visible_input_fields
+            ):
+                raise EnvelopeIntegrityError("outbound visible fields differ from the contract")
+            if any(_contains_mapping_key(outbound, key) for key in contract.hidden_input_fields):
+                raise EnvelopeIntegrityError("hidden input field leaked into outbound bytes")
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "RequestEnvelope":
