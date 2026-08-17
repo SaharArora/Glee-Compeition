@@ -1,0 +1,102 @@
+{
+  "boundaries": {
+    "external_call_performed": false,
+    "factorial_run_started": false,
+    "model_a_or_b_used": false,
+    "production_pins_set": false,
+    "receiver_capability_outputs_used": false,
+    "treatment_outcomes_used": false
+  },
+  "central_mde_table": {
+    "A100": {"effective_n": 120.0, "single_primary_mde": 0.051149714024450114, "three_hypothesis_holm_first_step_mde": 0.05907372243585031},
+    "A140": {"effective_n": 168.0, "single_primary_mde": 0.043229398435910886, "three_hypothesis_holm_first_step_mde": 0.049926407859310316},
+    "A200": {"effective_n": 240.0, "single_primary_mde": 0.036168309642441325, "three_hypothesis_holm_first_step_mde": 0.04177142972432164},
+    "A300": {"effective_n": 360.0, "single_primary_mde": 0.02953130116098865, "three_hypothesis_holm_first_step_mde": 0.03410622955037141}
+  },
+  "design": {
+    "base_strata_per_family": 300,
+    "independent_cluster": "family_x_base_stratum",
+    "paired_rows": 3600,
+    "primary_independent_clusters_max": 300,
+    "production_pins_set": false,
+    "receiver_replicates": 2,
+    "recommendation": "A300_reordered_language_primary_eprocess_and_interaction_secondary",
+    "roles_per_family": 2
+  },
+  "estimand_order": {
+    "key_secondary": ["eprocess_main_effect_on_preoutcome_eprocess_eligible_rows", "interaction_on_preoutcome_joint_eligible_rows"],
+    "mandatory_secondary": ["equal_family_all_row_contrasts", "negative_controls", "family_role_configuration_cells", "receiver_failure_and_action_change_diagnostics"],
+    "reason": "language is delivered on every round of every eligible 20-round episode, while e-process threshold crossing and economic action change are prospectively unknown and can be rare; three-way Holm allocation spends scarce precision on two mechanistic endpoints",
+    "single_confirmatory_primary": "language_main_effect_on_preoutcome_language_eligible_rows"
+  },
+  "evidence_class": "prospective_preoutcome_contract_and_non_treatment_mechanics_only",
+  "exposure": {
+    "eprocess": {
+      "action_change_rule": "after crossing E>=20, flip a baseline no recommendation to yes",
+      "at_5pct_affected_required_net_extra_sales_per_crossed_20_round_seller_episode": 13.642491820148564,
+      "conditional_episode_effect_required_by_affected_scenario_frequency": {"0.05": 0.6821245910074282, "0.10": 0.3410622955037141, "0.20": 0.17053114775185704, "0.25": 0.13642491820148564, "0.50": 0.06821245910074282, "1.00": 0.03410622955037141},
+      "crossing_or_action_change_frequency": "unknown_before_factorial_outcomes",
+      "null_bound_is_alternative_exposure_forecast": false,
+      "single_game_null_crossing_upper_bound_if_model_relative_null_holds": 0.05,
+      "structural_eligibility_max_rows": 600
+    },
+    "language": {
+      "capability_frequency_is_treatment_exposure_estimate": false,
+      "capability_minimum_generic_change_frequency": 0.2,
+      "conditional_episode_effect_required_by_affected_scenario_frequency": {"0.05": 0.6821245910074282, "0.10": 0.3410622955037141, "0.20": 0.17053114775185704, "0.25": 0.13642491820148564, "0.50": 0.06821245910074282, "1.00": 0.03410622955037141},
+      "full_design_row_fraction_max": 0.16666666666666666,
+      "receiver_decision_change_frequency": "unknown_before_capability_and_factorial_outcomes",
+      "rounds_exposed_per_eligible_episode": 20,
+      "seller_purchase_rate_change_equivalent": 0.03410622955037141,
+      "structural_episode_exposure": 1.0
+    }
+  },
+  "mde_translation": {
+    "central_a300_normalized": 0.03410622955037141,
+    "full_glee_equal_family_role_dilution": {
+      "a300_mde_equivalent": 0.005684371591728568,
+      "additional_text_configuration_prevalence_factor": "multiply by q_text if target GLEE includes nontext persuasion configurations",
+      "assumption": "effect exists only in persuasion candidate-seller rows",
+      "dilution_factor": 0.16666666666666666,
+      "sesoi_equivalent": 0.005833333333333334
+    },
+    "leaderboard_relevance": {
+      "claim": "0.00568437 full-GLEE normalized dilution may be practically modest, but no rating-point or rank change is identified from payoff units alone",
+      "known_mapping": "rating=2000+8000*(within_configuration_role_percentile-0.5)",
+      "payoff_to_percentile_mapping": "unknown_without_a_prospectively_frozen_reference_CDF_density"
+    },
+    "raw_units": {
+      "bargaining": "0.03410622955 * money_to_divide in undiscounted pie units; e.g. 3.4106 units for a 100-unit pie or 341.0623 for a 10,000-unit pie, before timing discount",
+      "negotiation": "0.03410622955 * product_price_order in raw price/value units; e.g. 3.4106 at order 100; role sign and no-trade mass remain part of the estimand",
+      "persuasion": "0.03410622955 * product_price * total_rounds terminal raw payoff; for the seller in 20 rounds this equals 0.682124591 net additional sale-equivalents"
+    }
+  },
+  "receiver_failure_itt": {
+    "continuation": "ordinary_fixed_horizon_environment",
+    "failure_action": "buyer_pass/no_for_current_round",
+    "numeric_payoff": "ordinary_finite_terminal_role_payoff",
+    "post_assignment_exclusion": false,
+    "rule_sha256": "05bb560595251a1ed5feb2fb25eaf1987b462144035c6c87eb2189ff01b5c9d5"
+  },
+  "runtime": {
+    "full_study_authorized": false,
+    "maximum_attempts_including_capability": 96200,
+    "nominal_requests_including_capability": 48100,
+    "receiver_service_at_30s_concurrency32": {"nominal_seconds": 45120, "retry_cap_seconds": 90210},
+    "retry_cap_service_margin_seconds": 24990,
+    "stop_rule": "at 32h stop new submissions, cancel pending requests, checkpoint atomically, and mark an incomplete confirmatory study nonreportable; never replace missing rows",
+    "wall_cap_precedes_attempt_cap": true,
+    "wall_clock_cap_hours": 32
+  },
+  "schema": "glee.research.wave5e.paper_activation.v1",
+  "sesoi": {
+    "a200_single_primary_mde": 0.036168309642441325,
+    "a300_holm3_mde": 0.03410622955037141,
+    "a300_single_primary_mde": 0.02953130116098865,
+    "competition_gate_0_010_reused": false,
+    "decision": "A300_can_target_SESOI;A200_and_smaller_cannot_under_central_assumptions",
+    "justification": "0.035 is the smallest eligible-population mean change judged worth 48,000 confirmatory receiver requests, roughly $203 nominal primary-receiver spend, and a multi-day attended execution envelope",
+    "normalized_payoff": 0.035,
+    "origin": "prospective scientific/resource judgment_not_competition_gate"
+  }
+}

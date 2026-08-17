@@ -34,6 +34,8 @@ FAMILY_ROLES = {
     "negotiation": ("seller", "buyer"),
     "persuasion": ("seller", "buyer"),
 }
+DESIGN_A_RECEIVER_REPLICATES = 2
+BASE_STRATUM_SCHEMA = "glee.research.factorial_base_stratum.v1"
 
 
 class FactorialIntegrityError(RuntimeError):
@@ -238,6 +240,9 @@ class FactorialRow:
     eligibility: Any
     eligibility_hash: str
     arms: tuple[ArmResult, ...]
+    base_stratum_id: str = ""
+    base_stratum_hash: str = ""
+    receiver_replicate: int = 0
 
     def arm(self, name: str) -> ArmResult:
         return next(item for item in self.arms if item.arm == name)
@@ -281,6 +286,51 @@ def _named_seed(master_seed: int, scenario_id: str, stream: str) -> int:
 def _scenario_seed(master_seed: int, family: str, family_index: int) -> int:
     payload = f"glee.factorial.v2|{master_seed}|scenario|{family}|{family_index}".encode("utf-8")
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big") & ((1 << 63) - 1)
+
+
+def factorial_base_stratum_id(family: str, family_index: int) -> str:
+    """Return Design-A's prospective independent-cluster identifier."""
+
+    if family not in FAMILY_ROLES:
+        raise ValueError(f"unsupported family: {family}")
+    if not isinstance(family_index, int) or isinstance(family_index, bool) or family_index < 0:
+        raise ValueError("family_index must be a nonnegative integer")
+    rows_per_cluster = len(FAMILY_ROLES[family]) * DESIGN_A_RECEIVER_REPLICATES
+    return f"{family}:base-{family_index // rows_per_cluster:06d}"
+
+
+def factorial_receiver_replicate(family: str, family_index: int) -> int:
+    """Return Design-A's named receiver-replicate tag for one row."""
+
+    if family not in FAMILY_ROLES:
+        raise ValueError(f"unsupported family: {family}")
+    if not isinstance(family_index, int) or isinstance(family_index, bool) or family_index < 0:
+        raise ValueError("family_index must be a nonnegative integer")
+    return (family_index // len(FAMILY_ROLES[family])) % DESIGN_A_RECEIVER_REPLICATES
+
+
+def factorial_base_stratum_payload(scenario: Scenario) -> dict[str, Any]:
+    """Project role/replicate-invariant economic-stratum bytes.
+
+    Treatment, payoff, row identifiers, roles, and environment/opponent seeds
+    are absent by construction. Production validation requires all four
+    role/replicate views in a Design-A cluster to have this exact projection.
+    """
+
+    opponent = dict(scenario.opponent_spec)
+    opponent.pop("seed", None)
+    return {
+        "schema": BASE_STRATUM_SCHEMA,
+        "family": scenario.game_family,
+        "configuration_id": scenario.config_id,
+        "public_parameters": scenario.public_parameters,
+        "opponent": opponent,
+        "source": scenario.source,
+    }
+
+
+def factorial_base_stratum_hash(scenario: Scenario) -> str:
+    return _hash(factorial_base_stratum_payload(scenario))
 
 
 def _initial_state_manifest(scenario: Scenario) -> dict[str, Any]:
@@ -681,6 +731,9 @@ def run_factorial(
                 eligibility=eligibility,
                 eligibility_hash=eligibility_hash,
                 arms=tuple(arm_results),
+                base_stratum_id=factorial_base_stratum_id(family, family_index),
+                base_stratum_hash=factorial_base_stratum_hash(frozen_scenario),
+                receiver_replicate=factorial_receiver_replicate(family, family_index),
             )
         )
     return rows
@@ -700,6 +753,9 @@ def integrity_certificate(rows: list[FactorialRow]) -> dict[str, Any]:
             [
                 {
                     "key": row.key,
+                    "base_stratum_id": row.base_stratum_id,
+                    "base_stratum_hash": row.base_stratum_hash,
+                    "receiver_replicate": row.receiver_replicate,
                     "scenario_hash": row.scenario_hash,
                     "initial_state_hash": row.initial_state_hash,
                     "support_mask_hash": row.support_mask_hash,

@@ -284,6 +284,14 @@ class FactorialEvaluatorIntegrityTests(unittest.TestCase):
             ):
                 self.assertEqual(len({getattr(arm, field) for arm in row.arms}), 1)
 
+    def test_design_a_cluster_and_receiver_replicate_tags_are_explicit(self) -> None:
+        rows = _run(_factories())
+        for family in ("bargaining", "negotiation", "persuasion"):
+            family_rows = [row for row in rows if row.family == family]
+            self.assertEqual(len({row.base_stratum_id for row in family_rows}), 1)
+            self.assertEqual({row.receiver_replicate for row in family_rows}, {0, 1})
+            self.assertTrue(all(len(row.base_stratum_hash) == 64 for row in family_rows))
+
     def test_arm_mapping_order_cannot_change_results(self) -> None:
         forward = _run(_factories())
         reverse = _run(_factories(reverse=True))

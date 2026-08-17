@@ -86,3 +86,16 @@
 - Attempt, timeout and wall-clock ceilings must be jointly feasible or explicitly ordered. A large
   retry ceiling is not an executable guarantee when saturated timeout service alone exceeds the
   wall cap.
+- A scientific SESOI should pay for the intervention's evidence burden, not inherit a competition
+  promotion threshold. Translate it into raw game units, full-population dilution, exposure, and
+  conditional affected-scenario effects before choosing sample size or hypothesis order.
+- Structural delivery and behavioral action change are different exposure denominators. A
+  capability probe's generic text-response threshold cannot be recycled as the factorial
+  treatment's action-change rate, and a single-stream null crossing bound is not an alternative
+  exposure forecast.
+- Route-level spend caps need prospective reservation arithmetic, bounded request bytes/output,
+  an exact attempt ceiling, and no fallback. Checking the invoice or token usage after a call is
+  accounting, not hard-cap enforcement.
+- An API adapter audit must cover redirect/proxy behavior, credential loading, error redaction,
+  response-model identity, structured-output extraction, and source/dependency hashes—not merely
+  a successful mocked response.

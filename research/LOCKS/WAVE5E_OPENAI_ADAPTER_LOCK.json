@@ -1,0 +1,49 @@
+{
+  "schema": "glee.research.wave5e.openai_adapter_dependency_lock.v1",
+  "python": {
+    "implementation": "CPython",
+    "requires": "==3.10.13"
+  },
+  "external_python_packages": [],
+  "stdlib_modules": [
+    "argparse",
+    "base64",
+    "hashlib",
+    "json",
+    "os",
+    "pathlib",
+    "socket",
+    "ssl",
+    "subprocess",
+    "tempfile",
+    "time",
+    "urllib.error",
+    "urllib.request"
+  ],
+  "network": {
+    "scheme": "https",
+    "host": "api.openai.com",
+    "path": "/v1/responses",
+    "redirects": "disabled_fail_closed",
+    "proxy_environment": "ignored_direct_connection_only"
+  },
+  "receiver": {
+    "provider": "openai",
+    "model_alias": "gpt-4.1",
+    "immutable_snapshot": "gpt-4.1-2025-04-14",
+    "structured_output": "strict_json_schema",
+    "automatic_fallback": false
+  },
+  "pricing_microusd_per_token": {
+    "input": 2,
+    "output": 8
+  },
+  "capability_route": {
+    "nominal_requests": 100,
+    "maximum_attempts": 200,
+    "hard_cost_cap_microusd": 1000000,
+    "maximum_prereserved_cost_microusd": 844800
+  },
+  "official_documentation": "https://developers.openai.com/api/docs/models/gpt-4.1",
+  "production_pins_set": false
+}

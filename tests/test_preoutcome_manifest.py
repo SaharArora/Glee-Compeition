@@ -198,6 +198,27 @@ class PreOutcomeManifestTests(unittest.TestCase):
         self.assertEqual(result["evidence_class"], "infrastructure_only_non_evidence")
         self.assertFalse(manifest["outcomes_present"])
 
+    def test_base_stratum_and_receiver_replicate_identity_is_hash_bound(self) -> None:
+        contract, _, _, manifest = _fixture(rows_per_family=4)
+        for family in FAMILIES:
+            family_rows = [row for row in manifest["rows"] if row["family"] == family]
+            self.assertEqual(len({row["base_stratum_id"] for row in family_rows}), 1)
+            self.assertEqual({row["receiver_replicate"] for row in family_rows}, {0, 1})
+            self.assertEqual(
+                {
+                    (row["candidate_role"], row["receiver_replicate"])
+                    for row in family_rows
+                },
+                {(role, replicate) for role in ROLES[family] for replicate in (0, 1)},
+            )
+        changed = copy.deepcopy(manifest)
+        changed["rows"][0]["base_stratum_id"] = "forged:base"
+        _rehash_manifest(changed)
+        with self.assertRaisesRegex(PreOutcomeManifestError, "base-stratum id"):
+            validate_synthetic_preoutcome_manifest(
+                changed, contract=contract, model_c=MODEL_C
+            )
+
     def test_changed_or_missing_receiver_contract_is_rejected(self) -> None:
         contract, _, _, manifest = _fixture()
         changed = copy.deepcopy(manifest)

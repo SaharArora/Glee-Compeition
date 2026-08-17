@@ -1,5 +1,27 @@
 # Research failures and closed routes
 
+## Wave 5E paper activation alternatives — rejected prospectively
+
+- **Smaller A-shaped design:** rejected for the `.035` paper SESOI under the frozen central
+  planning assumptions. A200's single-primary MDE is `.0361683`; A140 and A100 are worse. This is
+  design arithmetic, not a treatment result. Reopen only with a prospectively justified larger
+  SESOI, lower-variance evidence that is independent of treatment outcomes, or a materially
+  different estimator/population.
+- **Three co-primary hypotheses as the default order:** rejected prospectively. The language
+  intervention is exposed on all 20 eligible rounds, whereas e-process crossing and action change
+  are unknown and can be rare. Spending Holm precision on e-process and interaction as co-primary
+  makes A300's central MDE `.0341062`, almost equal to the `.035` SESOI. Language is now the single
+  primary; e-process and interaction remain mandatory key secondaries. Reopen the co-primary
+  family only with outcome-independent evidence that their exposure supports the same precision.
+- **Twelve-hour full-study wall cap:** rejected as internally infeasible. At 32-way concurrency
+  and the frozen 30-second timeout, A300 requires 12h32m nominal receiver service and 25h03m30s at
+  its retry ceiling before local overhead. The repaired prospective cap is 32 hours and still
+  yields a nonreportable incomplete study if exhausted. This does not authorize a full run.
+- **Receiver failure retained without environment behavior:** closed as an incomplete ITT rule.
+  Timeout, malformed, refusal, missing, and exhausted retry now deterministically map to buyer
+  pass/no, ordinary fixed-horizon continuation, and the ordinary finite terminal role payoff.
+  Engine failure remains a global nonreportable stop; no constant payoff is imputed.
+
 ## R0 v1 — mixed-fold empirical-bundle Model B
 
 - Closest prior route: no close research route. Competition evidence contained earlier Model-B

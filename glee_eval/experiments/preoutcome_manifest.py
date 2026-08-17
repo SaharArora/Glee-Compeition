@@ -18,21 +18,27 @@ from typing import Any, Mapping, Sequence
 from glee_eval.data.schemas import Scenario, to_jsonable
 from glee_eval.experiments import factorial_report
 from glee_eval.experiments.factorial import (
+    DESIGN_A_RECEIVER_REPLICATES,
     FACTORIAL_ARMS,
     FAMILY_ROLES,
+    factorial_base_stratum_hash,
+    factorial_base_stratum_id,
     factorial_named_seed,
+    factorial_receiver_replicate,
     factorial_scenario_seed,
     factorial_stream_hash,
 )
 from glee_eval.experiments.factorial_report import (
     ELIGIBILITY_DERIVATION_SPEC,
     FROZEN_ALPHA,
+    FROZEN_BASE_STRATA_PER_FAMILY,
     FROZEN_EXPECTED_ROWS,
     FROZEN_FAMILY_COUNTS,
     FROZEN_MASTER_SEED,
     canonical_hash,
     derive_factorial_eligibility,
 )
+from glee_eval.experiments.receiver_itt import RECEIVER_FAILURE_ITT_RULE_SHA256
 
 
 PRODUCTION_SCHEMA = "glee.research.preoutcome_manifest.production.v1"
@@ -198,14 +204,16 @@ class PreOutcomeManifestContract:
                 "exclude_after_assignment": False,
                 "receiver_failures": "included_and_labelled",
                 "malformed_outputs": "included_and_labelled",
+                "receiver_failure_itt_rule_sha256": RECEIVER_FAILURE_ITT_RULE_SHA256,
             },
             retry_failure_policy={
                 "schema": "glee.research.receiver_failure.v1",
-                "retries": 0,
+                "retries": 1,
                 "timeout_seconds": 30,
                 "refusal": "included_failure",
                 "malformed": "included_failure",
                 "missing": "included_failure",
+                "exhausted_retry": "included_failure_then_deterministic_pass_continuation",
             },
             report_schema="glee.research.factorial_report.v1",
             report_contract_sha256="6" * 64,
@@ -280,6 +288,11 @@ class PreOutcomeManifestContract:
             raise PreOutcomeManifestError("language policy is bound to another receiver contract")
         if self.missingness_policy.get("exclude_after_assignment") is not False:
             raise PreOutcomeManifestError("post-treatment exclusion is forbidden")
+        if (
+            self.missingness_policy.get("receiver_failure_itt_rule_sha256")
+            != RECEIVER_FAILURE_ITT_RULE_SHA256
+        ):
+            raise PreOutcomeManifestError("receiver-failure ITT rule is not hash-bound")
 
 
 def scenario_design_sha256(scenarios: Sequence[Scenario]) -> str:
@@ -432,6 +445,13 @@ def _row_for_scenario(
         ),
         "family": scenario.game_family,
         "family_index": family_index,
+        "base_stratum_id": factorial_base_stratum_id(
+            scenario.game_family, family_index
+        ),
+        "base_stratum_hash": factorial_base_stratum_hash(scenario),
+        "receiver_replicate": factorial_receiver_replicate(
+            scenario.game_family, family_index
+        ),
         "candidate_role": scenario.candidate_role,
         "opponent_role": scenario.opponent_role,
         "horizon": _horizon(scenario),
@@ -509,8 +529,10 @@ def build_preoutcome_manifest(
     if dict(sorted(family_counts.items())) != dict(sorted(contract.family_counts.items())):
         raise PreOutcomeManifestError("family counts differ from the contract")
     role_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    base_stratum_counts: dict[str, set[str]] = defaultdict(set)
     for row in rows:
         role_counts[row["family"]][row["candidate_role"]] += 1
+        base_stratum_counts[row["family"]].add(row["base_stratum_id"])
     for family, counts in role_counts.items():
         if set(counts) != set(FAMILY_ROLES[family]) or len(set(counts.values())) != 1:
             raise PreOutcomeManifestError(f"roles are not exactly balanced in {family}")
@@ -529,6 +551,9 @@ def build_preoutcome_manifest(
         "family_counts": dict(sorted(family_counts.items())),
         "role_counts": {
             family: dict(sorted(counts.items())) for family, counts in sorted(role_counts.items())
+        },
+        "base_stratum_counts": {
+            family: len(values) for family, values in sorted(base_stratum_counts.items())
         },
         "rows": rows,
         "row_root_sha256": canonical_hash([row["row_sha256"] for row in rows]),
@@ -562,6 +587,7 @@ def _validate_manifest_common(
             "arm_count",
             "family_counts",
             "role_counts",
+            "base_stratum_counts",
             "rows",
             "row_root_sha256",
             "estimand_contract",
@@ -614,6 +640,9 @@ def _validate_manifest_common(
             "configuration_hash",
             "family",
             "family_index",
+            "base_stratum_id",
+            "base_stratum_hash",
+            "receiver_replicate",
             "candidate_role",
             "opponent_role",
             "horizon",
@@ -678,6 +707,18 @@ def _validate_manifest_common(
         ):
             raise PreOutcomeManifestError("scenario family index is malformed")
         indexed_scenarios.append((scenario, family_index))
+        expected_base_stratum_id = factorial_base_stratum_id(
+            scenario.game_family, family_index
+        )
+        expected_receiver_replicate = factorial_receiver_replicate(
+            scenario.game_family, family_index
+        )
+        if row.get("base_stratum_id") != expected_base_stratum_id:
+            raise PreOutcomeManifestError("base-stratum id differs from the frozen row index")
+        if row.get("base_stratum_hash") != factorial_base_stratum_hash(scenario):
+            raise PreOutcomeManifestError("base-stratum projection hash mismatch")
+        if row.get("receiver_replicate") != expected_receiver_replicate:
+            raise PreOutcomeManifestError("receiver-replicate tag differs from the frozen row index")
         if row.get("scenario_hash") != canonical_hash(scenario):
             raise PreOutcomeManifestError("scenario hash mismatch")
         if (
@@ -783,6 +824,38 @@ def _validate_manifest_common(
             raise PreOutcomeManifestError("manifest roles are not balanced")
     if observed.get("role_counts") != expected_roles:
         raise PreOutcomeManifestError("reported role counts mismatch rows")
+    clusters: dict[str, dict[str, list[Mapping[str, Any]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    for row in rows:
+        clusters[str(row["family"])][str(row["base_stratum_id"])].append(row)
+    expected_base_counts = {
+        family: len(values) for family, values in sorted(clusters.items())
+    }
+    if observed.get("base_stratum_counts") != expected_base_counts:
+        raise PreOutcomeManifestError("reported base-stratum counts mismatch rows")
+    if require_production:
+        for family, family_clusters in clusters.items():
+            if len(family_clusters) != FROZEN_BASE_STRATA_PER_FAMILY:
+                raise PreOutcomeManifestError("production Design A must have 300 base strata per family")
+            expected_cells = {
+                (role, replicate)
+                for role in FAMILY_ROLES[family]
+                for replicate in range(DESIGN_A_RECEIVER_REPLICATES)
+            }
+            for cluster_rows in family_clusters.values():
+                cells = {
+                    (str(row["candidate_role"]), int(row["receiver_replicate"]))
+                    for row in cluster_rows
+                }
+                if cells != expected_cells or len(cluster_rows) != len(expected_cells):
+                    raise PreOutcomeManifestError(
+                        "production base stratum lacks the exact role/receiver crossing"
+                    )
+                if len({str(row["base_stratum_hash"]) for row in cluster_rows}) != 1:
+                    raise PreOutcomeManifestError(
+                        "production base stratum has inconsistent economic bytes"
+                    )
     if observed.get("row_count") != len(rows) or observed.get("arm_count") != 4 * len(rows):
         raise PreOutcomeManifestError("reported row/arm counts mismatch")
     if observed.get("row_root_sha256") != canonical_hash(expected_row_hashes):

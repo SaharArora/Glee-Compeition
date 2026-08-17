@@ -19,10 +19,12 @@ from typing import Any, Iterable, Mapping, Sequence
 from glee_eval.data.schemas import Scenario, to_jsonable
 from glee_eval.experiments.factorial import (
     ARM_FLAGS,
+    DESIGN_A_RECEIVER_REPLICATES,
     FACTORIAL_ARMS,
     FAMILY_ROLES,
     ArmResult,
     FactorialRow,
+    factorial_base_stratum_hash,
     factorial_named_seed,
     factorial_stream_hash,
     nature_trace,
@@ -51,6 +53,7 @@ FROZEN_FAMILY_COUNTS = (
 )
 FROZEN_MASTER_SEED = 20260829
 FROZEN_ALPHA = 0.05
+FROZEN_BASE_STRATA_PER_FAMILY = 300
 # No production contract is authorized until the user selects the language
 # receiver environment and the resulting 3,600-row pre-outcome manifest is
 # frozen.  This fail-closed pin prevents an arbitrary caller from manufacturing
@@ -460,6 +463,9 @@ def _row_digest(row: FactorialRow) -> str:
             "key": row.key,
             "family": row.family,
             "candidate_role": row.candidate_role,
+            "base_stratum_id": row.base_stratum_id,
+            "base_stratum_hash": row.base_stratum_hash,
+            "receiver_replicate": row.receiver_replicate,
             "scenario_hash": row.scenario_hash,
             "initial_state_hash": row.initial_state_hash,
             "support_mask_hash": row.support_mask_hash,
@@ -492,6 +498,9 @@ def _preoutcome_manifest_record(record: Mapping[str, Any]) -> dict[str, Any]:
         "key": row.key,
         "family": row.family,
         "candidate_role": row.candidate_role,
+        "base_stratum_id": row.base_stratum_id,
+        "base_stratum_hash": row.base_stratum_hash,
+        "receiver_replicate": row.receiver_replicate,
         "scenario": arm.episode.scenario,
         "scenario_hash": row.scenario_hash,
         "initial_state_hash": row.initial_state_hash,
@@ -618,6 +627,24 @@ def _validate_row(
     expected_key = f"{row.family}:{scenario.scenario_id}:{row.candidate_role}"
     if row.key != expected_key:
         raise FactorialReportError(f"row key mismatch: expected {expected_key}, found {row.key}")
+    base_stratum_id = str(row.base_stratum_id or f"{row.family}:synthetic:{scenario.scenario_id}")
+    base_stratum_hash = str(row.base_stratum_hash or factorial_base_stratum_hash(scenario))
+    receiver_replicate = row.receiver_replicate
+    if (
+        not base_stratum_id
+        or not _is_sha256(base_stratum_hash)
+        or not isinstance(receiver_replicate, int)
+        or isinstance(receiver_replicate, bool)
+        or receiver_replicate < 0
+    ):
+        raise FactorialReportError(f"row {row.key} has malformed base-stratum identity")
+    if contract.is_production:
+        if not row.base_stratum_id or not row.base_stratum_hash:
+            raise FactorialReportError(f"row {row.key} lacks frozen base-stratum identity")
+        if base_stratum_hash != factorial_base_stratum_hash(scenario):
+            raise FactorialReportError(f"row {row.key} base-stratum projection hash mismatch")
+        if receiver_replicate >= DESIGN_A_RECEIVER_REPLICATES:
+            raise FactorialReportError(f"row {row.key} receiver replicate is outside Design A")
     randomness = scenario.metadata.get("factorial_randomness")
     if not isinstance(randomness, dict) or randomness.get("master_seed_hash") != contract.master_seed_hash:
         raise FactorialReportError(f"row {row.key} master-seed provenance mismatch")
@@ -673,6 +700,9 @@ def _validate_row(
         "row": row,
         "scenario": scenario,
         "scenario_id": scenario.scenario_id,
+        "base_stratum_id": base_stratum_id,
+        "base_stratum_hash": base_stratum_hash,
+        "receiver_replicate": receiver_replicate,
         "config_id": scenario.config_id,
         "eligibility": eligibility,
         "digest": _row_digest(row),
@@ -680,21 +710,40 @@ def _validate_row(
     }
 
 
-def _simple_estimate(values: Sequence[float], alpha: float, minimum: int) -> dict[str, Any]:
-    n = len(values)
-    if n < minimum:
+def _clustered_estimate(
+    records: Sequence[dict[str, Any]],
+    contrast: str,
+    alpha: float,
+    minimum: int,
+) -> dict[str, Any]:
+    """Estimate a contrast from base-stratum means, never repeated rows."""
+
+    clusters: dict[str, list[float]] = defaultdict(list)
+    for record in records:
+        clusters[str(record["base_stratum_id"])].append(float(record["contrasts"][contrast]))
+    cluster_means = [mean(values) for _, values in sorted(clusters.items())]
+    paired_rows = len(records)
+    independent_clusters = len(cluster_means)
+    if independent_clusters < minimum:
         return {
             "reportable": False,
-            "n": n,
-            "reason": f"requires_at_least_{minimum}_paired_rows",
+            "n": paired_rows,
+            "paired_rows": paired_rows,
+            "independent_clusters": independent_clusters,
+            "reason": f"requires_at_least_{minimum}_independent_base_strata",
         }
-    point = mean(values)
-    sample_variance = variance(values) if n > 1 else 0.0
-    se = math.sqrt(sample_variance / n)
+    point = mean(cluster_means)
+    sample_variance = variance(cluster_means) if independent_clusters > 1 else 0.0
+    se = math.sqrt(sample_variance / independent_clusters)
     z = NormalDist().inv_cdf(1.0 - alpha / 2.0)
     return {
         "reportable": True,
-        "n": n,
+        "n": paired_rows,
+        "paired_rows": paired_rows,
+        "independent_clusters": independent_clusters,
+        "cluster_size_min": min(len(values) for values in clusters.values()),
+        "cluster_size_max": max(len(values) for values in clusters.values()),
+        "inference_unit": "family_x_base_stratum_mean",
         "effect": point,
         "standard_error": se,
         "confidence_level": 1.0 - alpha,
@@ -709,13 +758,19 @@ def _equal_family_estimate(
     alpha: float,
     minimum: int,
 ) -> dict[str, Any]:
-    by_family: dict[str, list[float]] = defaultdict(list)
+    by_family: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
-        by_family[record["row"].family].append(float(record["contrasts"][contrast]))
+        by_family[record["row"].family].append(record)
     if not by_family:
-        return {"reportable": False, "n": 0, "reason": "empty_population"}
+        return {
+            "reportable": False,
+            "n": 0,
+            "paired_rows": 0,
+            "independent_clusters": 0,
+            "reason": "empty_population",
+        }
     family_rows = {
-        family: _simple_estimate(values, alpha, minimum)
+        family: _clustered_estimate(values, contrast, alpha, minimum)
         for family, values in sorted(by_family.items())
     }
     failed = [family for family, row in family_rows.items() if not row["reportable"]]
@@ -723,6 +778,10 @@ def _equal_family_estimate(
         return {
             "reportable": False,
             "n": sum(len(values) for values in by_family.values()),
+            "paired_rows": sum(len(values) for values in by_family.values()),
+            "independent_clusters": sum(
+                int(row.get("independent_clusters", 0)) for row in family_rows.values()
+            ),
             "reason": "underpowered_family_cells",
             "failed_families": failed,
             "families": family_rows,
@@ -736,6 +795,10 @@ def _equal_family_estimate(
     return {
         "reportable": True,
         "n": sum(len(values) for values in by_family.values()),
+        "paired_rows": sum(len(values) for values in by_family.values()),
+        "independent_clusters": sum(
+            int(row["independent_clusters"]) for row in family_rows.values()
+        ),
         "family_count": family_count,
         "family_weighting": "equal_over_nonempty_structurally_eligible_families",
         "effect": point,
@@ -765,11 +828,11 @@ def _group_summaries(
     }
     output: dict[str, Any] = {}
     for name, key_fn in groupers.items():
-        groups: dict[str, list[float]] = defaultdict(list)
+        groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for record in records:
-            groups[key_fn(record)].append(float(record["contrasts"][contrast]))
+            groups[key_fn(record)].append(record)
         output[name] = {
-            key: _simple_estimate(values, alpha, minimum)
+            key: _clustered_estimate(values, contrast, alpha, minimum)
             for key, values in sorted(groups.items())
         }
     return output
@@ -779,6 +842,50 @@ def _normal_pvalue(effect: float, se: float) -> float:
     if se == 0.0:
         return 1.0 if effect == 0.0 else 0.0
     return min(1.0, 2.0 * (1.0 - NormalDist().cdf(abs(effect / se))))
+
+
+def _cluster_design_summary(
+    records: Sequence[dict[str, Any]], *, require_design_a: bool
+) -> dict[str, Any]:
+    by_family: dict[str, dict[str, list[dict[str, Any]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    for record in records:
+        by_family[record["row"].family][record["base_stratum_id"]].append(record)
+    summary: dict[str, Any] = {}
+    for family, clusters in sorted(by_family.items()):
+        cluster_sizes = [len(values) for values in clusters.values()]
+        summary[family] = {
+            "independent_base_strata": len(clusters),
+            "paired_rows": sum(cluster_sizes),
+            "cluster_size_min": min(cluster_sizes),
+            "cluster_size_max": max(cluster_sizes),
+        }
+        if not require_design_a:
+            continue
+        if len(clusters) != FROZEN_BASE_STRATA_PER_FAMILY:
+            raise FactorialReportError(
+                f"{family} has {len(clusters)} base strata, expected {FROZEN_BASE_STRATA_PER_FAMILY}"
+            )
+        expected_cells = {
+            (role, replicate)
+            for role in FAMILY_ROLES[family]
+            for replicate in range(DESIGN_A_RECEIVER_REPLICATES)
+        }
+        for base_stratum_id, values in clusters.items():
+            cells = {
+                (record["row"].candidate_role, record["receiver_replicate"])
+                for record in values
+            }
+            if cells != expected_cells or len(values) != len(expected_cells):
+                raise FactorialReportError(
+                    f"base stratum {base_stratum_id} lacks the exact role/receiver crossing"
+                )
+            if len({record["base_stratum_hash"] for record in values}) != 1:
+                raise FactorialReportError(
+                    f"base stratum {base_stratum_id} has inconsistent economic bytes"
+                )
+    return summary
 
 
 def _holm(primary: list[dict[str, Any]], alpha: float) -> dict[str, Any]:
@@ -865,6 +972,7 @@ def build_factorial_report(
     for family, counts in role_counts.items():
         if set(counts) != set(FAMILY_ROLES[family]) or max(counts.values()) - min(counts.values()) > 0:
             raise FactorialReportError(f"candidate roles are not exactly balanced in {family}")
+    cluster_design = _cluster_design_summary(records, require_design_a=contract.is_production)
     records = sorted(records, key=lambda record: record["row"].key)
     preoutcome_manifest = [_preoutcome_manifest_record(record) for record in records]
     preoutcome_manifest_sha256 = canonical_hash(preoutcome_manifest)
@@ -925,6 +1033,7 @@ def build_factorial_report(
         "role_counts": {
             family: dict(sorted(counts.items())) for family, counts in sorted(role_counts.items())
         },
+        "cluster_design": cluster_design,
         "eligibility_counts": eligibility_counts,
         "artifact_provenance_hash": artifact_hash,
         "input_hashes": {
@@ -941,7 +1050,9 @@ def build_factorial_report(
             "eligibility_is_pre_outcome_scenario_metadata": contract.is_production,
             "production_evidence": contract.is_production,
             "arm_order_invariant": True,
-            "paired_scenario_is_inference_unit": True,
+            "paired_scenario_is_inference_unit": False,
+            "independent_inference_unit": "family_x_base_stratum",
+            "receiver_replicates_and_role_views_are_repeated_measurements": True,
         },
     }
     report["output_sha256"] = canonical_hash(report)
