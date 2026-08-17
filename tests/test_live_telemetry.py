@@ -212,6 +212,18 @@ class OfflineIntegrationAndHostileAuditTests(unittest.TestCase):
     def test_hostile_auditor_rejects_rehearsal_dirty_tree(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             out = self._run(tmp)
+            manifest_path = out / "launch_manifest.json"
+            events_path = out / "telemetry.jsonl"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["configuration"]["git"]["dirty"] = True
+            digest = hashlib.sha256(_canonical_bytes(manifest["configuration"])).hexdigest()
+            manifest["configuration_sha256"] = digest
+            manifest_path.write_bytes(_canonical_bytes(manifest))
+            rows = [json.loads(line) for line in events_path.read_text().splitlines()]
+            for row in rows:
+                row["configuration_sha256"] = digest
+            _rechain(rows)
+            events_path.write_bytes(b"".join(_canonical_bytes(row) for row in rows))
             audit = audit_batch(
                 out, expected_per_family=1, forbidden_secret_values=(API_SECRET, HMAC_SECRET)
             )
