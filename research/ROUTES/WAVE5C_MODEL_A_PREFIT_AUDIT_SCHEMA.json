@@ -1,0 +1,30 @@
+{
+  "schema": "glee.wave5c.bargaining_model_a_prefit_audit.v1",
+  "verdict": "pass_or_fail",
+  "contract_sha256": "exact SHA256 of WAVE5C_MODEL_A_PREFIT_CONTRACT.json",
+  "reviewed_code_sha256": {
+    "glee_eval/population/bargaining_model_a.py": "exact reviewed SHA256",
+    "glee_eval/diagnostics/bargaining_model_a_evaluator.py": "exact reviewed SHA256",
+    "glee_eval/diagnostics/bargaining_model_a_campaign.py": "exact reviewed SHA256"
+  },
+  "auditor_id": "fresh auditor identity",
+  "auditor_fresh_context": true,
+  "auditor_implemented_route_a": false,
+  "reviewed_test_command": "exact command",
+  "reviewed_test_result": "pass_or_fail",
+  "checks": {
+    "target_and_feature_visibility": "pass_or_fail",
+    "actor_and_config_exclusion": "pass_or_fail",
+    "inner_selection_training_only": "pass_or_fail",
+    "proper_score_formulas": "pass_or_fail",
+    "clustered_inference": "pass_or_fail",
+    "support_and_per_role_reporting": "pass_or_fail",
+    "post_outcome_selection_absent": "pass_or_fail",
+    "source_and_comparator_hashes": "pass_or_fail",
+    "resource_stops": "pass_or_fail",
+    "trajectory_definition": "pass_or_fail",
+    "degenerate_walkaway_is_fatal": "pass_or_fail"
+  },
+  "objections": [],
+  "notes": "A pass certifies only that the frozen development experiment may run; it does not validate Model A."
+}

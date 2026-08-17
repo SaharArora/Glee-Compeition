@@ -1,0 +1,236 @@
+{
+  "schema": "glee.wave5c.bargaining_model_a_prefit.v1",
+  "campaign_id": "wave5c_bargaining_model_a_factorized_sequential_v1",
+  "created_at_utc": "2026-08-16T00:00:00Z",
+  "authorization": "Wave 5C Route A explicitly authorizes the separately frozen bargaining-only campaign after a fresh hostile pre-fit audit passes.",
+  "scope": {
+    "family": "bargaining",
+    "roles": [
+      "player_1",
+      "player_2"
+    ],
+    "model_a_definition": "P(next action, offer and stop | role-visible pre-action state and history)",
+    "model_b_used": false,
+    "model_c_role": "fixed diagnostic comparator only on observed bargaining response decisions",
+    "simulator_integration": false,
+    "payoff_gate": false,
+    "live_games": false
+  },
+  "frozen_sources": {
+    "released_events": {
+      "path": "/Users/sahararora/Glee-Compeition/data/processed/events.jsonl",
+      "sha256": "afc50fdf2f9c08feaf86355494db2bbd257c29ff4f9fbc8ed65f15e005329ad6",
+      "bytes": 8214931069
+    },
+    "operational_v1": {
+      "path": "/Users/sahararora/Glee-Compeition/models/opponent_population/opponent_population.json",
+      "sha256": "e7aa19ea6fe819ddb4efbe17c3e3c411f2a7c3d0ef571dd40fce4712c2fdf0e5",
+      "schema_version": 1
+    },
+    "model_c": {
+      "path": "/Users/sahararora/Glee-Compeition/models/response_v1/model.json",
+      "sha256": "9daec869b3e4950945a1a370486e8841874fe9f5e611a7e8638dcdaa2b08b82c"
+    },
+    "necessity_certificate": {
+      "path": "research/EVIDENCE/WAVE5B_MODEL_A_NECESSITY.json",
+      "sha256": "ff5cd471e87660bc81d37f8600b794a453c1837de2f7750c03158510bf899c8e"
+    },
+    "frozen_wave5b_campaign": {
+      "path": "research/ROUTES/WAVE5B_ABCD_AND_MODEL_A_CAMPAIGN.md",
+      "sha256": "ba74a12a5426e3d34aba8a465ff5b24a2cb748bd203c9c6cfe11bee3a22d28de"
+    }
+  },
+  "extraction": {
+    "one_streaming_pass": true,
+    "grouping": "consecutive game_id; a repeated closed game_id is fatal",
+    "at_risk_unit": "one recognized bargaining action by the modeled acting role",
+    "action_classes": [
+      "offer",
+      "accept",
+      "reject",
+      "walkaway"
+    ],
+    "offer_target": "numeric_action / public money_to_divide, required in [0,1]",
+    "stop_target": "1 on accept/walkaway or a final observed action at the public horizon; 0 on a recognized nonfinal action; otherwise censored",
+    "missing_callback_rule": "a final nonterminal action before the public horizon is censored and is never relabelled rejection or stopping",
+    "future_fields_forbidden_as_features": [
+      "terminal_outcome",
+      "player_payoff",
+      "opponent_payoff",
+      "future transcript entries",
+      "response latency after target"
+    ]
+  },
+  "feature_contract": {
+    "version": "bargaining_role_visible_v1",
+    "base_features": [
+      "round_fraction",
+      "remaining_fraction",
+      "own_offer_index_fraction",
+      "transcript_length_fraction",
+      "pot_log_scale",
+      "complete_information",
+      "messages_allowed",
+      "delta_1 and missingness flag",
+      "delta_2 and missingness flag",
+      "visible valid-kind inference",
+      "prior visible action indicators",
+      "last offered share to actor and missingness flag"
+    ],
+    "window_features": [
+      "prior own/counterpart offer and missingness",
+      "own/counterpart offer mean and missingness",
+      "own/counterpart successive-offer change and missingness"
+    ],
+    "history_windows": [
+      1,
+      3,
+      5
+    ],
+    "private_information_rule": "deltas enter only when complete_information is true and they exist in the public configuration; hidden deltas are zero plus a missingness flag",
+    "categorical_effects": "ridge actor and canonical-config intercept effects fitted only for training keys; an unseen evaluation key receives exactly zero effect"
+  },
+  "folds": {
+    "actor_axis": {
+      "folds": 3,
+      "identities": 15,
+      "assignment": "existing glee_eval.population.crossfit.build_manifest: identities ordered by (SHA256, raw identity), assigned index modulo 3",
+      "evaluation_rule": "five acting identities per fold; no evaluation actor coefficient may be fitted or serialized"
+    },
+    "config_axis": {
+      "folds": 4,
+      "assignment": "SHA256(canonical public bargaining configuration) first 16 hex digits modulo 4",
+      "evaluation_rule": "no evaluation canonical-config coefficient may be fitted or serialized"
+    },
+    "oof_rule": "every extracted row is scored exactly once on actor axis and exactly once on config axis",
+    "inner_selection": {
+      "folds": 3,
+      "assignment": "SHA256(game_id) first 16 hex digits modulo 3",
+      "score": "unweighted mean over games of joint next-action log loss, observed stop log loss, and observed-offer discretized negative log likelihood",
+      "training_only": true
+    }
+  },
+  "candidate": {
+    "factorization": "coherent binary chain P(offer), P(accept|response), P(walkaway|nonaccept response), plus a separate stop hazard",
+    "heads": "ridge-logistic sparse coordinate Newton with deterministic backtracking",
+    "offer_distribution": "ridge linear location on logit share plus a training-fold residual empirical quantile CDF mapped through logistic",
+    "ridge_grid": [
+      0.1,
+      1.0,
+      10.0,
+      100.0
+    ],
+    "residual_bins_grid": [
+      32,
+      64
+    ],
+    "tie_break": "larger ridge, then shorter history, then fewer residual bins",
+    "max_iterations": 300,
+    "projected_kkt_or_coordinate_tolerance": 0.000001,
+    "nonconvergence_rule": "failed component and failed formulation; predictions may be serialized only for audit, never used to rescue the verdict"
+  },
+  "comparators": {
+    "operational_v1": {
+      "artifact": "frozen_sources.operational_v1",
+      "integration_draws": 4096,
+      "seed": 20260816,
+      "fallback_rule": "missing responder share uses probability 0.5 and increments fallback; total fallback above 5% fails"
+    },
+    "simple_role_intercept": {
+      "action": "Jeffreys-smoothed training-role class rates",
+      "stop": "Jeffreys-smoothed training-role observed hazard",
+      "offer": "64 training-role empirical quantiles"
+    },
+    "model_c": {
+      "artifact": "frozen_sources.model_c",
+      "estimand_match": "acceptance after a visible bargaining offer only",
+      "role": "diagnostic comparator, never a replacement for the v1 gate"
+    }
+  },
+  "metrics_and_gate": {
+    "bootstrap": {
+      "replicates": 1000,
+      "seed": 20260816,
+      "confidence_interval": "equal-tail 95%",
+      "actor_axis": "resample acting identities, then games nested inside sampled identity",
+      "config_axis": "resample canonical configurations, then games nested inside sampled configuration"
+    },
+    "support": {
+      "eligible_game_fraction_min": 0.5,
+      "rows_min": 200,
+      "nested_game_clusters_min": 20,
+      "actor_primary_clusters_expected": 15,
+      "fallback_max": 0.05,
+      "unavailable_or_degenerate_mandatory_channel": "fail"
+    },
+    "next_action_and_stop": {
+      "required": "candidate-minus-v1 log-loss and Brier means and 95% upper bounds all below zero",
+      "calibration_intercept": [
+        -0.1,
+        0.1
+      ],
+      "calibration_slope": [
+        0.8,
+        1.2
+      ],
+      "ece_regression_max": 0.01,
+      "next_action_calibration": "one-vs-rest for every frozen class; a class with no outcome variation fails"
+    },
+    "offer": {
+      "required": "candidate-minus-v1 CRPS mean and 95% upper bound below zero; normalized MAE improves",
+      "central_80_coverage": [
+        0.75,
+        0.85
+      ],
+      "support_and_nonfinite_violations": 0
+    },
+    "trajectory": {
+      "definition": "teacher-forced observed-prefix hazard reconstruction per role; no future state enters any row prediction",
+      "terminal_round": "candidate-minus-v1 absolute expected-terminal-round error mean and 95% upper bound below zero",
+      "action_count": "candidate-minus-v1 energy-score mean and 95% upper bound below zero",
+      "distribution_representation": "deterministic 256-point inverse CDF"
+    },
+    "rescue_prohibited": "no pooled role, axis, subgroup, metric or comparator can rescue a failed mandatory cell"
+  },
+  "policy_relevance": {
+    "immutable_live_branch_labels": [
+      "bargaining/player_1/offer/coverage_low",
+      "bargaining/player_2/offer/coverage_low",
+      "bargaining/player_2/offer/mae_high"
+    ],
+    "selection_role": "diagnostic only; never hyperparameter selection",
+    "live_runs": [
+      "/Users/sahararora/Glee-Compeition/reports/live/confirmation_20260815",
+      "/Users/sahararora/Glee-Compeition/reports/live/volume_20260815",
+      "/Users/sahararora/Glee-Compeition/reports/live/volume2_20260815"
+    ],
+    "live_game_authorization": false
+  },
+  "resource_ceiling": {
+    "cpu_hours": 8,
+    "wall_hours": 8,
+    "rss_gib": 12,
+    "artifacts_gib": 3,
+    "single_fold_wall_minutes": 90,
+    "fold_processes": "one fold per process, run serially to keep one implementation owner and bounded memory",
+    "limit_result": "failed formulation, never permission to relax"
+  },
+  "evidence_boundaries": {
+    "maximum_pass_status": "candidate_pending_independent_structural_validation",
+    "structural_validation": false,
+    "untouched_confirmation": false,
+    "agent_payoff_improvement": false,
+    "integration_or_promotion_permitted": false,
+    "postfit_audit_required_before_claim": true
+  },
+  "locked_code": {
+    "glee_eval/population/bargaining_model_a.py": "6b1086bed9af4ee296539cc2728c805f440ea8a5ab16ff2da8877060b92aec73",
+    "glee_eval/diagnostics/bargaining_model_a_evaluator.py": "99df90ff0886f8d5c78df9434383ccf0f21685a14cfa948d96e5e0cda926afe2",
+    "glee_eval/diagnostics/bargaining_model_a_campaign.py": "cddce37da8a29064539238c3f0d1d624b8327bf9089e7a77fc8f504d1943e241"
+  },
+  "independent_prefit_audit": {
+    "verdict": "pending",
+    "requirement": "a fresh auditor who did not implement Route A must hash this exact contract/code, attack leakage/folds/formulas/resources, and issue a separate signed evidence record before root GO"
+  },
+  "post_outcome_change_policy": "Any model, target, feature, split, grid, seed, endpoint, threshold, comparator or formula change after corpus extraction closes this formulation as failed and requires a newly identified route."
+}
