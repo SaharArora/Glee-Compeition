@@ -1,0 +1,172 @@
+{
+  "schema": "glee.wave5c.consolidated_report.v1",
+  "status": "terminal_cross_branch_index_no_merge",
+  "authoritative_base": {
+    "repository": "SaharArora/Glee-Compeition",
+    "wave5b_branch": "research/wave5b-architecture",
+    "wave5b_commit": "9691117d11415519d1e8e0c42810957b714663c6",
+    "jordan_candidate_commit": "bce578597dbfacf2ebca38399edb41a5dde2f936"
+  },
+  "routes": {
+    "P": {
+      "branch": "research/wave5c-paper",
+      "terminal_commit": "68b76ad8c438291d511e24a9b45ab3ace5c43a16",
+      "remote_matches": true,
+      "clean": true,
+      "verdict": "go_offline_decision_packet_no_go_production",
+      "tests": {
+        "command": "PYTHONPYCACHEPREFIX=/private/tmp/glee_wave5c_p_pycache PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -q tests.test_controlled_receiver tests.test_wave5c_receiver tests.test_preoutcome_manifest tests.test_factorial_evaluator tests.test_factorial_report tests.test_wave3_factorial_agents",
+        "passed": 73,
+        "failed": 0
+      },
+      "artifacts": [
+        {
+          "path": "research/ROUTES/WAVE5C_RECEIVER_DECISION_PACKET.md",
+          "sha256": "9b2f9630a170145788902de70782d4d89b29506fdc0f506e49934823c2a6076c"
+        },
+        {
+          "path": "research/EVIDENCE/WAVE5C_RECEIVER_DECISION.json",
+          "sha256": "1d37711fedebdaebd9bcca564e58f7abe0fafa4c211a8e7be4b4654b9cc617df"
+        },
+        {
+          "path": "research/EVIDENCE/WAVE5C_RECEIVER_INDEPENDENT_AUDIT.json",
+          "sha256": "9839bcd89f6645c92ea34551838186bd57be90bacfeb15325ab9efab20d7ce61"
+        }
+      ],
+      "receiver_recommendation": {
+        "primary": "openai/gpt-4.1-2025-04-14",
+        "fallback": "openai/gpt-4.1-mini-2025-04-14",
+        "fallback_automatic": false,
+        "design": "A",
+        "proposal_sha256": "fd5724eeac0da19f27bd19d9b0023eb2543bd427cbbcc84f543c86742202a7d0",
+        "paired_scenario_units": 3600,
+        "agent_episodes": 14400,
+        "nominal_receiver_requests_with_capability": 48100,
+        "maximum_attempts_with_capability": 96200,
+        "external_calls_run": 0,
+        "production_pins_set": false
+      },
+      "evidence_maturity": "provider_neutral_infrastructure_and_offline_dry_run_only"
+    },
+    "L": {
+      "branch": "research/wave5c-telemetry",
+      "terminal_commit": "f2a1bb5afe6f83c3a8a03201a0e5939f748ecda9",
+      "remote_matches": true,
+      "clean": true,
+      "telemetry_implementation_commit": "8950b3cb633195929e273a57c64f8db5f5b782a2",
+      "verdict": "go_readiness_state_2_no_live_authorization",
+      "tests": [
+        {
+          "scope": "route_l",
+          "passed": 19,
+          "failed": 0
+        },
+        {
+          "scope": "live_path_compatibility_glee_sdk_0.0.5",
+          "passed": 96,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "artifacts": [
+        {
+          "path": "research/ROUTES/WAVE5C_JORDAN_TELEMETRY.md",
+          "sha256": "ad0b260c3b2f8f31ba96570bd820606fc52fab386a12aa1898542b4df1f8bd00"
+        },
+        {
+          "path": "research/EVIDENCE/WAVE5C_JORDAN_TELEMETRY.json",
+          "sha256": "aaa78a125c6bb38c86ee241404fc7f96188b62b9aa15ad338d493b51b746bff2"
+        },
+        {
+          "path": "research/EVIDENCE/WAVE5C_JORDAN_INDEPENDENT_AUDIT.json",
+          "sha256": "9b30209ef937c7ebcbd42f256a43a692ac325ba9d9913589bf97b9b7c08aa41c"
+        }
+      ],
+      "readiness_state": 2,
+      "read_only_stats_requests": 1,
+      "live_or_rated_games": 0,
+      "official_per_game_scoring_observed": false,
+      "future_cap": {
+        "per_family": 100,
+        "families": 3,
+        "total": 300
+      },
+      "authorization": "none"
+    },
+    "A": {
+      "branch": "research/wave5c-model-a",
+      "terminal_commit": "c9c2c030606e1eca4676e6f9f7b0ed4561f52592",
+      "remote_matches": true,
+      "clean": true,
+      "audited_prefit_commit": "8d4e6e9e940563cdb8fd4341ad252fd176f67266",
+      "contract_sha256": "377f771a6ac6fb70bbd1f3ed4a4c075f07911cc84df199812f18422739908adb",
+      "verdict": "fail_prefit_campaign_not_executed",
+      "tests": {
+        "scope": "fresh_independent_prefit_audit",
+        "passed": 64,
+        "failed": 0
+      },
+      "artifacts": [
+        {
+          "path": "research/EVIDENCE/WAVE5C_MODEL_A_PREFIT_AUDIT.json",
+          "sha256": "56d32cb3d7f9f1068f9d18f5e126afb5fa8040cff6eaf8624d290e014fc49e2d"
+        },
+        {
+          "path": "research/EVIDENCE/WAVE5C_MODEL_A_TERMINAL.json",
+          "sha256": "c7b4e05d7ebde3bdffbd89530a6e11cddcbf94e92e9366fe54350043284ca70e"
+        }
+      ],
+      "fatal_objections": [
+        "A-AUDIT-GATE-FAILOPEN",
+        "A-FUTURE-PRIVATE-LEAKAGE-GUARDS",
+        "A-CENSORED-TRAJECTORY-AS-TERMINAL",
+        "A-V1-COMPARATOR-NOT-EXACT",
+        "A-INNER-OBJECTIVE-WEIGHTING",
+        "A-STABLE-ROW-ID-MISSING",
+        "A-HARD-RESOURCE-CAPS-NOT-PREEMPTIVE",
+        "A-LIVE-BRANCH-DIAGNOSTIC-PENDING"
+      ],
+      "execution": {
+        "corpus_extracted": false,
+        "fit_started": false,
+        "oof_scored": false,
+        "structural_holdout_scored": false,
+        "payoff_gate_run": false,
+        "integration_changed": false
+      },
+      "evidence_maturity": {
+        "need_for_model_a": "prior_wave5b_candidate_self_audited_only",
+        "implementation": "candidate_code_rejected_by_independent_prefit_audit",
+        "predictive_improvement": "not_tested",
+        "structural_validation": "not_tested",
+        "untouched_confirmation": "not_tested",
+        "payoff_improvement": "not_tested"
+      }
+    }
+  },
+  "scientific_status": {
+    "factorial_payoff_rows_run": 0,
+    "hosted_receiver_calls_run": 0,
+    "live_or_rated_games_run": 0,
+    "model_b_used": false,
+    "frozen_treatments_changed": false,
+    "cross_route_merge_performed": false
+  },
+  "remaining_user_decisions": [
+    "select or reject the proposed primary receiver and nonautomatic fallback",
+    "record independent selector identity, UTC time, and treatment-blind affirmation",
+    "provide receiver credentials and reviewed adapter/dependency hashes without exposing secrets",
+    "approve or revise encrypted cache access and 180-day retention",
+    "authorize bounded receiver capability spend only after current price and endpoint checks",
+    "separately authorize or decline the exact bounded Jordan canary",
+    "after a passing untouched receiver capability certificate and fresh audit, authorize or decline the exact Design-A payoff freeze and study",
+    "if desired, commission a materially new Model-A formulation; the rejected contract cannot be rerun"
+  ],
+  "recommended_next_authorizations": [
+    "receiver_selection_and_capability_only",
+    "bounded_jordan_canary",
+    "conditional_factorial_payoff_freeze_and_run"
+  ],
+  "collaborator_architecture": "research/ROUTES/WAVE5C_COLLABORATOR_ARCHITECTURE.md",
+  "authorization": "none"
+}
