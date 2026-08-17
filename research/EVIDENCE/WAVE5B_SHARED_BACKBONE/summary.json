@@ -1,0 +1,124 @@
+{
+  "baseline": "my_agents.jordan_strategic:MyAgent",
+  "by_family_role": {
+    "bargaining:player_1": {
+      "losses": 19,
+      "mean_difference": 0.14542648228724525,
+      "mean_factorial00": 0.5,
+      "mean_jordan": 0.35457351771275475,
+      "n": 168,
+      "ties": 0,
+      "wins": 149
+    },
+    "bargaining:player_2": {
+      "losses": 13,
+      "mean_difference": 0.1784441181991,
+      "mean_factorial00": 0.46237474522727273,
+      "mean_jordan": 0.28393062702817273,
+      "n": 132,
+      "ties": 43,
+      "wins": 76
+    },
+    "negotiation:buyer": {
+      "losses": 1,
+      "mean_difference": 0.004446500000000002,
+      "mean_factorial00": 0.08857732326923076,
+      "mean_jordan": 0.08413082326923077,
+      "n": 156,
+      "ties": 147,
+      "wins": 8
+    },
+    "negotiation:seller": {
+      "losses": 8,
+      "mean_difference": 0.013826388888888885,
+      "mean_factorial00": 0.0685059503472222,
+      "mean_jordan": 0.054679561458333324,
+      "n": 144,
+      "ties": 113,
+      "wins": 23
+    },
+    "persuasion:buyer": {
+      "losses": 1,
+      "mean_difference": -6.134969325153376e-05,
+      "mean_factorial00": 0.31076687116564417,
+      "mean_jordan": 0.3108282208588957,
+      "n": 163,
+      "ties": 162,
+      "wins": 0
+    },
+    "persuasion:seller": {
+      "losses": 67,
+      "mean_difference": -0.0572992700729927,
+      "mean_factorial00": 0.4492700729927007,
+      "mean_jordan": 0.5065693430656935,
+      "n": 137,
+      "ties": 70,
+      "wins": 0
+    }
+  },
+  "candidate": "research.CANDIDATES.wave3_factorial_agents:Factorial00Agent",
+  "config_regimes": {
+    "myopic|binary|high_prior": 63,
+    "myopic|binary|low_prior": 26,
+    "myopic|text|high_prior": 45,
+    "myopic|text|low_prior": 14,
+    "persistent|binary|high_prior": 46,
+    "persistent|binary|low_prior": 36,
+    "persistent|text|high_prior": 52,
+    "persistent|text|low_prior": 18,
+    "rounds=10|gains_from_trade": 46,
+    "rounds=10|no_trade_zone": 53,
+    "rounds=12|p1_patient": 55,
+    "rounds=12|p2_patient": 52,
+    "rounds=12|symmetric": 46,
+    "rounds=1|gains_from_trade": 40,
+    "rounds=1|no_trade_zone": 47,
+    "rounds=30|gains_from_trade": 8,
+    "rounds=30|no_trade_zone": 1,
+    "rounds=99|gains_from_trade": 31,
+    "rounds=99|no_trade_zone": 74,
+    "rounds=99|p1_patient": 55,
+    "rounds=99|p2_patient": 47,
+    "rounds=99|symmetric": 45
+  },
+  "evidence_class": "bounded_offline_architecture_diagnostic_not_promotion",
+  "factorial_treatment_effect_estimated": false,
+  "families": [
+    "bargaining",
+    "negotiation",
+    "persuasion"
+  ],
+  "games": 900,
+  "model_b_used": false,
+  "overall": {
+    "losses": 109,
+    "mean_difference": 0.047567696251709334,
+    "mean_factorial00": 0.3121348729444444,
+    "mean_jordan": 0.2645671766927351,
+    "n": 900,
+    "ties": 535,
+    "wins": 256
+  },
+  "promotion_authorized": false,
+  "provenance": {
+    "config_catalogue": {
+      "path": "/Users/sahararora/Glee-Compeition/models/config_catalogue_holdout/config_catalogue.json",
+      "sha256": "2a32c01dd02f08663c54b9f149c7fc8eda9e0d3b4ade59a0d463c0c55b67e2ae"
+    },
+    "opponent_population": {
+      "model_b": false,
+      "path": "/Users/sahararora/Glee-Compeition/models/opponent_population_holdout/opponent_population.json",
+      "sha256": "3371131752a83dde73adba341aec78aab14af9bfd02b94b0bf7b773c317e051d"
+    },
+    "response_model": {
+      "path": "/Users/sahararora/Glee-Compeition/models/response_v1/model.json",
+      "sha256": "9daec869b3e4950945a1a370486e8841874fe9f5e611a7e8638dcdaa2b08b82c"
+    },
+    "support_index": {
+      "path": "/Users/sahararora/Glee-Compeition/reports/dataset_audit/support_index.json",
+      "sha256": "b958776534e764ed14099f4194af5437d4b9f8d6e5be3ec6537276eb133d9145"
+    }
+  },
+  "schema": "glee.wave5b.shared_backbone_benchmark.v1",
+  "seed": 20260816
+}

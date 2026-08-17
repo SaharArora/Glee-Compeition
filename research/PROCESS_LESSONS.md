@@ -55,3 +55,24 @@
 - Report authorization and pre-outcome-manifest authorization are separate surfaces. The former
   binds estimands/reporting; the latter binds who and what will be exposed to treatment. Require
   both pins and a fresh audit after activation rather than letting one hash stand in for both.
+- Run a necessity audit before building the next lettered model. A clean architecture diagram is
+  not evidence that a missing component can change a decision; require the defect, a plausible
+  mechanism and a named downstream consequence.
+- A structural-holdout row is not automatically an independent model validation row. If the
+  operational comparator was fitted on the full released corpus, label the comparison descriptive
+  and conservative even when the acting identity is from the holdout partition.
+- Preserve role visibility when joining live evidence. Hidden opponent values and ambiguous text
+  make a cell unidentifiable; filling them with zero, a grid guess or a keyword heuristic can create
+  a compelling but false replication.
+- Predictive interval undercoverage can reproduce even when mean bias changes sign. Freeze the
+  defect signature (calibration high/low, MAE high, coverage low) before comparing sources rather
+  than treating every large residual as the same mechanism.
+- Terminal completeness and batch attribution are different. Observation logs plus move-response
+  backfills can recover every terminal game while a platform game-count snapshot still differs by
+  one because an older active game completed; record both facts.
+- A displayed-rating sequence does not identify official per-game ratings or a private opponent
+  adjustment. Batch endpoint error is a sensitivity diagnostic, not a training label, and no
+  algebra can recover two unknown components from one update.
+- A decision-ready live canary starts with telemetry, not queueing. Bind exact commit/dirty state,
+  one agent identity, per-game official scoring capability, terminal capture and stop rules before
+  spending the first game; otherwise more volume only compounds the same evidence gap.

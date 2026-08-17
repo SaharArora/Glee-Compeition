@@ -1,0 +1,411 @@
+{
+  "batch_endpoint_error_summary": {
+    "bargaining": {
+      "bias": 55.60482240141789,
+      "correlation": null,
+      "interval_coverage": null,
+      "mae": 55.60482240141789,
+      "median_absolute_error": 55.60482240141789,
+      "n_exact_count_batches": 2,
+      "ranking_agreement": null,
+      "why_per_game_metrics_unidentified": "official per-game ratings/percentiles and opponent adjustments were not captured"
+    },
+    "negotiation": {
+      "bias": 125.7748578258155,
+      "correlation": null,
+      "interval_coverage": null,
+      "mae": 125.7748578258155,
+      "median_absolute_error": 125.7748578258155,
+      "n_exact_count_batches": 2,
+      "ranking_agreement": null,
+      "why_per_game_metrics_unidentified": "official per-game ratings/percentiles and opponent adjustments were not captured"
+    },
+    "persuasion": {
+      "bias": 69.97802129674142,
+      "correlation": null,
+      "interval_coverage": null,
+      "mae": 69.97802129674142,
+      "median_absolute_error": 69.97802129674142,
+      "n_exact_count_batches": 2,
+      "ranking_agreement": null,
+      "why_per_game_metrics_unidentified": "official per-game ratings/percentiles and opponent adjustments were not captured"
+    }
+  },
+  "batch_results": {
+    "confirmation_20260815": {
+      "bargaining": {
+        "batch_endpoint_error_proxy_minus_observed": 46.85502639987362,
+        "bucket_levels": {
+          "exact": 7,
+          "family_role": 4
+        },
+        "captured_terminal_games": 11,
+        "count_attribution_exact": true,
+        "mean_percentile": 0.4209619147993689,
+        "mean_public_formula_game_rating": 1877.2456335582565,
+        "median_percentile": 0.22313939358012982,
+        "observed_end_displayed_rating": 1063.52,
+        "official_game_count_delta": 11,
+        "projected_end_displayed_rating": 1110.3750263998736,
+        "proxy_scored_games": 11,
+        "raw_exact_configuration_percentile": {
+          "available_games": 7,
+          "coverage": 0.6363636363636364,
+          "mean": 0.5445126008374157
+        },
+        "start_displayed_rating": 1068.97,
+        "trade_zone_sensitivity_percentile_delta": {
+          "maximum": null,
+          "mean": null,
+          "minimum": null,
+          "n": 0
+        }
+      },
+      "negotiation": {
+        "batch_endpoint_error_proxy_minus_observed": 93.41514584377273,
+        "bucket_levels": {
+          "exact": 2,
+          "family_role": 8
+        },
+        "captured_terminal_games": 10,
+        "count_attribution_exact": true,
+        "mean_percentile": 0.6415483943599743,
+        "mean_public_formula_game_rating": 3080.4467498481235,
+        "median_percentile": 0.7388229696374937,
+        "observed_end_displayed_rating": 1028.02,
+        "official_game_count_delta": 10,
+        "projected_end_displayed_rating": 1121.4351458437727,
+        "proxy_scored_games": 10,
+        "raw_exact_configuration_percentile": {
+          "available_games": 2,
+          "coverage": 0.2,
+          "mean": 0.4970779220779221
+        },
+        "start_displayed_rating": 1033.99,
+        "trade_zone_sensitivity_percentile_delta": {
+          "maximum": 0.0,
+          "mean": 0.0,
+          "minimum": 0.0,
+          "n": 2
+        }
+      },
+      "persuasion": {
+        "batch_endpoint_error_proxy_minus_observed": 72.10098737906992,
+        "bucket_levels": {
+          "coarse": 3,
+          "family_role": 7
+        },
+        "captured_terminal_games": 10,
+        "count_attribution_exact": false,
+        "mean_percentile": 0.5387090091567059,
+        "mean_public_formula_game_rating": 2452.141592973279,
+        "median_percentile": 0.5647849159356483,
+        "observed_end_displayed_rating": 1072.86,
+        "official_game_count_delta": 9,
+        "projected_end_displayed_rating": 1144.9609873790698,
+        "proxy_scored_games": 10,
+        "raw_exact_configuration_percentile": {
+          "available_games": 0,
+          "coverage": 0.0,
+          "mean": null
+        },
+        "start_displayed_rating": 1083.39,
+        "trade_zone_sensitivity_percentile_delta": {
+          "maximum": null,
+          "mean": null,
+          "minimum": null,
+          "n": 0
+        }
+      }
+    },
+    "volume2_20260815": {
+      "bargaining": {
+        "batch_endpoint_error_proxy_minus_observed": 51.73479666544267,
+        "bucket_levels": {
+          "exact": 15,
+          "family_role": 10
+        },
+        "captured_terminal_games": 25,
+        "count_attribution_exact": true,
+        "mean_percentile": 0.4501277932211748,
+        "mean_public_formula_game_rating": 2112.892726126775,
+        "median_percentile": 0.4615282017842853,
+        "observed_end_displayed_rating": 1138.91,
+        "official_game_count_delta": 25,
+        "projected_end_displayed_rating": 1190.6447966654428,
+        "proxy_scored_games": 25,
+        "raw_exact_configuration_percentile": {
+          "available_games": 15,
+          "coverage": 0.6,
+          "mean": 0.4722982115400188
+        },
+        "start_displayed_rating": 1115.66,
+        "trade_zone_sensitivity_percentile_delta": {
+          "maximum": null,
+          "mean": null,
+          "minimum": null,
+          "n": 0
+        }
+      },
+      "negotiation": {
+        "batch_endpoint_error_proxy_minus_observed": 120.24115834397253,
+        "bucket_levels": {
+          "exact": 6,
+          "family_role": 19
+        },
+        "captured_terminal_games": 25,
+        "count_attribution_exact": true,
+        "mean_percentile": 0.5457660022470208,
+        "mean_public_formula_game_rating": 2463.595427243379,
+        "median_percentile": 0.5178571428571429,
+        "observed_end_displayed_rating": 1003.47,
+        "official_game_count_delta": 25,
+        "projected_end_displayed_rating": 1123.7111583439726,
+        "proxy_scored_games": 25,
+        "raw_exact_configuration_percentile": {
+          "available_games": 6,
+          "coverage": 0.24,
+          "mean": 0.2516298110596356
+        },
+        "start_displayed_rating": 1022.51,
+        "trade_zone_sensitivity_percentile_delta": {
+          "maximum": 0.0,
+          "mean": 0.0,
+          "minimum": 0.0,
+          "n": 6
+        }
+      },
+      "persuasion": {
+        "batch_endpoint_error_proxy_minus_observed": 63.00480649630981,
+        "bucket_levels": {
+          "coarse": 10,
+          "family_role": 15
+        },
+        "captured_terminal_games": 25,
+        "count_attribution_exact": true,
+        "mean_percentile": 0.5259556591246263,
+        "mean_public_formula_game_rating": 2545.818979902836,
+        "median_percentile": 0.5248756218905473,
+        "observed_end_displayed_rating": 1156.72,
+        "official_game_count_delta": 25,
+        "projected_end_displayed_rating": 1219.7248064963098,
+        "proxy_scored_games": 25,
+        "raw_exact_configuration_percentile": {
+          "available_games": 0,
+          "coverage": 0.0,
+          "mean": null
+        },
+        "start_displayed_rating": 1108.86,
+        "trade_zone_sensitivity_percentile_delta": {
+          "maximum": null,
+          "mean": null,
+          "minimum": null,
+          "n": 0
+        }
+      }
+    },
+    "volume_20260815": {
+      "bargaining": {
+        "batch_endpoint_error_proxy_minus_observed": 59.47484813739311,
+        "bucket_levels": {
+          "exact": 18,
+          "family_role": 7
+        },
+        "captured_terminal_games": 25,
+        "count_attribution_exact": true,
+        "mean_percentile": 0.4928440604386,
+        "mean_public_formula_game_rating": 2250.2551396487397,
+        "median_percentile": 0.45068022170188804,
+        "observed_end_displayed_rating": 1115.66,
+        "official_game_count_delta": 25,
+        "projected_end_displayed_rating": 1175.1348481373932,
+        "proxy_scored_games": 25,
+        "raw_exact_configuration_percentile": {
+          "available_games": 18,
+          "coverage": 0.72,
+          "mean": 0.38381916061275634
+        },
+        "start_displayed_rating": 1063.52,
+        "trade_zone_sensitivity_percentile_delta": {
+          "maximum": null,
+          "mean": null,
+          "minimum": null,
+          "n": 0
+        }
+      },
+      "negotiation": {
+        "batch_endpoint_error_proxy_minus_observed": 131.30855730765848,
+        "bucket_levels": {
+          "exact": 5,
+          "family_role": 20
+        },
+        "captured_terminal_games": 25,
+        "count_attribution_exact": true,
+        "mean_percentile": 0.5421580380606258,
+        "mean_public_formula_game_rating": 2354.434673533687,
+        "median_percentile": 0.3861034287923395,
+        "observed_end_displayed_rating": 1022.51,
+        "official_game_count_delta": 25,
+        "projected_end_displayed_rating": 1153.8185573076585,
+        "proxy_scored_games": 25,
+        "raw_exact_configuration_percentile": {
+          "available_games": 5,
+          "coverage": 0.2,
+          "mean": 0.40037593984962405
+        },
+        "start_displayed_rating": 1028.02,
+        "trade_zone_sensitivity_percentile_delta": {
+          "maximum": 0.0,
+          "mean": 0.0,
+          "minimum": 0.0,
+          "n": 5
+        }
+      },
+      "persuasion": {
+        "batch_endpoint_error_proxy_minus_observed": 76.95123609717302,
+        "bucket_levels": {
+          "coarse": 6,
+          "family_role": 19
+        },
+        "captured_terminal_games": 25,
+        "count_attribution_exact": true,
+        "mean_percentile": 0.4951418940110188,
+        "mean_public_formula_game_rating": 2202.4905990499947,
+        "median_percentile": 0.5511994669035984,
+        "observed_end_displayed_rating": 1108.86,
+        "official_game_count_delta": 25,
+        "projected_end_displayed_rating": 1185.811236097173,
+        "proxy_scored_games": 25,
+        "raw_exact_configuration_percentile": {
+          "available_games": 0,
+          "coverage": 0.0,
+          "mean": null
+        },
+        "start_displayed_rating": 1072.86,
+        "trade_zone_sensitivity_percentile_delta": {
+          "maximum": null,
+          "mean": null,
+          "minimum": null,
+          "n": 0
+        }
+      }
+    }
+  },
+  "current_official_snapshot": {
+    "bargaining": {
+      "games": 105,
+      "rating": 1138.91
+    },
+    "negotiation": {
+      "games": 104,
+      "rating": 1003.47
+    },
+    "persuasion": {
+      "games": 104,
+      "rating": 1156.72
+    }
+  },
+  "errors_by_opponent_strength": "unidentified: opponent strength/adjustment missing or hidden",
+  "evidence_class": "class_attributed_batch_sensitivity_not_per_game_validation",
+  "formal_fully_attributable_batches": 0,
+  "formal_obstruction": "no live launch manifest records the exact agent commit; no log captures official per-game rating or private opponent adjustment",
+  "four_part_forecast": {
+    "bargaining": {
+      "empirical_calibration_obstruction": "only three batch endpoints and no official per-game ratings or adjustment terms",
+      "empirically_calibrated_proxy": null,
+      "public_formula_game_rating_proxy": 2126.695059238175,
+      "raw_exact_configuration_percentile": 0.44512015674979516,
+      "uncertainty_sensitivity_envelope": {
+        "300": {
+          "empirical_batch_endpoint_sensitivity": [
+            1385.5745850117273,
+            1504.5242812865135
+          ],
+          "private_opponent_adjustment_envelope": "unbounded_from_captured_fields",
+          "public_formula_point": 1445.0494331491204
+        },
+        "500": {
+          "empirical_batch_endpoint_sensitivity": [
+            1600.6929976808551,
+            1719.6426939556413
+          ],
+          "private_opponent_adjustment_envelope": "unbounded_from_captured_fields",
+          "public_formula_point": 1660.1678458182482
+        }
+      }
+    },
+    "negotiation": {
+      "empirical_calibration_obstruction": "only three batch endpoints and no official per-game ratings or adjustment terms",
+      "empirically_calibrated_proxy": null,
+      "public_formula_game_rating_proxy": 2520.9203336317983,
+      "raw_exact_configuration_percentile": 0.34660110844321373,
+      "uncertainty_sensitivity_envelope": {
+        "300": {
+          "empirical_batch_endpoint_sensitivity": [
+            1327.6918411495892,
+            1590.3089557649062
+          ],
+          "private_opponent_adjustment_envelope": "unbounded_from_captured_fields",
+          "public_formula_point": 1459.0003984572477
+        },
+        "500": {
+          "empirical_batch_endpoint_sensitivity": [
+            1661.2712192744032,
+            1923.8883338897201
+          ],
+          "private_opponent_adjustment_envelope": "unbounded_from_captured_fields",
+          "public_formula_point": 1792.5797765820616
+        }
+      }
+    },
+    "persuasion": {
+      "empirical_calibration_obstruction": "only three batch endpoints and no official per-game ratings or adjustment terms",
+      "empirically_calibrated_proxy": null,
+      "public_formula_game_rating_proxy": 2387.152590059226,
+      "raw_exact_configuration_percentile": null,
+      "uncertainty_sensitivity_envelope": {
+        "300": {
+          "empirical_batch_endpoint_sensitivity": [
+            1462.18770384339,
+            1616.090176037736
+          ],
+          "private_opponent_adjustment_envelope": "unbounded_from_captured_fields",
+          "public_formula_point": 1539.138939940563
+        },
+        "500": {
+          "empirical_batch_endpoint_sensitivity": [
+            1729.7136384302999,
+            1883.616110624646
+          ],
+          "private_opponent_adjustment_envelope": "unbounded_from_captured_fields",
+          "public_formula_point": 1806.6648745274729
+        }
+      }
+    }
+  },
+  "no_reverse_engineering": true,
+  "run_attribution": {
+    "confirmation_20260815": {
+      "agent_class": "my_agents.jordan_strategic:MyAgent",
+      "exact_agent_commit": null,
+      "official_per_game_output_captured": false,
+      "opponent_adjustment_inputs_complete": false,
+      "terminal_complete_games": 31
+    },
+    "volume2_20260815": {
+      "agent_class": "my_agents.jordan_strategic:MyAgent",
+      "exact_agent_commit": null,
+      "official_per_game_output_captured": false,
+      "opponent_adjustment_inputs_complete": false,
+      "terminal_complete_games": 75
+    },
+    "volume_20260815": {
+      "agent_class": "my_agents.jordan_strategic:MyAgent",
+      "exact_agent_commit": null,
+      "official_per_game_output_captured": false,
+      "opponent_adjustment_inputs_complete": false,
+      "terminal_complete_games": 75
+    }
+  },
+  "schema": "glee.wave5b.leaderboard_proxy_backtest.v1"
+}

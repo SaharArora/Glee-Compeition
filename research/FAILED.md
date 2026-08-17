@@ -203,3 +203,47 @@
 - Reopen-only-if: those inputs and spend/external-call authorization are explicit and frozen
   before capability outcomes. Do not choose a receiver because it reacts strongly to the four
   treatment templates or factorial payoff.
+
+## Wave 5B full-family Model-A necessity — narrowed to bargaining
+
+- Closest prior route: the failed Model-B joint opponent formulations. This audit is materially
+  different: it scores the deployed independent-marginal policy's next actions and offers rather
+  than proposing correlated latent bundles.
+- Attempt: advance a sequential Model A for any family whose preregistered residual reproduces on
+  acting-model-holdout rows and candidate-reached live paths under the same direction/visibility
+  contract.
+- Result: bargaining offer undercoverage reproduces in both roles and player-2 MAE also exceeds
+  `.08` in both sources. Negotiation and persuasion have large released residuals, but live cells
+  are too small, have the opposite direction, or become unidentifiable once hidden values and
+  ambiguous text are correctly excluded.
+- Classification: a positive necessity result for bargaining, evidence against silently extending
+  that result to all families. The frozen next campaign is bargaining-only.
+- Reopen-only-if for negotiation/persuasion: an attributable live cell with the required support
+  reproduces a released defect under identical role-visible features/parser rules. A released-only
+  residual or imputed hidden value is insufficient.
+
+## Wave 5B exact leaderboard-proxy validation — unidentifiable
+
+- Attempt: quantify per-game bias, MAE, correlation, interval coverage, rank agreement and private
+  adjustment errors against every existing live batch.
+- Obstruction: launch manifests omit the exact agent commit; official per-game percentile/game
+  rating/update and opponent adjustment fields were not captured. Confirmation also has one more
+  terminal persuasion record than its official game-count increment.
+- Surviving diagnostic: two count-reconciled 75-game batches show public-proxy displayed endpoint
+  overprediction of about +55.6 bargaining, +125.8 negotiation and +70.0 persuasion points.
+- Classification: partial-identification evidence against a confident single-number proxy, not a
+  calibrated correction. No ground truth was reverse-engineered.
+- Reopen-only-if: a prospective live manifest binds the exact commit and captures official
+  per-game scoring plus every exposed adjustment input before outcomes.
+
+## Wave 5B Factorial00 as immediate live-canary candidate — rejected
+
+- Attempt: use the research treatment-off economic backbone as the competition canary because its
+  paired 900-scenario mean is +.04757 over Jordan offline.
+- Obstruction: the gain is highly family-specific (+.15995 bargaining, +.00895 negotiation,
+  -.02620 persuasion), including -.05730 for persuasion seller. Factorial00 is research-only,
+  requires frozen artifact injection, and has no competition promotion or live adapter.
+- Classification: bounded architecture evidence, not permission to select from unrun treatments or
+  deploy the research baseline. The unexecuted canary selects the already operational Jordan.
+- Reopen-only-if: a competition-scoped candidate clears an independent ordinary gate and live-safe
+  artifact/adapter review. The 900-game diagnostic or a different seed is insufficient.

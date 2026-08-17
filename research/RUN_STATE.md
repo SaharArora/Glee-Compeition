@@ -1,5 +1,33 @@
 # Research run state
 
+## Wave 5B architecture/feasibility checkpoint
+
+- Worktree: `/Users/sahararora/Documents/Codex/Glee-Research-Wave5B`; branch
+  `research/wave5b-architecture`; base `41f77bce9ed37f801210d9ef09b1628154bb8bbb`.
+- Scope: Model-A necessity/misfit audit, A/B/C/D architecture, leaderboard-proxy back-test,
+  shared-backbone benchmark, data-feedback contract, receiver/factorization packet and an
+  unexecuted canary contract. No Model-A fit, Model B, external receiver call, factorial treatment
+  outcome, policy promotion or live/rated game was run.
+- Necessity command: `python3 -m glee_eval.diagnostics.model_a_necessity` over the frozen
+  1,188,434-event source SHA `afc50fdf...9ad6`, operational schema-v1 population, and three
+  terminal-complete live directories. Evidence:
+  `research/EVIDENCE/WAVE5B_MODEL_A_NECESSITY.json`.
+- Necessity verdict: bargaining-only Model-A campaign warranted. Central-80% offer coverage is
+  low in both released/live roles; player-2 MAE also exceeds the frozen `.08` threshold in both.
+  Negotiation/persuasion do not pass the same live replication/visibility rule.
+- Shared-backbone command: n=900, seed 20260816, frozen non-Model-B population/catalogue plus
+  Model C/support. Factorial00 minus Jordan is +.04757 overall, but persuasion is -.02620 and
+  persuasion seller -.05730. This is architecture evidence only.
+- Proxy verdict: zero batches satisfy the full attribution contract because exact commit and
+  official per-game score/adjustment are absent. The two count-reconciled 75-game batches show
+  public-proxy endpoint overprediction of roughly +56/+126/+70 rating points for B/N/P.
+- Final readiness: state 1 (`operationally ready to deploy`), not state 2. The canary is
+  prospectively specified for Jordan at `bce5785`, 100 games/family, but remains unexecuted and
+  blocked on exact commit plus per-game official scoring capture.
+- Frozen next Model-A campaign: bargaining-only action-level sequential kernel, three actor folds
+  plus four config folds, expected 3–6 CPU-hours, hard stop 8 CPU-hours/12 GiB/3 GiB; it requires
+  separate authorization and independent hostile audit and was not launched.
+
 - Wave-5A UTC start: `2026-08-16T22:01:06Z`; hard stop no later than
   `2026-08-17T01:01:06Z`.
 - Wave-5A implementation commit: `179fd706d6df4d4e9770a21200e8ec3ec07a920f`;
@@ -76,9 +104,11 @@
   `1ca9d360073cb59fa7df972ae140796f1585cae6d27ec7d5229ba9670be4bbb3`.
   It separates scenario, environment, opponent, economic, e-process, and language streams and
   rejects the Wave-2 active contamination counterexample.
-- Live/rated authorization: no research arm has live/rated authorization. The competition
-  campaign retains the user's instruction to start one leaderboard run after competition
-  completion, but its exact durable command/cap must be reconciled in R5 before launch.
+- Live/rated authorization: no research arm has live/rated authorization. A historical user
+  instruction asked for one later leaderboard run, but the newer Wave-5B contract makes that run
+  ineligible until the adapter records the exact commit/dirty digest and official per-game scoring
+  capability. Wave 5B did not satisfy or waive those prerequisites; R5 must reconcile them and
+  obtain the separately required live authorization before launch.
 - Wave-3 execution boundary: no holdout, fit, treatment payoff comparison, large text-opponent
   project, Model-B gate, or live/rated game was run. Synthetic unit episodes are canaries, not
   a treatment-effect estimate.

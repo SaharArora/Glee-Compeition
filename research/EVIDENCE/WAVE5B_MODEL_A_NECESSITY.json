@@ -1,0 +1,2082 @@
+{
+  "advance_decision": {
+    "live_defect_signatures": 6,
+    "released_defect_signatures": 13,
+    "replicated_candidate_reached_mechanisms": [
+      [
+        "bargaining",
+        "player_1",
+        "offer"
+      ],
+      [
+        "bargaining",
+        "player_2",
+        "offer"
+      ]
+    ],
+    "replicated_defect_signatures": [
+      [
+        "bargaining",
+        "player_1",
+        "offer",
+        "coverage_low"
+      ],
+      [
+        "bargaining",
+        "player_2",
+        "offer",
+        "coverage_low"
+      ],
+      [
+        "bargaining",
+        "player_2",
+        "offer",
+        "mae_high"
+      ]
+    ],
+    "status": "model_a_campaign_warranted",
+    "three_part_gate": {
+      "named_downstream_decision_can_change": true,
+      "plausible_sequential_model": true,
+      "reproducible_predictive_defect": true
+    }
+  },
+  "conditional_residuals_n_ge_30": [
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.07126005569306931,
+      "metric_type": "discrete",
+      "n": 101,
+      "role": "player_1",
+      "slice": "complete_information",
+      "source": "live_terminal_complete",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.18776117369186046,
+      "metric_type": "discrete",
+      "n": 43,
+      "role": "player_1",
+      "slice": "complete_information",
+      "source": "live_terminal_complete",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.060785060975609755,
+      "metric_type": "discrete",
+      "n": 41,
+      "role": "player_2",
+      "slice": "complete_information",
+      "source": "live_terminal_complete",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.12434128095518868,
+      "metric_type": "discrete",
+      "n": 53,
+      "role": "player_2",
+      "slice": "complete_information",
+      "source": "live_terminal_complete",
+      "value": "True"
+    },
+    {
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "mean_residual": -0.004170506418033421,
+      "metric_type": "discrete",
+      "n": 170,
+      "role": "buyer",
+      "slice": "complete_information",
+      "source": "live_terminal_complete",
+      "value": "na"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.019785748106060607,
+      "metric_type": "discrete",
+      "n": 3300,
+      "role": "player_1",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.010102848045191654,
+      "metric_type": "discrete",
+      "n": 4409,
+      "role": "player_1",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.010230140348451327,
+      "metric_type": "discrete",
+      "n": 6102,
+      "role": "player_2",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.010753473378546227,
+      "metric_type": "discrete",
+      "n": 6944,
+      "role": "player_2",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.09825719008780696,
+      "metric_type": "discrete",
+      "n": 7004,
+      "role": "buyer",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.235585203796957,
+      "metric_type": "discrete",
+      "n": 7813,
+      "role": "buyer",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.0845041697744155,
+      "metric_type": "discrete",
+      "n": 4106,
+      "role": "seller",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.1585780369062573,
+      "metric_type": "discrete",
+      "n": 4279,
+      "role": "seller",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "buy_after_no",
+      "family": "persuasion",
+      "mean_residual": -0.05080536350303792,
+      "metric_type": "discrete",
+      "n": 9546,
+      "role": "buyer",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "na"
+    },
+    {
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "mean_residual": -0.05915188776513933,
+      "metric_type": "discrete",
+      "n": 20615,
+      "role": "buyer",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "na"
+    },
+    {
+      "channel": "recommend_high",
+      "family": "persuasion",
+      "mean_residual": -0.10694016006857701,
+      "metric_type": "discrete",
+      "n": 16367,
+      "role": "seller",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "na"
+    },
+    {
+      "channel": "recommend_low",
+      "family": "persuasion",
+      "mean_residual": 0.22278169958602426,
+      "metric_type": "discrete",
+      "n": 13832,
+      "role": "seller",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "na"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.06002560177364865,
+      "metric_type": "discrete",
+      "n": 111,
+      "role": "player_1",
+      "slice": "horizon_known",
+      "source": "live_terminal_complete",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.26085316051136365,
+      "metric_type": "discrete",
+      "n": 33,
+      "role": "player_1",
+      "slice": "horizon_known",
+      "source": "live_terminal_complete",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.1287146935096154,
+      "metric_type": "discrete",
+      "n": 65,
+      "role": "player_2",
+      "slice": "horizon_known",
+      "source": "live_terminal_complete",
+      "value": "False"
+    },
+    {
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "mean_residual": -0.004170506418033421,
+      "metric_type": "discrete",
+      "n": 170,
+      "role": "buyer",
+      "slice": "horizon_known",
+      "source": "live_terminal_complete",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.04854297829936008,
+      "metric_type": "discrete",
+      "n": 3477,
+      "role": "player_1",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": 0.013928995691310255,
+      "metric_type": "discrete",
+      "n": 4232,
+      "role": "player_1",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.05245233181370133,
+      "metric_type": "discrete",
+      "n": 6087,
+      "role": "player_2",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": 0.026179179221601522,
+      "metric_type": "discrete",
+      "n": 6959,
+      "role": "player_2",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.1962700922840463,
+      "metric_type": "discrete",
+      "n": 4839,
+      "role": "buyer",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.15825511927020697,
+      "metric_type": "discrete",
+      "n": 9978,
+      "role": "buyer",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.12055236212921923,
+      "metric_type": "discrete",
+      "n": 2933,
+      "role": "seller",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.12324825071361427,
+      "metric_type": "discrete",
+      "n": 5452,
+      "role": "seller",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "buy_after_no",
+      "family": "persuasion",
+      "mean_residual": -0.05080536350303792,
+      "metric_type": "discrete",
+      "n": 9546,
+      "role": "buyer",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "mean_residual": -0.05915188776513933,
+      "metric_type": "discrete",
+      "n": 20615,
+      "role": "buyer",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "recommend_high",
+      "family": "persuasion",
+      "mean_residual": -0.10694016006857701,
+      "metric_type": "discrete",
+      "n": 16367,
+      "role": "seller",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "recommend_low",
+      "family": "persuasion",
+      "mean_residual": 0.22278169958602426,
+      "metric_type": "discrete",
+      "n": 13832,
+      "role": "seller",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.12046030405405406,
+      "metric_type": "discrete",
+      "n": 74,
+      "role": "player_1",
+      "slice": "message_mode",
+      "source": "live_terminal_complete",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.09081333705357143,
+      "metric_type": "discrete",
+      "n": 70,
+      "role": "player_1",
+      "slice": "message_mode",
+      "source": "live_terminal_complete",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.09166595901268115,
+      "metric_type": "discrete",
+      "n": 69,
+      "role": "player_2",
+      "slice": "message_mode",
+      "source": "live_terminal_complete",
+      "value": "True"
+    },
+    {
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "mean_residual": -0.004170506418033421,
+      "metric_type": "discrete",
+      "n": 170,
+      "role": "buyer",
+      "slice": "message_mode",
+      "source": "live_terminal_complete",
+      "value": "text"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.01128443929264182,
+      "metric_type": "discrete",
+      "n": 3931,
+      "role": "player_1",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.017331205643693753,
+      "metric_type": "discrete",
+      "n": 3778,
+      "role": "player_1",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.007821068415918647,
+      "metric_type": "discrete",
+      "n": 6183,
+      "role": "player_2",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.012930026159296226,
+      "metric_type": "discrete",
+      "n": 6863,
+      "role": "player_2",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.16325996173178728,
+      "metric_type": "discrete",
+      "n": 7131,
+      "role": "buyer",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.1775453772484062,
+      "metric_type": "discrete",
+      "n": 7686,
+      "role": "buyer",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.1297471653201978,
+      "metric_type": "discrete",
+      "n": 4019,
+      "role": "seller",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.11545480613691021,
+      "metric_type": "discrete",
+      "n": 4366,
+      "role": "seller",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "buy_after_no",
+      "family": "persuasion",
+      "mean_residual": -0.05088171140939597,
+      "metric_type": "discrete",
+      "n": 9536,
+      "role": "buyer",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "binary"
+    },
+    {
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "mean_residual": -0.05942191391172397,
+      "metric_type": "discrete",
+      "n": 20604,
+      "role": "buyer",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "binary"
+    },
+    {
+      "channel": "recommend_high",
+      "family": "persuasion",
+      "mean_residual": -0.10693728387581473,
+      "metric_type": "discrete",
+      "n": 16357,
+      "role": "seller",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "binary"
+    },
+    {
+      "channel": "recommend_low",
+      "family": "persuasion",
+      "mean_residual": 0.22292567468021582,
+      "metric_type": "discrete",
+      "n": 13823,
+      "role": "seller",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "binary"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.0553436279296875,
+      "metric_type": "discrete",
+      "n": 64,
+      "role": "player_1",
+      "slice": "history_band",
+      "source": "live_terminal_complete",
+      "value": "16+"
+    },
+    {
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "mean_residual": -0.06442487843711132,
+      "metric_type": "discrete",
+      "n": 37,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "live_terminal_complete",
+      "value": "16+"
+    },
+    {
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "mean_residual": 0.016656202643969758,
+      "metric_type": "discrete",
+      "n": 37,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "live_terminal_complete",
+      "value": "2-5"
+    },
+    {
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "mean_residual": 0.010498145853001576,
+      "metric_type": "discrete",
+      "n": 79,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "live_terminal_complete",
+      "value": "6-15"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": 0.03317982066761364,
+      "metric_type": "discrete",
+      "n": 220,
+      "role": "player_1",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "16+"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": 0.0686573378836802,
+      "metric_type": "discrete",
+      "n": 4781,
+      "role": "player_1",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "2-5"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.1644707233197932,
+      "metric_type": "discrete",
+      "n": 2708,
+      "role": "player_1",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "6-15"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": 0.04189097547999254,
+      "metric_type": "discrete",
+      "n": 8047,
+      "role": "player_2",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "0-1"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": 0.10891148663949275,
+      "metric_type": "discrete",
+      "n": 276,
+      "role": "player_2",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "16+"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.06631481631989597,
+      "metric_type": "discrete",
+      "n": 3076,
+      "role": "player_2",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "2-5"
+    },
+    {
+      "channel": "accept",
+      "family": "bargaining",
+      "mean_residual": -0.18231227112742865,
+      "metric_type": "discrete",
+      "n": 1647,
+      "role": "player_2",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "6-15"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.11685863904685376,
+      "metric_type": "discrete",
+      "n": 8089,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "0-1"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.19283010663777372,
+      "metric_type": "discrete",
+      "n": 274,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "16+"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.274709413457676,
+      "metric_type": "discrete",
+      "n": 3423,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "2-5"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.19478233385227647,
+      "metric_type": "discrete",
+      "n": 3031,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "6-15"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.002840909090909091,
+      "metric_type": "discrete",
+      "n": 121,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "16+"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.17755681818181818,
+      "metric_type": "discrete",
+      "n": 3685,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "2-5"
+    },
+    {
+      "channel": "accept",
+      "family": "negotiation",
+      "mean_residual": 0.08099779777585171,
+      "metric_type": "discrete",
+      "n": 4579,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "6-15"
+    },
+    {
+      "channel": "buy_after_no",
+      "family": "persuasion",
+      "mean_residual": -0.05334533277521976,
+      "metric_type": "discrete",
+      "n": 7167,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "16+"
+    },
+    {
+      "channel": "buy_after_no",
+      "family": "persuasion",
+      "mean_residual": -0.047696969696969696,
+      "metric_type": "discrete",
+      "n": 990,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "2-5"
+    },
+    {
+      "channel": "buy_after_no",
+      "family": "persuasion",
+      "mean_residual": -0.0399150467962563,
+      "metric_type": "discrete",
+      "n": 1389,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "6-15"
+    },
+    {
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "mean_residual": -0.049628026986100214,
+      "metric_type": "discrete",
+      "n": 15458,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "16+"
+    },
+    {
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "mean_residual": -0.11265690493000738,
+      "metric_type": "discrete",
+      "n": 2024,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "2-5"
+    },
+    {
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "mean_residual": -0.07157630052629274,
+      "metric_type": "discrete",
+      "n": 3133,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "6-15"
+    },
+    {
+      "channel": "recommend_high",
+      "family": "persuasion",
+      "mean_residual": -0.11164474856982953,
+      "metric_type": "discrete",
+      "n": 792,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "0-1"
+    },
+    {
+      "channel": "recommend_high",
+      "family": "persuasion",
+      "mean_residual": -0.10563679208691973,
+      "metric_type": "discrete",
+      "n": 12317,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "16+"
+    },
+    {
+      "channel": "recommend_high",
+      "family": "persuasion",
+      "mean_residual": -0.11041018066859497,
+      "metric_type": "discrete",
+      "n": 810,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "2-5"
+    },
+    {
+      "channel": "recommend_high",
+      "family": "persuasion",
+      "mean_residual": -0.11082775510577725,
+      "metric_type": "discrete",
+      "n": 2448,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "6-15"
+    },
+    {
+      "channel": "recommend_low",
+      "family": "persuasion",
+      "mean_residual": 0.32661708463700057,
+      "metric_type": "discrete",
+      "n": 717,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "0-1"
+    },
+    {
+      "channel": "recommend_low",
+      "family": "persuasion",
+      "mean_residual": 0.2173154577207725,
+      "metric_type": "discrete",
+      "n": 10334,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "16+"
+    },
+    {
+      "channel": "recommend_low",
+      "family": "persuasion",
+      "mean_residual": 0.2219666874766819,
+      "metric_type": "discrete",
+      "n": 699,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "2-5"
+    },
+    {
+      "channel": "recommend_low",
+      "family": "persuasion",
+      "mean_residual": 0.21442812889360935,
+      "metric_type": "discrete",
+      "n": 2082,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "6-15"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.11867047103445226,
+      "metric_type": "offer",
+      "n": 106,
+      "role": "player_1",
+      "slice": "complete_information",
+      "source": "live_terminal_complete",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.24275524386030153,
+      "metric_type": "offer",
+      "n": 50,
+      "role": "player_1",
+      "slice": "complete_information",
+      "source": "live_terminal_complete",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.05328438171243358,
+      "metric_type": "offer",
+      "n": 38,
+      "role": "player_2",
+      "slice": "complete_information",
+      "source": "live_terminal_complete",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.20846196433879394,
+      "metric_type": "offer",
+      "n": 43,
+      "role": "player_2",
+      "slice": "complete_information",
+      "source": "live_terminal_complete",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.06830393976555088,
+      "metric_type": "offer",
+      "n": 5827,
+      "role": "player_1",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.0877688885517488,
+      "metric_type": "offer",
+      "n": 6963,
+      "role": "player_1",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.08186147438484247,
+      "metric_type": "offer",
+      "n": 4041,
+      "role": "player_2",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.09869696927101877,
+      "metric_type": "offer",
+      "n": 4774,
+      "role": "player_2",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.21167790757932095,
+      "metric_type": "offer",
+      "n": 4189,
+      "role": "buyer",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.16083215014259858,
+      "metric_type": "offer",
+      "n": 5284,
+      "role": "buyer",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.36995924271974007,
+      "metric_type": "offer",
+      "n": 7114,
+      "role": "seller",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.16878992296558193,
+      "metric_type": "offer",
+      "n": 7452,
+      "role": "seller",
+      "slice": "complete_information",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.1571652499015058,
+      "metric_type": "offer",
+      "n": 118,
+      "role": "player_1",
+      "slice": "horizon_known",
+      "source": "live_terminal_complete",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.16240349037603502,
+      "metric_type": "offer",
+      "n": 38,
+      "role": "player_1",
+      "slice": "horizon_known",
+      "source": "live_terminal_complete",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.14041338258884983,
+      "metric_type": "offer",
+      "n": 54,
+      "role": "player_2",
+      "slice": "horizon_known",
+      "source": "live_terminal_complete",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.08407543377273057,
+      "metric_type": "offer",
+      "n": 6273,
+      "role": "player_1",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.07391999876374912,
+      "metric_type": "offer",
+      "n": 6517,
+      "role": "player_1",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.10157180051129977,
+      "metric_type": "offer",
+      "n": 3986,
+      "role": "player_2",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.08223573254316653,
+      "metric_type": "offer",
+      "n": 4829,
+      "role": "player_2",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.18151542088840275,
+      "metric_type": "offer",
+      "n": 3463,
+      "role": "buyer",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.18435406550195135,
+      "metric_type": "offer",
+      "n": 6010,
+      "role": "buyer",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.267610251594049,
+      "metric_type": "offer",
+      "n": 4554,
+      "role": "seller",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.26678140959732805,
+      "metric_type": "offer",
+      "n": 10012,
+      "role": "seller",
+      "slice": "horizon_known",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.1548186333422103,
+      "metric_type": "offer",
+      "n": 78,
+      "role": "player_1",
+      "slice": "message_mode",
+      "source": "live_terminal_complete",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.16206382976890527,
+      "metric_type": "offer",
+      "n": 78,
+      "role": "player_1",
+      "slice": "message_mode",
+      "source": "live_terminal_complete",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.1304572816834966,
+      "metric_type": "offer",
+      "n": 60,
+      "role": "player_2",
+      "slice": "message_mode",
+      "source": "live_terminal_complete",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.07615714667521449,
+      "metric_type": "offer",
+      "n": 6350,
+      "role": "player_1",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.0816062028900745,
+      "metric_type": "offer",
+      "n": 6440,
+      "role": "player_1",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.09347420724767881,
+      "metric_type": "offer",
+      "n": 4170,
+      "role": "player_2",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.08873931217786252,
+      "metric_type": "offer",
+      "n": 4645,
+      "role": "player_2",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.1783321435981923,
+      "metric_type": "offer",
+      "n": 4522,
+      "role": "buyer",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.1878686897298002,
+      "metric_type": "offer",
+      "n": 4951,
+      "role": "buyer",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.2672693939870738,
+      "metric_type": "offer",
+      "n": 6984,
+      "role": "seller",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "False"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.2668297429493569,
+      "metric_type": "offer",
+      "n": 7582,
+      "role": "seller",
+      "slice": "message_mode",
+      "source": "released_actor_model_holdout",
+      "value": "True"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.14580005181035213,
+      "metric_type": "offer",
+      "n": 32,
+      "role": "player_1",
+      "slice": "history_band",
+      "source": "live_terminal_complete",
+      "value": "0-1"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.13477021389411778,
+      "metric_type": "offer",
+      "n": 64,
+      "role": "player_1",
+      "slice": "history_band",
+      "source": "live_terminal_complete",
+      "value": "16+"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.18448981377614007,
+      "metric_type": "offer",
+      "n": 34,
+      "role": "player_1",
+      "slice": "history_band",
+      "source": "live_terminal_complete",
+      "value": "2-5"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.08392148367509893,
+      "metric_type": "offer",
+      "n": 8218,
+      "role": "player_1",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "0-1"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.24232879202417934,
+      "metric_type": "offer",
+      "n": 291,
+      "role": "player_1",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "16+"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.04577866477789975,
+      "metric_type": "offer",
+      "n": 3088,
+      "role": "player_1",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "2-5"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.09018682300464231,
+      "metric_type": "offer",
+      "n": 1193,
+      "role": "player_1",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "6-15"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.24972640921451447,
+      "metric_type": "offer",
+      "n": 198,
+      "role": "player_2",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "16+"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.0887370621767597,
+      "metric_type": "offer",
+      "n": 5784,
+      "role": "player_2",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "2-5"
+    },
+    {
+      "channel": "offer",
+      "family": "bargaining",
+      "mean_residual": 0.08446189644692556,
+      "metric_type": "offer",
+      "n": 2833,
+      "role": "player_2",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "6-15"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.1948110641368975,
+      "metric_type": "offer",
+      "n": 122,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "16+"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.20627133856299243,
+      "metric_type": "offer",
+      "n": 4210,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "2-5"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.16424558471666342,
+      "metric_type": "offer",
+      "n": 5141,
+      "role": "buyer",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "6-15"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.32471814827024204,
+      "metric_type": "offer",
+      "n": 8040,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "0-1"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.1280066354809183,
+      "metric_type": "offer",
+      "n": 276,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "16+"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.2252880120295479,
+      "metric_type": "offer",
+      "n": 3401,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "2-5"
+    },
+    {
+      "channel": "offer",
+      "family": "negotiation",
+      "mean_residual": 0.16758311205678325,
+      "metric_type": "offer",
+      "n": 2849,
+      "role": "seller",
+      "slice": "history_band",
+      "source": "released_actor_model_holdout",
+      "value": "6-15"
+    }
+  ],
+  "discrete_cells": [
+    {
+      "brier": 0.31310472795820715,
+      "calibration_error_ci95_game_bootstrap": [
+        -0.028845367806161995,
+        0.000359080331237911
+      ],
+      "calibration_in_the_large": -0.014247817587397849,
+      "calibration_model": {
+        "intercept": null,
+        "slope": null
+      },
+      "channel": "accept",
+      "family": "bargaining",
+      "games": 4781,
+      "interpretable": true,
+      "log_loss": 4.994645380482659,
+      "mean_predicted": 0.3895659066310481,
+      "n": 7709,
+      "observed_rate": 0.40381372421844597,
+      "role": "player_1",
+      "source": "released_actor_model_holdout"
+    },
+    {
+      "brier": 0.19256636005099997,
+      "calibration_error_ci95_game_bootstrap": [
+        -0.019537533442082252,
+        -0.002896232513993614
+      ],
+      "calibration_in_the_large": -0.01050869504421853,
+      "calibration_model": {
+        "intercept": null,
+        "slope": null
+      },
+      "channel": "accept",
+      "family": "bargaining",
+      "games": 8047,
+      "interpretable": true,
+      "log_loss": 2.9451596619271263,
+      "mean_predicted": 0.3135753153804327,
+      "n": 13046,
+      "observed_rate": 0.32408401042465124,
+      "role": "player_2",
+      "source": "released_actor_model_holdout"
+    },
+    {
+      "brier": 0.14877098729561045,
+      "calibration_error_ci95_game_bootstrap": [
+        0.16223649822297642,
+        0.17858871932305687
+      ],
+      "calibration_in_the_large": 0.17067021371671898,
+      "calibration_model": {
+        "intercept": null,
+        "slope": null
+      },
+      "channel": "accept",
+      "family": "negotiation",
+      "games": 8089,
+      "interpretable": true,
+      "log_loss": 0.8045042762404265,
+      "mean_predicted": 0.23951005983941587,
+      "n": 14817,
+      "observed_rate": 0.0688398461226969,
+      "role": "buyer",
+      "source": "released_actor_model_holdout"
+    },
+    {
+      "brier": 0.12883817961191804,
+      "calibration_error_ci95_game_bootstrap": [
+        0.11251824519874197,
+        0.13132971781447353
+      ],
+      "calibration_in_the_large": 0.12230525235726,
+      "calibration_model": {
+        "intercept": null,
+        "slope": null
+      },
+      "channel": "accept",
+      "family": "negotiation",
+      "games": 3685,
+      "interpretable": true,
+      "log_loss": 0.4488218976314686,
+      "mean_predicted": 0.20662248551170245,
+      "n": 8385,
+      "observed_rate": 0.08431723315444245,
+      "role": "seller",
+      "source": "released_actor_model_holdout"
+    },
+    {
+      "brier": 0.07008592750890426,
+      "calibration_error_ci95_game_bootstrap": [
+        -0.0659634437636307,
+        -0.03526504641702305
+      ],
+      "calibration_in_the_large": -0.050805363503037916,
+      "calibration_model": {
+        "intercept": null,
+        "slope": null
+      },
+      "channel": "buy_after_no",
+      "family": "persuasion",
+      "games": 1060,
+      "interpretable": true,
+      "log_loss": 0.29850317395781295,
+      "mean_predicted": 0.022,
+      "n": 9546,
+      "observed_rate": 0.07280536350303791,
+      "role": "buyer",
+      "source": "released_actor_model_holdout"
+    },
+    {
+      "brier": 0.1759306839464092,
+      "calibration_error_ci95_game_bootstrap": [
+        -0.08058258375567286,
+        -0.03750627446134129
+      ],
+      "calibration_in_the_large": -0.059151887765139355,
+      "calibration_model": {
+        "intercept": null,
+        "slope": null
+      },
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "games": 1507,
+      "interpretable": true,
+      "log_loss": 0.5378790743800718,
+      "mean_predicted": 0.7193589053466725,
+      "n": 20615,
+      "observed_rate": 0.7785107931118118,
+      "role": "buyer",
+      "source": "released_actor_model_holdout"
+    },
+    {
+      "brier": 0.016118653183779277,
+      "calibration_error_ci95_game_bootstrap": [
+        -0.10894999109800199,
+        -0.10408203337061654
+      ],
+      "calibration_in_the_large": -0.10694016006857698,
+      "calibration_model": {
+        "intercept": null,
+        "slope": null
+      },
+      "channel": "recommend_high",
+      "family": "persuasion",
+      "games": 1519,
+      "interpretable": true,
+      "log_loss": 0.12814110881380378,
+      "mean_predicted": 0.8883552514301705,
+      "n": 16367,
+      "observed_rate": 0.9952954114987475,
+      "role": "seller",
+      "source": "released_actor_model_holdout"
+    },
+    {
+      "brier": 0.14924562687215387,
+      "calibration_error_ci95_game_bootstrap": [
+        0.20839115044968348,
+        0.2374878169362827
+      ],
+      "calibration_in_the_large": 0.22278169958602426,
+      "calibration_model": {
+        "intercept": null,
+        "slope": null
+      },
+      "channel": "recommend_low",
+      "family": "persuasion",
+      "games": 1512,
+      "interpretable": true,
+      "log_loss": 0.484886641689375,
+      "mean_predicted": 0.33498528547382067,
+      "n": 13832,
+      "observed_rate": 0.11220358588779641,
+      "role": "seller",
+      "source": "released_actor_model_holdout"
+    },
+    {
+      "brier": 0.1264866946472062,
+      "calibration_error_ci95_game_bootstrap": [
+        -0.23146137438322367,
+        -0.060962194683908046
+      ],
+      "calibration_in_the_large": -0.106048583984375,
+      "calibration_model": {
+        "intercept": null,
+        "slope": null
+      },
+      "channel": "accept",
+      "family": "bargaining",
+      "games": 26,
+      "interpretable": true,
+      "log_loss": 1.644283073796247,
+      "mean_predicted": 0.03284030490451389,
+      "n": 144,
+      "observed_rate": 0.1388888888888889,
+      "role": "player_1",
+      "source": "live_terminal_complete"
+    },
+    {
+      "brier": 0.12464543289326607,
+      "calibration_error_ci95_game_bootstrap": [
+        -0.18548583984375,
+        -0.045328776041666664
+      ],
+      "calibration_in_the_large": -0.09661995096409576,
+      "calibration_model": {
+        "intercept": null,
+        "slope": null
+      },
+      "channel": "accept",
+      "family": "bargaining",
+      "games": 29,
+      "interpretable": true,
+      "log_loss": 1.6970164643530565,
+      "mean_predicted": 0.041677921376329786,
+      "n": 94,
+      "observed_rate": 0.13829787234042554,
+      "role": "player_2",
+      "source": "live_terminal_complete"
+    },
+    {
+      "brier": 0.3379880923491258,
+      "calibration_error_ci95_game_bootstrap": [
+        -0.1779513888888889,
+        0.5453957950367647
+      ],
+      "calibration_in_the_large": 0.2853440504807693,
+      "calibration_model": {
+        "intercept": null,
+        "slope": null
+      },
+      "channel": "accept",
+      "family": "negotiation",
+      "games": 9,
+      "interpretable": false,
+      "log_loss": 1.0979237400008381,
+      "mean_predicted": 0.8238055889423077,
+      "n": 13,
+      "observed_rate": 0.5384615384615384,
+      "role": "buyer",
+      "source": "live_terminal_complete"
+    },
+    {
+      "brier": 0.8834898471832275,
+      "calibration_error_ci95_game_bootstrap": null,
+      "calibration_in_the_large": 0.93994140625,
+      "calibration_model": {
+        "intercept": null,
+        "slope": null
+      },
+      "channel": "accept",
+      "family": "negotiation",
+      "games": 1,
+      "interpretable": false,
+      "log_loss": 2.812434630786981,
+      "mean_predicted": 0.93994140625,
+      "n": 5,
+      "observed_rate": 0.0,
+      "role": "seller",
+      "source": "live_terminal_complete"
+    },
+    {
+      "brier": 0.2000519951999074,
+      "calibration_error_ci95_game_bootstrap": [
+        -0.1906940047062376,
+        0.24288831711137834
+      ],
+      "calibration_in_the_large": -0.004170506418033404,
+      "calibration_model": {
+        "intercept": null,
+        "slope": null
+      },
+      "channel": "buy_after_yes",
+      "family": "persuasion",
+      "games": 14,
+      "interpretable": true,
+      "log_loss": 0.5896321577448447,
+      "mean_predicted": 0.7193589053466725,
+      "n": 170,
+      "observed_rate": 0.7235294117647059,
+      "role": "buyer",
+      "source": "live_terminal_complete"
+    }
+  ],
+  "evidence_class": "candidate_self_audited_architecture_evidence",
+  "live_source": {
+    "agent_class": "my_agents.jordan_strategic:MyAgent",
+    "exact_agent_commit_captured": false,
+    "limitation": "launch manifests do not record the git commit and official per-game rating outputs are absent",
+    "run_dirs": [
+      "/Users/sahararora/Glee-Compeition/reports/live/confirmation_20260815",
+      "/Users/sahararora/Glee-Compeition/reports/live/volume_20260815",
+      "/Users/sahararora/Glee-Compeition/reports/live/volume2_20260815"
+    ],
+    "terminal_complete_games": 181
+  },
+  "not_independent_validation": true,
+  "offer_cells": [
+    {
+      "bias": -0.020136676772203446,
+      "central_80_coverage": 0.6415168100078186,
+      "channel": "offer",
+      "crps": 0.06339565357917583,
+      "family": "bargaining",
+      "games": 8218,
+      "interpretable": true,
+      "mae": 0.0789008465988813,
+      "mae_ci95_game_bootstrap": [
+        0.07656075623027202,
+        0.08129007724709256
+      ],
+      "mean_actual": 0.5870191142298671,
+      "mean_predicted": 0.5668824374576636,
+      "n": 12790,
+      "role": "player_1",
+      "source": "released_actor_model_holdout"
+    },
+    {
+      "bias": 0.06606250748337807,
+      "central_80_coverage": 0.46443562110039704,
+      "channel": "offer",
+      "crps": 0.07160926470011088,
+      "family": "bargaining",
+      "games": 5784,
+      "interpretable": true,
+      "mae": 0.09097918880192764,
+      "mae_ci95_game_bootstrap": [
+        0.08827815578042504,
+        0.09380416512316635
+      ],
+      "mean_actual": 0.501178087100397,
+      "mean_predicted": 0.5672405945837751,
+      "n": 8815,
+      "role": "player_2",
+      "source": "released_actor_model_holdout"
+    },
+    {
+      "bias": 0.15960896398588123,
+      "central_80_coverage": 0.3192230549984166,
+      "channel": "offer",
+      "crps": 0.16405697374082198,
+      "family": "negotiation",
+      "games": 4210,
+      "interpretable": true,
+      "mae": 0.1833163555582462,
+      "mae_ci95_game_bootstrap": [
+        0.17946871699303915,
+        0.18696242622070122
+      ],
+      "mean_actual": 0.9142080808613956,
+      "mean_predicted": 1.0738170448472768,
+      "n": 9473,
+      "role": "buyer",
+      "source": "released_actor_model_holdout"
+    },
+    {
+      "bias": -0.1184362978396335,
+      "central_80_coverage": 0.626527529864067,
+      "channel": "offer",
+      "crps": 0.22913474450763016,
+      "family": "negotiation",
+      "games": 8040,
+      "interpretable": true,
+      "mae": 0.2670405436391423,
+      "mae_ci95_game_bootstrap": [
+        0.2602996565242217,
+        0.2737277023481461
+      ],
+      "mean_actual": 1.4199729652272415,
+      "mean_predicted": 1.301536667387608,
+      "n": 14566,
+      "role": "seller",
+      "source": "released_actor_model_holdout"
+    },
+    {
+      "bias": -0.1206589095448407,
+      "central_80_coverage": 0.6410256410256411,
+      "channel": "offer",
+      "crps": 0.16642961533629097,
+      "family": "bargaining",
+      "games": 32,
+      "interpretable": true,
+      "mae": 0.15844123155555778,
+      "mae_ci95_game_bootstrap": [
+        0.11564728934341233,
+        0.23017719699733274
+      ],
+      "mean_actual": 0.6206507176884616,
+      "mean_predicted": 0.4999918081436208,
+      "n": 156,
+      "role": "player_1",
+      "source": "live_terminal_complete"
+    },
+    {
+      "bias": -0.11760482216180301,
+      "central_80_coverage": 0.5308641975308642,
+      "channel": "offer",
+      "crps": 0.1389741805662006,
+      "family": "bargaining",
+      "games": 26,
+      "interpretable": true,
+      "mae": 0.13566260458815574,
+      "mae_ci95_game_bootstrap": [
+        0.0738468190936835,
+        0.22865131559023072
+      ],
+      "mean_actual": 0.6450748764950617,
+      "mean_predicted": 0.5274700543332588,
+      "n": 81,
+      "role": "player_2",
+      "source": "live_terminal_complete"
+    },
+    {
+      "bias": 0.2408419576957296,
+      "central_80_coverage": 0.3333333333333333,
+      "channel": "offer",
+      "crps": 0.2630221962802319,
+      "family": "negotiation",
+      "games": 3,
+      "interpretable": false,
+      "mae": 0.27287597408705105,
+      "mae_ci95_game_bootstrap": null,
+      "mean_actual": 0.9462433333333333,
+      "mean_predicted": 1.1870852910290628,
+      "n": 6,
+      "role": "buyer",
+      "source": "live_terminal_complete"
+    },
+    {
+      "bias": -0.1997860491455592,
+      "central_80_coverage": 1.0,
+      "channel": "offer",
+      "crps": 0.14522313503434725,
+      "family": "negotiation",
+      "games": 4,
+      "interpretable": false,
+      "mae": 0.1997860491455592,
+      "mae_ci95_game_bootstrap": null,
+      "mean_actual": 1.4150486633333332,
+      "mean_predicted": 1.215262614187774,
+      "n": 9,
+      "role": "seller",
+      "source": "live_terminal_complete"
+    }
+  ],
+  "operational_model": {
+    "draws": 4096,
+    "model_b_used": false,
+    "path": "/Users/sahararora/Glee-Compeition/models/opponent_population/opponent_population.json",
+    "schema_version": 1,
+    "seed": 20260816,
+    "sha256": "e7aa19ea6fe819ddb4efbe17c3e3c411f2a7c3d0ef571dd40fce4712c2fdf0e5"
+  },
+  "prohibitions": [
+    "no simulator replacement",
+    "no promotion gate",
+    "no factorial baseline change",
+    "no live policy change"
+  ],
+  "released_extraction": {
+    "acting_model_holdout_events": 286064,
+    "events_scanned": 1188434,
+    "persuasion_buyer_unknown_stance": 36399,
+    "persuasion_seller_unknown_stance_or_quality": 33141,
+    "unsupported:negotiation:buyer:accept": 3
+  },
+  "released_source": {
+    "bytes": 8214931069,
+    "limitation": "operational v1 was fitted on all released data; misfit is descriptive/conservative, not independent validation",
+    "path": "/Users/sahararora/Glee-Compeition/data/processed/events.jsonl",
+    "sha256": "afc50fdf2f9c08feaf86355494db2bbd257c29ff4f9fbc8ed65f15e005329ad6",
+    "sha256_provenance": "fully consumed frozen source recorded by the actor-factor manifest",
+    "selection": "acting model in deterministic 25% model holdout"
+  },
+  "schema": "glee.wave5b.model_a_necessity.v1",
+  "status_ceiling": "candidate_pending_independent_structural_validation",
+  "termination": {
+    "live": [
+      {
+        "family": "bargaining",
+        "games": 32,
+        "mean_configured_horizon": 58.21875,
+        "mean_observed_round": 9.375,
+        "mean_round_error_vs_configured_horizon": -48.84375,
+        "role": "player_1"
+      },
+      {
+        "family": "bargaining",
+        "games": 29,
+        "mean_configured_horizon": 51.0,
+        "mean_observed_round": 6.0344827586206895,
+        "mean_round_error_vs_configured_horizon": -44.96551724137931,
+        "role": "player_2"
+      },
+      {
+        "family": "negotiation",
+        "games": 37,
+        "mean_configured_horizon": 22.7027027027027,
+        "mean_observed_round": 5.162162162162162,
+        "mean_round_error_vs_configured_horizon": -17.54054054054054,
+        "role": "buyer"
+      },
+      {
+        "family": "negotiation",
+        "games": 23,
+        "mean_configured_horizon": 33.56521739130435,
+        "mean_observed_round": 11.08695652173913,
+        "mean_round_error_vs_configured_horizon": -22.47826086956522,
+        "role": "seller"
+      },
+      {
+        "family": "persuasion",
+        "games": 29,
+        "mean_configured_horizon": 20.0,
+        "mean_observed_round": 20.0,
+        "mean_round_error_vs_configured_horizon": 0.0,
+        "role": "buyer"
+      },
+      {
+        "family": "persuasion",
+        "games": 31,
+        "mean_configured_horizon": 20.0,
+        "mean_observed_round": 19.0,
+        "mean_round_error_vs_configured_horizon": -1.0,
+        "role": "seller"
+      }
+    ],
+    "operational_coverage": {
+      "bargaining": "no learned termination hazard",
+      "negotiation": "John exit only at configured final round",
+      "persuasion": "fixed configured total rounds"
+    },
+    "released": [
+      {
+        "family": "bargaining",
+        "games": 8218,
+        "mean_configured_horizon": 58.178388902409345,
+        "mean_observed_round": 2.4944025310294475,
+        "mean_round_error_vs_configured_horizon": -55.683986371379895,
+        "role": "player_1"
+      },
+      {
+        "family": "bargaining",
+        "games": 6384,
+        "mean_configured_horizon": 57.43515037593985,
+        "mean_observed_round": 2.757362155388471,
+        "mean_round_error_vs_configured_horizon": -54.67778822055138,
+        "role": "player_2"
+      },
+      {
+        "family": "negotiation",
+        "games": 6377,
+        "mean_configured_horizon": 35.49835345773875,
+        "mean_observed_round": 2.924572683079818,
+        "mean_round_error_vs_configured_horizon": -32.57378077465893,
+        "role": "buyer"
+      },
+      {
+        "family": "negotiation",
+        "games": 8040,
+        "mean_configured_horizon": 35.570149253731344,
+        "mean_observed_round": 2.8546019900497512,
+        "mean_round_error_vs_configured_horizon": -32.71554726368159,
+        "role": "seller"
+      },
+      {
+        "family": "persuasion",
+        "games": 2633,
+        "mean_configured_horizon": 20.0,
+        "mean_observed_round": 20.0,
+        "mean_round_error_vs_configured_horizon": 0.0,
+        "role": "buyer"
+      },
+      {
+        "family": "persuasion",
+        "games": 3167,
+        "mean_configured_horizon": 20.0,
+        "mean_observed_round": 20.0,
+        "mean_round_error_vs_configured_horizon": 0.0,
+        "role": "seller"
+      }
+    ]
+  }
+}
