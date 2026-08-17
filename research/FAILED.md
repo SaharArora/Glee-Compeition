@@ -1,5 +1,23 @@
 # Research failures and closed routes
 
+## Wave 5E replacement activation candidate — terminal independent re-audit NO-GO
+
+Commit `2f07987812d405c977283403abcaa92bfc42e08c` passed its locked 89-test synthetic/offline
+self-check but was rejected by fresh independent hostile re-audit. Its evidence ceiling is
+`candidate_self_tested_rejected_by_independent_audit`; it is not capability-ready.
+
+The terminal objections are `W5E-ITT-E2E-001` (receiver ITT is validator-only rather than an
+all-arm, 20-round production seam), `W5E-CERT-PATH-002` (output-directory TOCTOU symlink),
+`W5E-USAGE-TYPE-003` (boolean usage/reservation counts), `W5E-PAPER-FREEZE-004` (canonical
+Holm/MDE/cap freeze conflicts with executable code), and `W5E-KEY-LINE-005` (blank-line key-file
+acceptance). Exact findings, smallest next repairs, source hashes, and verification evidence are
+in `research/EVIDENCE/WAVE5E_PAPER_REAUDIT.json`.
+
+Capability is **NOT_RUN**: no key was read, zero API requests were made, no certificate was issued,
+no factorial outcomes were produced, and no production pins were set. No third Wave 5E repair is
+authorized. Reopen only as a separately authorized future wave that addresses all five objections
+and receives a new independent audit.
+
 ## Wave 5E first activation freeze — independent audit NO-GO
 
 Commit `3ccf58b740655812674242d2630e4d480d6e3e2c` was rejected before credentials or any
@@ -10,11 +28,11 @@ not conservatively debited; the key mode and runtime/source-root binding were in
 runner lacked an atomic runtime FAIL certificate. The commit is superseded, must never receive an
 audit GO document, and must never be used for capability.
 
-The bounded repair removes the provider seed, freezes request-only replicate tags, constructs one
-economic payload before its exact role/replicate crossing, installs language-primary plus Holm-2
-key secondaries, wires action/continuation/natural-payoff ITT admission through evaluator and
-report, and closes the transport/credential/runtime/accounting findings. Those repairs remain
-offline implementation evidence until a new independent audit binds their replacement commit.
+The bounded repair attempted to remove the provider seed, freeze request-only replicate tags,
+construct one economic payload before its exact role/replicate crossing, install language-primary
+plus Holm-2 key secondaries, wire action/continuation/natural-payoff ITT admission through evaluator
+and report, and close the transport/credential/runtime/accounting findings. The resulting
+replacement candidate `2f079878...` was rejected by the terminal re-audit recorded above.
 
 ## Wave 5E paper activation alternatives — rejected prospectively
 

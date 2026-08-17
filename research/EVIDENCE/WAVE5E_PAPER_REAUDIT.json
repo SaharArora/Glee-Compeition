@@ -1,0 +1,145 @@
+{
+  "schema": "glee.research.wave5e.receiver_adapter_audit_go.v1",
+  "verdict": "NO-GO",
+  "independent_auditor": "codex-wave5e-route-p-hostile-reauditor-2",
+  "implementation_commit": "2f07987812d405c977283403abcaa92bfc42e08c",
+  "source_sha256": {
+    "glee_eval/experiments/controlled_receiver.py": "5b27836bdd4ab3b4fe5b879ff83f602699947ca3f04c0f5d2d118c27ab8c54ca",
+    "glee_eval/experiments/factorial.py": "dbd1211f9bc3ca41c55afa1ef1a072e438b69a63279271c23cc3c1f7de80d2c0",
+    "glee_eval/experiments/factorial_report.py": "1f5fb706d67b57e66a6a53680e658ff5cdc362b120aa6579dc88f3abfb246925",
+    "glee_eval/experiments/openai_responses.py": "1fa13f34f278c39c5e1762b4b4ca6df263fa8896f1dc36ecdf64a89750515569",
+    "glee_eval/experiments/preoutcome_manifest.py": "97d9b2c89caa1a10b870974a5d3e90707bf876fe200f11eaaabbe3762290853a",
+    "glee_eval/experiments/receiver_itt.py": "717f9ea6b87e2ad8729fb4fc24bed68362870205427f8bf9b03b50ce52d0d486",
+    "glee_eval/experiments/wave5c_receiver.py": "2a43cea8e6f6fd984755a52c74d0e8cb216d44cf5ef85c554e37050350fee32a",
+    "glee_eval/experiments/wave5e_capability.py": "002cc4fd7036052f0ff830c493c0882c5506b5b762f1caf1a2a5e955608305e6",
+    "research/LOCKS/WAVE5E_OPENAI_ADAPTER_LOCK.json": "e6d384c6b68711198c3b358b9176d6e6be1b0051f3ecb4cc59e8be29a5235743"
+  },
+  "automatic_fallback": false,
+  "api_call_performed_by_audit": false,
+  "verification": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 /Users/sahararora/.pyenv/versions/3.10.13/bin/python -m unittest -q tests/test_wave5e_paper_activation.py tests/test_factorial_evaluator.py tests/test_factorial_report.py tests/test_preoutcome_manifest.py tests/test_wave5d_paper_design.py tests/test_controlled_receiver.py tests/test_wave5c_receiver.py",
+    "result": "89 passed in 12.680s",
+    "repository_clean": true,
+    "diff_check_passed": true,
+    "head_and_source_hashes_exact": true,
+    "fixtures": "synthetic_only"
+  },
+  "scope_boundaries": {
+    "factorial_outcomes_used": false,
+    "credentials_read": false,
+    "external_calls_performed": false,
+    "production_pins_set": false,
+    "capability_status": "NOT_RUN"
+  },
+  "hostile_results": [
+    {
+      "check": "unsupported_provider_seed_absent",
+      "verdict": "PASS"
+    },
+    {
+      "check": "executable_language_primary_and_holm2",
+      "verdict": "PARTIAL_FAIL",
+      "finding": "Executable report code uses language primary plus Holm-2 secondaries, but the canonical research question, SAP, and Methods remain frozen to Holm-3."
+    },
+    {
+      "check": "receiver_itt_end_to_end",
+      "verdict": "FAIL",
+      "finding": "There is no production receiver call or receiver-evidence creation path; admission models one optional envelope per arm rather than every eligible round, and L=0 arms may omit receiver evidence."
+    },
+    {
+      "check": "base_two_role_two_replicate_identity",
+      "verdict": "PASS"
+    },
+    {
+      "check": "cluster_inference",
+      "verdict": "PASS"
+    },
+    {
+      "check": "bounded_response_body",
+      "verdict": "PASS"
+    },
+    {
+      "check": "strict_usage_types",
+      "verdict": "PARTIAL_FAIL",
+      "finding": "Provider usage parsing is strict, but lower-level Usage and CallReservation constructors still accept booleans."
+    },
+    {
+      "check": "reservation_and_timeout_conservative_spend",
+      "verdict": "PASS"
+    },
+    {
+      "check": "key_gate",
+      "verdict": "PARTIAL_FAIL",
+      "finding": "Exact mode and nonsymlink checks pass, but strip-before-newline validation accepts blank lines."
+    },
+    {
+      "check": "runtime_source_binding",
+      "verdict": "PASS"
+    },
+    {
+      "check": "atomic_certificate_path",
+      "verdict": "FAIL",
+      "finding": "The verified output directory is closed before write, permitting symlink substitution before path-based temporary-file creation and rename."
+    },
+    {
+      "check": "wall_clock_cap",
+      "verdict": "ARITHMETIC_ONLY"
+    },
+    {
+      "check": "mde_translations",
+      "verdict": "FAIL",
+      "finding": "Current single-primary MDE is 0.0295313012 and Holm-2 secondary MDE is 0.0324979260 at SESOI 0.035, while committed translation tables still use 0.0341062296."
+    },
+    {
+      "check": "immutable_model_structured_output_no_fallback",
+      "verdict": "PASS"
+    },
+    {
+      "check": "request_and_attempt_caps_100_200",
+      "verdict": "PASS"
+    },
+    {
+      "check": "tls_redirect_redaction_refusal_error_malformed_paths",
+      "verdict": "PASS"
+    }
+  ],
+  "objections": [
+    {
+      "id": "W5E-ITT-E2E-001",
+      "severity": "BLOCKER",
+      "finding": "Receiver ITT remains validator-only, not executable end to end.",
+      "evidence": "The tournament runner uses PolicyFactory; Wave 3 agents are rule-based and text-blind with receiver=false; factorial execution only consumes an optional replay envelope; evidence contains one envelope rather than 20 round-indexed decisions and is required only for L=true despite 48,000-request accounting requiring all arms.",
+      "smallest_next": "Pin an all-arm receiver seam, invoke it at each eligible round, preserve the full attempt trace, normalize retries, apply deterministic yes/no, retain the fixed nature stream, record round-indexed envelopes, compute the natural terminal payoff after round 20, and make report/admission reconstruct every arm and round."
+    },
+    {
+      "id": "W5E-CERT-PATH-002",
+      "severity": "BLOCKER",
+      "finding": "Capability output has a time-of-check/time-of-use symlink substitution path.",
+      "evidence": "The runner verifies and closes the output-directory descriptor, then creates and renames the certificate through the path.",
+      "smallest_next": "Keep the verified directory descriptor open; create, fsync, and rename descriptor-relatively with no-follow semantics; then revalidate directory identity."
+    },
+    {
+      "id": "W5E-USAGE-TYPE-003",
+      "severity": "BLOCKER",
+      "finding": "Usage and CallReservation accept booleans as integers.",
+      "evidence": "Their lower-level validation uses isinstance(value, int), for which bool is true.",
+      "smallest_next": "Require type(value) is int and add constructor and cache hostile tests."
+    },
+    {
+      "id": "W5E-PAPER-FREEZE-004",
+      "severity": "BLOCKER",
+      "finding": "The authoritative paper freeze and MDE/cap interpretation remain inconsistent with the implemented hypothesis family.",
+      "evidence": "Canonical research-question, SAP, and Methods text retain Holm-3 while executable code uses a language primary and Holm-2 secondaries; translation tables retain 0.0341062296 instead of 0.0295313012 primary and 0.0324979260 secondary values.",
+      "smallest_next": "Create a hash-bound superseding revision-3 research question and aligned SAP/Methods that separately freeze the primary, Holm-2 secondary family, SESOI, and current translations."
+    },
+    {
+      "id": "W5E-KEY-LINE-005",
+      "severity": "MAJOR",
+      "finding": "Secret-file validation accepts blank lines because it strips before checking for newlines.",
+      "evidence": "Unstripped bytes are not validated as exactly one nonempty line.",
+      "smallest_next": "Validate the original bytes as exactly one nonempty line with at most one terminal newline before decoding the key value."
+    }
+  ],
+  "evidence_ceiling": "candidate_self_tested_rejected_by_independent_audit",
+  "smallest_next_formulation": "Keep capability blocked; in a future separately authorized wave repair the round-indexed all-arm receiver seam, descriptor-relative output, strict integer constructors, exact key-line parser, and authoritative paper amendment/current MDE, then repeat independent audit on a new commit."
+}

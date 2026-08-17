@@ -108,3 +108,18 @@
 - Hash review is not sufficient when Python may import another checkout. Bind the exact Git root,
   executing module paths, clean relevant worktree, working SHA-256 bytes, and current HEAD blobs in
   the same pre-key gate.
+- A validator for a receiver-failure envelope is not end-to-end ITT execution. The production
+  runner must call the pinned receiver for every eligible round in every assigned arm, preserve
+  round-indexed attempts and applied actions, continue on the fixed nature stream, and reconstruct
+  the natural terminal payoff before an all-arm request count is credible.
+- Verifying an output directory and then closing its descriptor reopens a TOCTOU boundary. Atomic
+  certificates need descriptor-relative no-follow create, fsync, rename, and identity revalidation
+  under the same open directory handle.
+- In Python, `bool` is an `int` subclass. Security and accounting contracts for counts must use
+  exact integer types at every constructor/cache boundary, not only at the provider parser.
+- A paper hypothesis amendment is incomplete if executable code changes while the canonical
+  research question, SAP, Methods, MDE tables, and wall-cap interpretation retain the old family.
+  Bind one superseding document set by hash before capability or outcomes.
+- Secret-file line validation must inspect the original bytes before trimming. Require exactly one
+  nonempty line with at most one terminal newline; whitespace normalization can otherwise admit
+  blank-line or multi-line inputs.

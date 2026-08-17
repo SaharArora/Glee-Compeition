@@ -1,0 +1,37 @@
+{
+  "schema": "glee.research.wave5e.paper_terminal.v1",
+  "route": "Wave_5E_Route_P",
+  "status": "TERMINAL_NO_GO",
+  "candidate_commit": "2f07987812d405c977283403abcaa92bfc42e08c",
+  "independent_audit_verdict": "NO-GO",
+  "audit_evidence": "research/EVIDENCE/WAVE5E_PAPER_REAUDIT.json",
+  "blocking_objections": [
+    "W5E-ITT-E2E-001",
+    "W5E-CERT-PATH-002",
+    "W5E-USAGE-TYPE-003",
+    "W5E-PAPER-FREEZE-004",
+    "W5E-KEY-LINE-005"
+  ],
+  "capability": {
+    "status": "NOT_RUN",
+    "api_key_read": false,
+    "api_requests": 0,
+    "certificate_issued": false
+  },
+  "boundaries": {
+    "factorial_outcomes_run": false,
+    "production_pins_set": false,
+    "external_calls_performed": false,
+    "branch_pushed_by_route_agent": false
+  },
+  "documentation_closeout_verification": {
+    "locked_relevant_tests": "89 passed in 12.885s",
+    "json_parse": "PASS",
+    "diff_check": "PASS",
+    "implementation_bytes_equal_2f079878": true,
+    "source_hashes_equal_reaudit_map": true
+  },
+  "evidence_ceiling": "candidate_self_tested_rejected_by_independent_audit",
+  "wave5e_third_repair_authorized": false,
+  "next_step": "No third Wave 5E repair. Any repair requires a new separately authorized wave and a fresh independent audit."
+}

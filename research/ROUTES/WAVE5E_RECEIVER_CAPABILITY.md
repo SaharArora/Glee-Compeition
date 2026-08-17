@@ -1,7 +1,12 @@
 # Wave 5E frozen GPT-4.1 receiver capability route
 
-Status: **first freeze received independent NO-GO; repaired offline; protected key absent;
-independent re-audit required; no API call.**
+Status: **terminal NO-GO after independent re-audit; capability NOT_RUN; no key read and zero API
+requests.**
+
+The replacement candidate `2f07987812d405c977283403abcaa92bfc42e08c` is ineligible for
+capability. Its independent re-audit is preserved in
+`research/EVIDENCE/WAVE5E_PAPER_REAUDIT.json` with verdict `NO-GO` and evidence ceiling
+`candidate_self_tested_rejected_by_independent_audit`. No third Wave 5E repair is authorized.
 
 The adapter uses only the Python 3.10.13 standard library. It targets exactly
 `https://api.openai.com/v1/responses` with model snapshot `gpt-4.1-2025-04-14`, strict JSON Schema
@@ -64,7 +69,7 @@ to be clean, and working SHA-256 bytes to match both the audit map and their cur
 The audit document should be stored outside this branch/repository. Its source hashes can be
 reconstructed offline with `wave5e_capability.source_hashes(repository_root)`.
 
-## Attended invocation after audit GO and secret setup
+## Inactive invocation template for a future separately authorized wave
 
 Create a secret file outside the repository without putting its value in shell history or chat:
 
@@ -97,7 +102,11 @@ expected durable output is `capability_certificate.json`, with `PASS` or `FAIL` 
 accounting evidence. A new run after any adapter, prompt, contract, dependency, pricing, model, or
 audit change requires a new commit, new independent audit, and new authorization.
 
-## Current blocker
+## Terminal blockers
 
-The protected key file and independent audit-GO document are absent. Therefore no capability
-request has been made and the receiver status remains **NOT RUN / UNKNOWN**.
+The independent audit found five unresolved objections: `W5E-ITT-E2E-001`,
+`W5E-CERT-PATH-002`, `W5E-USAGE-TYPE-003`, `W5E-PAPER-FREEZE-004`, and
+`W5E-KEY-LINE-005`. Therefore the candidate cannot receive an audit-GO document or read a key.
+The capability status is **NOT_RUN**: no key was read, zero API requests were made, and no
+certificate was issued. The command above is archival documentation only and must not be run for
+Wave 5E.

@@ -1,15 +1,22 @@
 # Wave 5E paper activation preparation
 
-Status: **first freeze received independent NO-GO; bounded offline repair pending re-audit; no
-capability or factorial outcome.**
+Status: **terminal NO-GO after the one authorized bounded offline repair; no capability or
+factorial outcome.**
 
 The first implementation freeze `3ccf58b740655812674242d2630e4d480d6e3e2c` is superseded and
 ineligible for capability. No credential was loaded and no external request occurred before or
 after that audit.
 
-## Decision
+The replacement candidate `2f07987812d405c977283403abcaa92bfc42e08c` was independently
+re-audited and rejected. Its evidence ceiling is
+`candidate_self_tested_rejected_by_independent_audit`. The exact source hashes, hostile results,
+and five objections are preserved in `research/EVIDENCE/WAVE5E_PAPER_REAUDIT.json`; the concise
+terminal record is `research/EVIDENCE/WAVE5E_PAPER_TERMINAL.json`. No third Wave 5E repair is
+authorized.
 
-Retain **A300**, but reorder the confirmatory family:
+## Rejected candidate design decision
+
+The rejected candidate proposed retaining **A300** and reordering the confirmatory family:
 
 1. the language main effect on immutable language-eligible persuasion-seller rows is the single
    confirmatory primary;
@@ -31,14 +38,14 @@ episode, while e-process threshold crossing and actual economic action change re
 may be sparse. The e-process remains scientifically reportable as a secondary model-relative
 mechanism; it is not erased or redefined.
 
-## Experimental unit and cluster repair
+## Candidate experimental unit and cluster repair
 
 Each paired row is indexed by `(family, base_stratum_id, candidate_role, receiver_replicate)`. The
 four arm episodes reuse that row. The independent inference unit is `(family, base_stratum_id)`.
 A300 requires exactly 300 base strata per family and the exact cross product of both candidate
 roles and receiver replicates `{0,1}` within every stratum.
 
-The implementation now:
+The rejected candidate implemented:
 
 - writes `base_stratum_id`, `base_stratum_hash`, and `receiver_replicate` in evaluator rows and the
   pre-outcome manifest;
@@ -56,31 +63,38 @@ The implementation now:
 Synthetic fixtures may use one-row synthetic clusters, remain explicitly nonproduction, and do
 not set either production pin.
 
-The report contract now encodes language as the one confirmatory primary at two-sided alpha `.05`.
-E-process and interaction form a separate two-hypothesis Holm key-secondary family; neither may
-replace or retroactively enlarge the primary family.
+The executable report candidate encodes language as the one confirmatory primary at two-sided
+alpha `.05`, with e-process and interaction in a separate two-hypothesis Holm key-secondary
+family. The independent audit rejected this as an authoritative paper freeze because the
+canonical research question, SAP, and Methods remain Holm-3.
 
-## Receiver-failure ITT rule
+## Intended receiver-failure ITT rule and audit gap
 
-The treatment-blind frozen rule is hash-addressed in
+The candidate treatment-blind validation rule is hash-addressed in
 `glee_eval/experiments/receiver_itt.py`. A timeout or malformed output receives its one allowed
 retry. A refusal or empty/missing result receives no retry. A final timeout/malformed result is
 labelled `exhausted_retry`. Every failure state maps to the legal controlled-receiver decision
 `pass` and persuasion buyer action `no` for that round. The ordinary fixed-horizon environment
 then continues on the preassigned nature stream and computes its ordinary finite role payoff.
 
-Outcome admission now requires exact attempts, applied environment action, continuation flag,
-terminal candidate payoff, and the hash-bound ITT payoff object. The evaluator constructs that
-object from controlled-receiver replay evidence, and the report independently reconstructs it and
-requires equality with the natural episode payoff for production language arms.
+Candidate outcome admission validates exact attempts, applied environment action, continuation
+flag, terminal candidate payoff, and the hash-bound ITT payoff object when an envelope is supplied.
+The independent audit found this is not executable end to end: no production receiver seam creates
+round-indexed evidence; only one optional envelope exists per arm rather than 20 decisions; and
+nonlanguage arms may omit evidence despite all-arm request accounting.
 
 This is deterministic environment behavior, not post-outcome payoff imputation. Every assigned
 row remains in ITT. An engine failure that prevents a terminal payoff is a global stop and a
 nonreportable study, not an invented payoff or complete-case deletion.
 
-## MDE interpretation
+## Superseded MDE interpretation
 
-The central A300 Holm-3 MDE `.03410623` means:
+The following Wave 5D Holm-3 translation is preserved only as superseded candidate history. It is
+not the active Wave 5E language-primary/Holm-2 interpretation. The independent audit calculated a
+current primary MDE of `.0295313012` and a Holm-2 secondary MDE of `.0324979260`, with SESOI
+`.035`, and rejected the committed `.0341062296` tables as stale.
+
+The superseded central A300 Holm-3 MDE `.03410623` means:
 
 - bargaining: `0.03410623 × money_to_divide` raw pie units before timing discount (3.4106 on a
   100-unit pie; 341.0623 on a 10,000-unit pie);
@@ -121,14 +135,20 @@ new submissions, cancels pending requests, checkpoints atomically, and marks an 
 nonreportable. It never replaces missing rows. This is a resource contract, not authorization to
 start the study.
 
-## Remaining blockers
+## Terminal independent-audit blockers
 
-- a fresh independent hostile audit must issue GO for cluster identity/inference, ITT execution,
-  MDE evidence, adapter security, source hashes, and dependency lock;
-- the protected API key file is absent, so the capability route has not run;
-- the exact A300 scenario rows, production manifest root, and both production pins remain unset;
-- a capability PASS would certify only the frozen receiver route and would not authorize the
-  full study or set either pin.
+- `W5E-ITT-E2E-001` — the receiver ITT is validator-only, not a round-indexed all-arm production
+  execution path;
+- `W5E-CERT-PATH-002` — certificate creation is vulnerable to output-directory symlink
+  substitution after verification;
+- `W5E-USAGE-TYPE-003` — lower-level usage/reservation constructors accept booleans as integers;
+- `W5E-PAPER-FREEZE-004` — canonical paper documents, executable hypothesis family, MDEs, and
+  cap interpretation are inconsistent;
+- `W5E-KEY-LINE-005` — key-file validation accepts blank lines.
+
+Capability status is **NOT_RUN**: no key was read, zero API requests were made, and no certificate
+was issued. Exact A300 rows and both production pins remain unset. The route is terminal for Wave
+5E; any repair requires a separately authorized future wave and another independent audit.
 
 The deterministic evidence is generated by
 `python -m glee_eval.experiments.wave5e_paper_activation` and committed separately as
