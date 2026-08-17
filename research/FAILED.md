@@ -1,5 +1,23 @@
 # Research failures and closed routes
 
+## Wave 5D Jordan-versus-Factorial00 causal decomposition — underidentified
+
+- Closest prior route: the Wave 5B shared-backbone architecture diagnostic.
+- Attempt: reuse only its already-exposed 900 paired terminal rows, pin the exact Jordan and
+  Factorial00 sources, and trace every family/role/decision surface without opening or rerunning
+  the underlying evaluation artifacts.
+- Obstruction: the ledger has terminal payoffs and subgroup labels but no action trajectories,
+  mode assignments, artifact-activation record or intervention label. Source inspection aligns
+  the persuasion-seller loss with removal of Jordan's late low-quality `EXPLOIT` branch, but it
+  cannot establish that branch caused the `+.057299` Jordan advantage.
+- Classification: negative evidence against a causal-decomposition claim, not a failure of either
+  of the two unimplemented Wave 5D hypotheses and not a new payoff result.
+- Materially new retry: implement one prospectively specified candidate, collect the declared
+  action traces on development data, pass its kill-check, and then use a structurally disjoint
+  untouched confirmation. Another post-outcome slice of the same 900 terminal rows is not new.
+- Evidence: `research/EVIDENCE/WAVE5D_COMPETITION_PREP.json` and
+  `research/ROUTES/WAVE5D_COMPETITION_PREP.md`.
+
 ## R0 v1 — mixed-fold empirical-bundle Model B
 
 - Closest prior route: no close research route. Competition evidence contained earlier Model-B

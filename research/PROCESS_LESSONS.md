@@ -76,3 +76,9 @@
 - A decision-ready live canary starts with telemetry, not queueing. Bind exact commit/dirty state,
   one agent identity, per-game official scoring capability, terminal capture and stop rules before
   spending the first game; otherwise more volume only compounds the same evidence gap.
+- A terminal-payoff comparison cannot identify a decision mechanism even when source code offers
+  a compelling explanation. Freeze source bytes, trace eligible branches, label exposed outcomes
+  as development data, and require action-level intervention traces before attributing the gap.
+- A competition composite should be proposed as a new falsifiable policy, not assembled by
+  cherry-picking family winners after outcomes. Development results may nominate the composite;
+  family/role non-regression and a structurally disjoint untouched confirmation must decide it.

@@ -1,0 +1,442 @@
+{
+  "analysis": {
+    "by_family_role": {
+      "bargaining:player_1": {
+        "factorial00_losses": 19,
+        "factorial00_wins": 149,
+        "mean_factorial00": 0.5,
+        "mean_factorial00_minus_jordan": 0.14542648228724525,
+        "mean_jordan": 0.3545735177127548,
+        "n": 168,
+        "ties": 0
+      },
+      "bargaining:player_2": {
+        "factorial00_losses": 13,
+        "factorial00_wins": 76,
+        "mean_factorial00": 0.46237474522727273,
+        "mean_factorial00_minus_jordan": 0.1784441181991,
+        "mean_jordan": 0.28393062702817273,
+        "n": 132,
+        "ties": 43
+      },
+      "negotiation:buyer": {
+        "factorial00_losses": 1,
+        "factorial00_wins": 8,
+        "mean_factorial00": 0.08857732326923076,
+        "mean_factorial00_minus_jordan": 0.004446500000000002,
+        "mean_jordan": 0.08413082326923076,
+        "n": 156,
+        "ties": 147
+      },
+      "negotiation:seller": {
+        "factorial00_losses": 8,
+        "factorial00_wins": 23,
+        "mean_factorial00": 0.0685059503472222,
+        "mean_factorial00_minus_jordan": 0.013826388888888885,
+        "mean_jordan": 0.054679561458333324,
+        "n": 144,
+        "ties": 113
+      },
+      "persuasion:buyer": {
+        "factorial00_losses": 1,
+        "factorial00_wins": 0,
+        "mean_factorial00": 0.31076687116564417,
+        "mean_factorial00_minus_jordan": -6.134969325153376e-05,
+        "mean_jordan": 0.3108282208588957,
+        "n": 163,
+        "ties": 162
+      },
+      "persuasion:seller": {
+        "factorial00_losses": 67,
+        "factorial00_wins": 0,
+        "mean_factorial00": 0.4492700729927007,
+        "mean_factorial00_minus_jordan": -0.0572992700729927,
+        "mean_jordan": 0.5065693430656935,
+        "n": 137,
+        "ties": 70
+      }
+    },
+    "input_classification": "previously_exposed_development_reuse_not_untouched_confirmation",
+    "input_rows": 900,
+    "overall": {
+      "factorial00_losses": 109,
+      "factorial00_wins": 256,
+      "mean_factorial00": 0.3121348729444444,
+      "mean_factorial00_minus_jordan": 0.04756769625170933,
+      "mean_jordan": 0.2645671766927351,
+      "n": 900,
+      "ties": 535
+    },
+    "persuasion_seller": {
+      "all_non_ties_favor_jordan": true,
+      "by_config_regime": {
+        "myopic|binary|high_prior": {
+          "factorial00_losses": 16,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.5431034482758621,
+          "mean_factorial00_minus_jordan": -0.049999999999999996,
+          "mean_jordan": 0.593103448275862,
+          "n": 29,
+          "ties": 13
+        },
+        "myopic|binary|low_prior": {
+          "factorial00_losses": 10,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.3384615384615385,
+          "mean_factorial00_minus_jordan": -0.11153846153846153,
+          "mean_jordan": 0.44999999999999996,
+          "n": 13,
+          "ties": 3
+        },
+        "myopic|text|high_prior": {
+          "factorial00_losses": 7,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.5023809523809524,
+          "mean_factorial00_minus_jordan": -0.03095238095238096,
+          "mean_jordan": 0.5333333333333333,
+          "n": 21,
+          "ties": 14
+        },
+        "myopic|text|low_prior": {
+          "factorial00_losses": 0,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.24285714285714285,
+          "mean_factorial00_minus_jordan": 0.0,
+          "mean_jordan": 0.24285714285714285,
+          "n": 7,
+          "ties": 7
+        },
+        "persistent|binary|high_prior": {
+          "factorial00_losses": 10,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.5194444444444444,
+          "mean_factorial00_minus_jordan": -0.058333333333333334,
+          "mean_jordan": 0.5777777777777778,
+          "n": 18,
+          "ties": 8
+        },
+        "persistent|binary|low_prior": {
+          "factorial00_losses": 7,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.246875,
+          "mean_factorial00_minus_jordan": -0.059375000000000004,
+          "mean_jordan": 0.30625,
+          "n": 16,
+          "ties": 9
+        },
+        "persistent|text|high_prior": {
+          "factorial00_losses": 13,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.534,
+          "mean_factorial00_minus_jordan": -0.07200000000000001,
+          "mean_jordan": 0.606,
+          "n": 25,
+          "ties": 12
+        },
+        "persistent|text|low_prior": {
+          "factorial00_losses": 4,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.3125,
+          "mean_factorial00_minus_jordan": -0.0625,
+          "mean_jordan": 0.375,
+          "n": 8,
+          "ties": 4
+        }
+      },
+      "by_opponent_archetype": {
+        "adaptive": {
+          "factorial00_losses": 4,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.35,
+          "mean_factorial00_minus_jordan": -0.055555555555555546,
+          "mean_jordan": 0.40555555555555556,
+          "n": 9,
+          "ties": 5
+        },
+        "aggressive_extractor": {
+          "factorial00_losses": 0,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.20833333333333334,
+          "mean_factorial00_minus_jordan": 0.0,
+          "mean_jordan": 0.20833333333333334,
+          "n": 6,
+          "ties": 6
+        },
+        "boulware": {
+          "factorial00_losses": 0,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.33999999999999997,
+          "mean_factorial00_minus_jordan": 0.0,
+          "mean_jordan": 0.33999999999999997,
+          "n": 5,
+          "ties": 5
+        },
+        "commitment_respecting": {
+          "factorial00_losses": 5,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.43499999999999994,
+          "mean_factorial00_minus_jordan": -0.06500000000000002,
+          "mean_jordan": 0.5,
+          "n": 10,
+          "ties": 5
+        },
+        "commitment_testing": {
+          "factorial00_losses": 0,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.36428571428571427,
+          "mean_factorial00_minus_jordan": 0.0,
+          "mean_jordan": 0.36428571428571427,
+          "n": 7,
+          "ties": 7
+        },
+        "conceding": {
+          "factorial00_losses": 8,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.4875,
+          "mean_factorial00_minus_jordan": -0.13125,
+          "mean_jordan": 0.61875,
+          "n": 8,
+          "ties": 0
+        },
+        "deceptive": {
+          "factorial00_losses": 0,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.2785714285714286,
+          "mean_factorial00_minus_jordan": 0.0,
+          "mean_jordan": 0.2785714285714286,
+          "n": 7,
+          "ties": 7
+        },
+        "fairness_sensitive": {
+          "factorial00_losses": 9,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.4916666666666667,
+          "mean_factorial00_minus_jordan": -0.11249999999999999,
+          "mean_jordan": 0.6041666666666666,
+          "n": 12,
+          "ties": 3
+        },
+        "historical_imitator": {
+          "factorial00_losses": 2,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.4166666666666667,
+          "mean_factorial00_minus_jordan": -0.08333333333333331,
+          "mean_jordan": 0.5,
+          "n": 3,
+          "ties": 1
+        },
+        "level_0": {
+          "factorial00_losses": 6,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.625,
+          "mean_factorial00_minus_jordan": -0.10833333333333335,
+          "mean_jordan": 0.7333333333333334,
+          "n": 6,
+          "ties": 0
+        },
+        "level_1": {
+          "factorial00_losses": 11,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.5576923076923077,
+          "mean_factorial00_minus_jordan": -0.08461538461538462,
+          "mean_jordan": 0.6423076923076922,
+          "n": 13,
+          "ties": 2
+        },
+        "level_2": {
+          "factorial00_losses": 2,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.47692307692307695,
+          "mean_factorial00_minus_jordan": -0.007692307692307699,
+          "mean_jordan": 0.4846153846153846,
+          "n": 13,
+          "ties": 11
+        },
+        "myopic": {
+          "factorial00_losses": 7,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.6499999999999999,
+          "mean_factorial00_minus_jordan": -0.08333333333333331,
+          "mean_jordan": 0.7333333333333333,
+          "n": 9,
+          "ties": 2
+        },
+        "random": {
+          "factorial00_losses": 6,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.4444444444444444,
+          "mean_factorial00_minus_jordan": -0.08888888888888889,
+          "mean_jordan": 0.5333333333333333,
+          "n": 9,
+          "ties": 3
+        },
+        "rational": {
+          "factorial00_losses": 0,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.3611111111111111,
+          "mean_factorial00_minus_jordan": 0.0,
+          "mean_jordan": 0.3611111111111111,
+          "n": 9,
+          "ties": 9
+        },
+        "reciprocal": {
+          "factorial00_losses": 7,
+          "factorial00_wins": 0,
+          "mean_factorial00": 0.4772727272727273,
+          "mean_factorial00_minus_jordan": -0.059090909090909104,
+          "mean_jordan": 0.5363636363636364,
+          "n": 11,
+          "ties": 4
+        }
+      },
+      "factorial00_losses": 67,
+      "factorial00_wins": 0,
+      "mean_factorial00": 0.4492700729927007,
+      "mean_factorial00_minus_jordan": -0.0572992700729927,
+      "mean_jordan": 0.5065693430656935,
+      "mean_jordan_minus_factorial00": 0.0572992700729927,
+      "n": 137,
+      "ties": 70
+    }
+  },
+  "base_commit": "f2a1bb5afe6f83c3a8a03201a0e5939f748ecda9",
+  "behavior_trace": [
+    {
+      "decision_point": "offer",
+      "factorial00": "empty evidence and forced SAFE control",
+      "family": "bargaining",
+      "jordan": "heuristic evidence may select EXPLORE or EXPLOIT and thereby change the offer branch and Model-C search cap",
+      "payoff_relevant": true,
+      "roles": [
+        "player_1",
+        "player_2"
+      ],
+      "shared_surface": "beliefs, SPE/fairness anchor, optional Model-C offer search, and legal action"
+    },
+    {
+      "decision_point": "accept_or_reject",
+      "factorial00": "forced SAFE adds neither increment",
+      "family": "bargaining",
+      "jordan": "EXPLOIT adds 0.02 and EXPLORE adds 0.01 to the pre-clipped floor",
+      "payoff_relevant": true,
+      "roles": [
+        "player_1",
+        "player_2"
+      ],
+      "shared_surface": "continuation-value accept floor and final-round positive-payoff rule"
+    },
+    {
+      "decision_point": "offer",
+      "factorial00": "forced SAFE price branch",
+      "family": "negotiation",
+      "jordan": "heuristic control may select EXPLORE, COMMIT, or EXPLOIT price branches",
+      "payoff_relevant": true,
+      "roles": [
+        "buyer",
+        "seller"
+      ],
+      "shared_surface": "value beliefs, surplus calculation, outside option, and price bounds"
+    },
+    {
+      "decision_point": "accept_reject_and_counter",
+      "factorial00": "forced SAFE uses 0.22 and its action wrapper always attaches the core's next price to a rejection",
+      "family": "negotiation",
+      "jordan": "capture floor is 0.16 in EXPLOIT, 0.18 in COMMIT, otherwise 0.22; default policy does not attach its own counter on every rejection",
+      "payoff_relevant": true,
+      "roles": [
+        "buyer",
+        "seller"
+      ],
+      "shared_surface": "outside option and reservation-value checks"
+    },
+    {
+      "decision_point": "recommendation",
+      "factorial00": "forced SAFE makes low-quality recommendations no and records no shadow",
+      "family": "persuasion",
+      "jordan": "low quality may recommend yes only through late EXPLOIT/obedience gates; also records a shadow message that is not sent in default mode",
+      "payoff_relevant": true,
+      "roles": [
+        "seller"
+      ],
+      "shared_surface": "high quality always recommends yes; inherited fixed economic template"
+    },
+    {
+      "decision_point": "buy_or_pass",
+      "factorial00": "empty evidence leaves the safety margin at 0.04",
+      "family": "persuasion",
+      "jordan": "E_sample lowers the safety margin from 0.04 to 0.02 once visible transcript length reaches 10",
+      "payoff_relevant": true,
+      "roles": [
+        "buyer"
+      ],
+      "shared_surface": "recommendation parser, Bayesian posterior, break-even rule, and all experimental buyer flags off"
+    }
+  ],
+  "boundaries": {
+    "candidate_implemented": false,
+    "external_api_called": false,
+    "jordan_modified": false,
+    "live_or_rated_game_run": false,
+    "model_b_used": false,
+    "new_payoff_simulation_run": false,
+    "policy_promoted": false,
+    "underlying_evaluator_artifacts_opened": false,
+    "untouched_evaluation_read": false
+  },
+  "branch": "research/wave5d-competition-prep",
+  "evidence_class": "hypothesis_generation_from_previously_exposed_development_rows",
+  "hypotheses": [
+    {
+      "allowed_development_data": "the already-exposed 900-row Wave 5B ledger only for hypothesis formation and an exact replay; synthetic/action-parity fixtures; no untouched evaluation rows",
+      "eligible_cells": "all bargaining and negotiation roles at offer and response decisions; exact inert parity required in both persuasion roles",
+      "exact_code_delta": "Create a separate candidate subclass. Override _control so bargaining and negotiation return a SAFE StrategicControl with empty evidence and unchanged beliefs/coverage; delegate persuasion unchanged to JordanStrategicAgent._control. Change no family rule, counteroffer plumbing, artifact binding, message path, or default flag. Do not edit MyAgent.",
+      "failure_modes": [
+        "the exposed benchmark advantage is evaluator-specific or selection noise",
+        "SAFE sacrifices profitable adaptation against live opponents",
+        "ambient artifact activation differed between the two benchmark policies",
+        "gains concentrate in a few configurations or roles",
+        "negotiation counteroffer plumbing, not control mode, explains part of the result"
+      ],
+      "future_live_promotion_criterion": "Only after the frozen Jordan canary is attributable and the untouched offline gate passes: authorize a new v2 tuple and canary. Require telemetry hostile-audit PASS, every family official-rating 95% LCB >= 2000, bargaining and negotiation 95% LCB for v2-minus-Jordan > 0, and persuasion noninferiority lower bound >= -100 rating points before champion promotion.",
+      "id": "jordan_v2_family_local_neutral_control",
+      "offline_kill_check": "On the exact exposed 900 scenario identities, require persuasion action-byte parity, no affected family-role paired mean below -0.005, bargaining mean at least +0.020, overall mean at least +0.010, and no configuration regime holding more than 50% of absolute gains. Any failure kills this formulation; passage is development evidence only.",
+      "status": "hypothesis_only_unimplemented",
+      "theory": "The bargaining/negotiation heuristic mode selector pays for exploration or strategic screening without a causal value-of-information certificate. A neutral mode preserves the theory/reservation-value core while persuasion retains the legacy late seller exploitation that Factorial00 removed.",
+      "untouched_confirmation": "prospectively freeze a structurally disjoint non-Model-B confirmation of 1,600 paired games per affected family, seed 20260901, and apply the existing full promotion gate plus family/role non-regression without threshold changes"
+    },
+    {
+      "allowed_development_data": "the exposed Wave 5B persuasion-seller rows and their public regime labels for hypothesis formation; synthetic visible-history probes; no unobserved declined qualities and no untouched evaluation rows",
+      "eligible_cells": "persuasion seller, low quality, at least three prior yes recommendations, split prospectively by myopic versus persistent receiver; all other cells exactly inert",
+      "exact_code_delta": "In a separate candidate, expose prior_yes_recommendations and prior_buys_after_yes from _persuasion_beliefs. Replace only the low-quality seller EXPLOIT branch with a one-sided 90% Wilson lower bound on P(buy|yes), requiring n>=3. For myopic buyers require LCB>=0.50 and remaining_fraction<=0.50; for persistent buyers require LCB>=0.55, no prior visible yes-on-low event, and remaining_fraction<=0.25. High-quality recommendations and both buyer policies remain byte-identical. Do not edit MyAgent.",
+      "failure_modes": [
+        "the seller cannot legally observe the required response counts in a target schema",
+        "myopic market statistics still transmit enough reputation cost to erase the gain",
+        "the stricter persistent gate discards profitable terminal sales",
+        "Wilson thresholds are too sparse for twenty-round games",
+        "apparent gains are driven by the exposed evaluator's buyer policy"
+      ],
+      "future_live_promotion_criterion": "After untouched confirmation and a fresh policy/telemetry audit, separately authorize a persuasion v2 canary. Require 100 attributable terminals, official rating 95% LCB >= 2000, v2-minus-frozen-Jordan 95% LCB > 0, no integrity stop, and no persistent-receiver subgroup regression before champion promotion.",
+      "id": "jordan_v2_memory_aware_seller_exploitation",
+      "offline_kill_check": "On an exact exposed-ledger replay, require changes only in eligible low-quality seller turns, persuasion-seller mean candidate-minus-Jordan >= +0.005, both myopic and persistent means >= 0, no regime mean below -0.010, gain concentration <= 0.50, and zero illegal/private-field reads. Any failure kills this formulation; passage is development evidence only.",
+      "status": "hypothesis_only_unimplemented",
+      "theory": "A sale has immediate seller value, but a revealed low-quality recommendation can destroy personalized trust for a persistent buyer. Myopic and persistent receivers therefore have different intertemporal reputation costs; a sample-aware lower bound prevents treating a smoothed prior as obedience evidence.",
+      "untouched_confirmation": "prospectively freeze 1,600 structurally disjoint non-Model-B persuasion games, seed 20260902, with seller as primary role and prespecified myopic/persistent subgroups; apply the full promotion gate and intent-to-treat missingness"
+    }
+  ],
+  "input_sha256": {
+    "research/EVIDENCE/WAVE5B_SHARED_BACKBONE/observations.jsonl": "66ffc4c3ebfdf80fec9cad677c92f5151074088c643e5fd75f9e350861959211",
+    "research/EVIDENCE/WAVE5B_SHARED_BACKBONE/summary.json": "1031dd237f7092b7ac8be00ccaf079166595827d74a5d9d64645835df9253936"
+  },
+  "persuasion_seller_tradeoff": {
+    "causal_status": "underidentified: the exposed ledger contains terminal payoffs and subgroup labels, not action trajectories or intervention labels; source alignment is a falsifiable mechanism hypothesis, not a decomposition of the payoff gap",
+    "observed_development_pattern": "Jordan exceeds Factorial00 by 0.0572992700729927 mean payoff across 137 seller rows; all 67 non-ties favor Jordan and 70 tie. The sign is nonnegative for Jordan in every recorded regime and archetype.",
+    "source_aligned_mechanism": "Factorial00 deletes heuristic control by forcing SAFE. In low-quality seller turns that removes Jordan's only late obedience-conditioned yes branch; high-quality recommendations remain yes."
+  },
+  "schema": "glee.research.wave5d_competition_prep.v1",
+  "source_sha256": {
+    "my_agents/jordan_strategic.py": "27526fc4801a856cbf0db4690a336f1f375a98fbe52256c3672935a3ea24fc82",
+    "research/CANDIDATES/r1_treatment_off_baseline.py": "5e6e5daebef9df16c06ce2c4bdc3a3378b30241a4b23b08310f9447c051998a9",
+    "research/CANDIDATES/wave3_factorial_agents.py": "f5b34b42c759391a0f68d188ce71e51cbc43a33e128dd73fcecbfebd8e6a8265"
+  },
+  "strict_evidence_ceiling": "candidate/self-audited competition-preparation hypotheses only; no new payoff, predictive, confirmation, receiver, leaderboard, or promotion evidence"
+}
