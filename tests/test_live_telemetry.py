@@ -126,7 +126,10 @@ class GitAndEnvironmentIdentityTests(unittest.TestCase):
         evidence = json.loads((REPO / "research/EVIDENCE/WAVE5C_JORDAN_TELEMETRY.json").read_text())
         checkpoint = evidence["implementation_checkpoint"]
         route = (REPO / "research/ROUTES/WAVE5C_JORDAN_TELEMETRY.md").read_text()
-        documented = re.findall(r"d974c[0-9a-f]{35}", route)
+        documented = re.findall(
+            r"(?:telemetry implementation checkpoint: `|detached checkout at `)([0-9a-f]{40})",
+            route,
+        )
         self.assertTrue(documented)
         self.assertEqual(set(documented), {checkpoint})
         resolved = subprocess.run(

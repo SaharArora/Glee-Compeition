@@ -3,7 +3,7 @@
   "created_at_utc": "2026-08-17T03:39:55Z",
   "branch": "research/wave5c-telemetry",
   "base_commit": "9691117d11415519d1e8e0c42810957b714663c6",
-  "implementation_checkpoint": "d974c26040e64e68739b671ebdfc509151894e16",
+  "implementation_checkpoint": "8950b3cb633195929e273a57c64f8db5f5b782a2",
   "frozen_candidate": {
     "commit": "bce578597dbfacf2ebca38399edb41a5dde2f936",
     "entrypoint": "my_agents.jordan_strategic:MyAgent",
@@ -52,9 +52,9 @@
   },
   "verification": {
     "glee_sdk_version": "0.0.5",
-    "route_l_tests": 15,
+    "route_l_tests": 18,
     "route_l_failures": 0,
-    "live_path_compatibility_tests": 91,
+    "live_path_compatibility_tests": 95,
     "live_path_failures": 0,
     "live_path_skips_with_sdk_installed": 0,
     "clean_offline_rehearsal": {
@@ -82,9 +82,10 @@
     ]
   },
   "source_sha256": {
-    "glee_eval/live_telemetry.py": "a83f3ff0ec3dde7a2e31670c6ad3257076ba25c7f8638f529d262d8dc2e33574",
-    "glee_eval/telemetry_audit.py": "89f85ad2b74e8974b5831bfe9b792f2b8ed6577c830d907ff17c13f0c2ac44d2",
-    "tests/test_live_telemetry.py": "84d0dd2be9f354fc50d400c4e8b29d48c237a1c6c800f0d9e1e57e1a218796c4"
+    "glee_eval/live_telemetry.py": "12f115f9d3c6cfadc5d6c21584f24e348f654f0a757ddd01c509a3a4ce8f66a0",
+    "glee_eval/telemetry_audit.py": "3c5e3f52f7458dce6b8e91de45f637366654525c1f8cb3d3e364c4bf781e0386",
+    "tests/test_live_telemetry.py_at_implementation_checkpoint": "cdf25ae11002b321ad59f9c99c4c0c0b66d82643f9649d68b178b1f5ef6a9bf6",
+    "tests/test_live_telemetry.py_followup_verification": "cb5659de251dfa1d342b5f5047ec9d88da6571b01a3a543231e38f8f6980bbf4"
   },
   "readiness": {
     "exact_state": 2,

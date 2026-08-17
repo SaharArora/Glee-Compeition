@@ -1,0 +1,51 @@
+{
+  "schema": "glee.research.wave5c_jordan_independent_audit.v1",
+  "auditor": "root",
+  "audited_pre_fix_head": "106eaee2faa14a90ff172999fd77ca8895c96de1",
+  "audit_verdict_pre_fix": "NO_GO_STATE_1",
+  "findings": [
+    {
+      "id": "implementation_commit_identity",
+      "finding": "documentation and evidence named a nonexistent d974c26 object",
+      "fix": "resolved the real object and then advanced the documented executable checkpoint to the fixed implementation commit; regression parses both route references and requires git rev-parse equality"
+    },
+    {
+      "id": "preexisting_active_games",
+      "finding": "identity preflight did not reject initial active_games != 0",
+      "fix": "numeric active_games is mandatory and must equal zero before the first queue request; hostile test verifies zero queue calls and durable failed reconciliation"
+    },
+    {
+      "id": "auditor_independence",
+      "finding": "auditor imported the expected Jordan tuple from the subject implementation",
+      "fix": "independent auditor now freezes the six expected tuple values literally; coherent subject, manifest, identity-event and hash-chain mutation is rejected"
+    },
+    {
+      "id": "ambiguous_generic_rating",
+      "finding": "nested result.rating was accepted as an official per-game game rating without bound captured schema evidence",
+      "fix": "only official_game_rating or game_rating can satisfy the capability; result.rating remains explicitly unavailable"
+    },
+    {
+      "id": "redact_control_flow",
+      "finding": "fresh review requested removal of a duplicate return in _redact",
+      "fix": "verified the fixed implementation contains one terminal return value and no duplicate return"
+    }
+  ],
+  "fixed_implementation_commit": "8950b3cb633195929e273a57c64f8db5f5b782a2",
+  "fixed_source_sha256": {
+    "glee_eval/live_telemetry.py": "12f115f9d3c6cfadc5d6c21584f24e348f654f0a757ddd01c509a3a4ce8f66a0",
+    "glee_eval/telemetry_audit.py": "3c5e3f52f7458dce6b8e91de45f637366654525c1f8cb3d3e364c4bf781e0386",
+    "tests/test_live_telemetry.py_at_fixed_commit": "cdf25ae11002b321ad59f9c99c4c0c0b66d82643f9649d68b178b1f5ef6a9bf6"
+  },
+  "followup_verification_test_sha256": "cb5659de251dfa1d342b5f5047ec9d88da6571b01a3a543231e38f8f6980bbf4",
+  "required_verification": {
+    "route_l_tests": 18,
+    "live_path_compatibility_tests": 95,
+    "failures": 0,
+    "skips_with_glee_sdk_0_0_5": 0,
+    "diff_check": "pass"
+  },
+  "external_requests_during_fix": 0,
+  "live_or_rated_games_during_fix": 0,
+  "post_fix_verdict": "GO_STATE_2",
+  "verdict_scope": "telemetry attribution readiness only; no claim of competitive performance and no live-game authorization"
+}

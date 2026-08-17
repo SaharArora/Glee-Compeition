@@ -14,7 +14,7 @@ schema without entering matchmaking.
 - policy path/hash: `my_agents/jordan_strategic.py`,
   `27526fc4801a856cbf0db4690a336f1f375a98fbe52256c3672935a3ea24fc82`;
 - platform identity: `99357c15-48d5-4177-9d6a-48d02b95a164` / `gangsteryoshi`;
-- telemetry implementation checkpoint: `d974c26040e64e68739b671ebdfc509151894e16`;
+- telemetry implementation checkpoint: `8950b3cb633195929e273a57c64f8db5f5b782a2`;
 - optional artifacts: all four `GLEE_OPPONENT_POPULATION`, `GLEE_CONFIG_CATALOGUE`,
   `GLEE_RESPONSE_MODEL`, and `GLEE_SUPPORT_INDEX` must be absent.
 
@@ -49,9 +49,9 @@ identity, terminal uniqueness/completeness, required fields, and official-score 
 
 ## Verification and capability result
 
-- 15 Route-L tests passed under Python 3.14 with `glee-sdk==0.0.5`, including the real SDK
+- 18 Route-L tests passed under Python 3.14 with `glee-sdk==0.0.5`, including the real SDK
   `_handle_game` boundary with all HTTP methods replaced offline.
-- 91 live-path compatibility tests passed with no skips.
+- 95 live-path compatibility tests passed with no skips.
 - A clean three-family offline launch produced 22 linked events, three unique terminals and an
   independent hostile-audit `PASS`; secret-literal, dirty-tree, identity-mismatch,
   configuration-tamper and duplicate-terminal attacks all fail.
@@ -81,7 +81,7 @@ until the first authorized terminal response.
 
 ## Exact future canary
 
-Prepare a clean detached checkout at `d974c26040e64e68739b671ebdfc509151894e16`; create a fresh
+Prepare a clean detached checkout at `8950b3cb633195929e273a57c64f8db5f5b782a2`; create a fresh
 runtime with `python3 -m pip install -e '.[live]'`; load the API key and a distinct HMAC key; and
 verify the output directory does not yet exist. The only launch command is:
 
