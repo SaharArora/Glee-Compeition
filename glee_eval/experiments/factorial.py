@@ -19,6 +19,7 @@ from glee_eval.data.schemas import EpisodeResult, Scenario, to_jsonable
 from glee_eval.population.config_catalogue import ConfigCatalogue
 from glee_eval.population.opponent_fit import OpponentPopulation
 from glee_eval.population.sampler import sample_scenario
+from glee_eval.experiments.receiver_itt import receiver_envelope_itt_payoff
 from glee_eval.tournament.runner import run_episode
 
 
@@ -226,6 +227,7 @@ class ArmResult:
     non_language_record_hash: str
     non_eprocess_record_hash: str
     episode: EpisodeResult
+    receiver_itt_payoff: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -284,7 +286,11 @@ def _named_seed(master_seed: int, scenario_id: str, stream: str) -> int:
 
 
 def _scenario_seed(master_seed: int, family: str, family_index: int) -> int:
-    payload = f"glee.factorial.v2|{master_seed}|scenario|{family}|{family_index}".encode("utf-8")
+    rows_per_cluster = len(FAMILY_ROLES[family]) * DESIGN_A_RECEIVER_REPLICATES
+    base_index = family_index // rows_per_cluster
+    payload = f"glee.factorial.v2|{master_seed}|base-scenario|{family}|{base_index}".encode(
+        "utf-8"
+    )
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big") & ((1 << 63) - 1)
 
 
@@ -310,12 +316,7 @@ def factorial_receiver_replicate(family: str, family_index: int) -> int:
 
 
 def factorial_base_stratum_payload(scenario: Scenario) -> dict[str, Any]:
-    """Project role/replicate-invariant economic-stratum bytes.
-
-    Treatment, payoff, row identifiers, roles, and environment/opponent seeds
-    are absent by construction. Production validation requires all four
-    role/replicate views in a Design-A cluster to have this exact projection.
-    """
+    """Project the one shared economic payload crossed by role and replicate."""
 
     opponent = dict(scenario.opponent_spec)
     opponent.pop("seed", None)
@@ -331,6 +332,41 @@ def factorial_base_stratum_payload(scenario: Scenario) -> dict[str, Any]:
 
 def factorial_base_stratum_hash(scenario: Scenario) -> str:
     return _hash(factorial_base_stratum_payload(scenario))
+
+
+def validate_design_a_crossings(rows: list[FactorialRow]) -> None:
+    """Reject duplicate/malformed cells and verify every complete four-row crossing."""
+
+    clusters: dict[tuple[str, str], list[FactorialRow]] = {}
+    for row in rows:
+        key = (row.family, row.base_stratum_id)
+        clusters.setdefault(key, []).append(row)
+        expected_hashes = {factorial_base_stratum_hash(arm.episode.scenario) for arm in row.arms}
+        if expected_hashes != {row.base_stratum_hash}:
+            raise FactorialIntegrityError("base-stratum identity hash mismatch")
+        if row.receiver_replicate not in range(DESIGN_A_RECEIVER_REPLICATES):
+            raise FactorialIntegrityError("receiver replicate is outside Design A")
+    for (family, base_stratum_id), cluster_rows in clusters.items():
+        cells = [
+            (row.candidate_role, row.receiver_replicate) for row in cluster_rows
+        ]
+        if len(cells) != len(set(cells)):
+            raise FactorialIntegrityError(
+                f"base stratum {base_stratum_id} repeats a role/receiver cell"
+            )
+        expected = {
+            (role, replicate)
+            for role in FAMILY_ROLES[family]
+            for replicate in range(DESIGN_A_RECEIVER_REPLICATES)
+        }
+        if len(cluster_rows) == len(expected) and set(cells) != expected:
+            raise FactorialIntegrityError(
+                f"base stratum {base_stratum_id} lacks the exact Design-A crossing"
+            )
+        if len({row.base_stratum_hash for row in cluster_rows}) != 1:
+            raise FactorialIntegrityError(
+                f"base stratum {base_stratum_id} does not share one economic payload"
+            )
 
 
 def _initial_state_manifest(scenario: Scenario) -> dict[str, Any]:
@@ -546,6 +582,8 @@ def run_factorial(
     support_mask_fn = support_mask_fn or (lambda scenario: {})
     eligibility_fn = eligibility_fn or (lambda scenario: {"language_eligible": False})
     family_counts = {family: 0 for family in families}
+    base_scenarios: dict[tuple[str, int], Scenario] = {}
+    seen_base_scenario_ids: set[str] = set()
     rows: list[FactorialRow] = []
     seen_scenario_ids: set[str] = set()
 
@@ -555,19 +593,63 @@ def run_factorial(
         family_counts[family] += 1
         roles = FAMILY_ROLES[family]
         candidate_role = roles[family_index % len(roles)]
+        receiver_replicate = factorial_receiver_replicate(family, family_index)
+        rows_per_cluster = len(roles) * DESIGN_A_RECEIVER_REPLICATES
+        base_index = family_index // rows_per_cluster
         scenario_seed = _scenario_seed(seed, family, family_index)
-        if scenario_factory is None:
-            scenario = sample_scenario(
-                family,
-                seed=scenario_seed,
-                candidate_role=candidate_role,
-                population=population,
-                catalogue=catalogue,
-            )
-        else:
-            scenario = scenario_factory(family, scenario_seed, candidate_role)
-        if scenario.game_family != family or scenario.candidate_role != candidate_role:
-            raise FactorialIntegrityError("scenario factory changed family or balanced role")
+        base_key = (family, base_index)
+        if base_key not in base_scenarios:
+            if scenario_factory is None:
+                base_scenario = sample_scenario(
+                    family,
+                    seed=scenario_seed,
+                    candidate_role=roles[0],
+                    population=population,
+                    catalogue=catalogue,
+                )
+            else:
+                base_scenario = scenario_factory(family, scenario_seed, roles[0])
+            if (
+                base_scenario.game_family != family
+                or base_scenario.candidate_role != roles[0]
+            ):
+                raise FactorialIntegrityError(
+                    "scenario factory changed the base family or anchor role"
+                )
+            if base_scenario.scenario_id in seen_base_scenario_ids:
+                raise FactorialIntegrityError(
+                    f"duplicate scenario_id in base payload: {base_scenario.scenario_id}"
+                )
+            seen_base_scenario_ids.add(base_scenario.scenario_id)
+            base_scenarios[base_key] = copy.deepcopy(base_scenario)
+        base_scenario = copy.deepcopy(base_scenarios[base_key])
+        opponent_role = roles[1] if candidate_role == roles[0] else roles[0]
+        scenario_id = _hash(
+            {
+                "schema": "glee.research.factorial_design_a_row.v1",
+                "base_scenario_id": base_scenario.scenario_id,
+                "family": family,
+                "base_index": base_index,
+                "candidate_role": candidate_role,
+                "receiver_replicate": receiver_replicate,
+            }
+        )[:24]
+        base_metadata = copy.deepcopy(base_scenario.metadata)
+        base_metadata["factorial_design_a"] = {
+            "schema": "glee.research.factorial_design_a_crossing.v1",
+            "base_stratum_id": factorial_base_stratum_id(family, family_index),
+            "base_economic_payload_sha256": factorial_base_stratum_hash(base_scenario),
+            "candidate_role": candidate_role,
+            "receiver_replicate": receiver_replicate,
+        }
+        scenario = replace(
+            base_scenario,
+            scenario_id=scenario_id,
+            candidate_role=candidate_role,
+            opponent_role=opponent_role,
+            seed=scenario_seed,
+            metadata=base_metadata,
+        )
 
         if scenario.scenario_id in seen_scenario_ids:
             raise FactorialIntegrityError(f"duplicate scenario_id: {scenario.scenario_id}")
@@ -668,6 +750,30 @@ def run_factorial(
                 )
             randomness.validate_bindings(binding_fn())
             episode = run_episode(arm_scenario, agent)
+            receiver_itt_payoff = None
+            receiver_envelope = episode.replay_artifacts.get(
+                "controlled_receiver_envelope"
+            )
+            if receiver_envelope is not None:
+                if not isinstance(receiver_envelope, Mapping):
+                    raise FactorialIntegrityError(
+                        "controlled receiver envelope is malformed"
+                    )
+                try:
+                    receiver_itt_payoff = receiver_envelope_itt_payoff(
+                        receiver_envelope
+                    )
+                except (TypeError, ValueError) as exc:
+                    raise FactorialIntegrityError(
+                        "controlled receiver ITT admission failed"
+                    ) from exc
+                if (
+                    receiver_itt_payoff["terminal_candidate_payoff"]
+                    != float(episode.candidate_payoff)
+                ):
+                    raise FactorialIntegrityError(
+                        "receiver ITT payoff differs from natural episode payoff"
+                    )
             randomness_audit = randomness.validate_complete()
             if _hash(arm_scenario) != scenario_hash:
                 raise FactorialIntegrityError(f"arm {arm} mutated its scenario")
@@ -709,6 +815,7 @@ def run_factorial(
                     non_language_record_hash=_hash(_treatment_projection(episode, "language")),
                     non_eprocess_record_hash=_hash(_treatment_projection(episode, "eprocess")),
                     episode=episode,
+                    receiver_itt_payoff=receiver_itt_payoff,
                 )
             )
 
@@ -736,6 +843,7 @@ def run_factorial(
                 receiver_replicate=factorial_receiver_replicate(family, family_index),
             )
         )
+    validate_design_a_crossings(rows)
     return rows
 
 
@@ -744,6 +852,7 @@ def integrity_certificate(rows: list[FactorialRow]) -> dict[str, Any]:
         raise ValueError("cannot certify an empty factorial run")
     for row in rows:
         _assert_paired_manifests(list(row.arms))
+    validate_design_a_crossings(rows)
     return {
         "schema": "glee.factorial.integrity.v2",
         "rows": len(rows),
@@ -766,4 +875,5 @@ def integrity_certificate(rows: list[FactorialRow]) -> dict[str, Any]:
         ),
         "arm_order": list(FACTORIAL_ARMS),
         "paired_manifest_fields_identical": True,
+        "base_stratum_crossings_validated": True,
     }

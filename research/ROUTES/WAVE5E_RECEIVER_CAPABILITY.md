@@ -1,6 +1,7 @@
 # Wave 5E frozen GPT-4.1 receiver capability route
 
-Status: **implemented offline; protected key absent; independent audit required; no API call.**
+Status: **first freeze received independent NO-GO; repaired offline; protected key absent;
+independent re-audit required; no API call.**
 
 The adapter uses only the Python 3.10.13 standard library. It targets exactly
 `https://api.openai.com/v1/responses` with model snapshot `gpt-4.1-2025-04-14`, strict JSON Schema
@@ -16,12 +17,18 @@ Outputs support, and prices of `$2/M` input tokens and `$8/M` output tokens:
   certificate.
 - Requests bypass proxy environment variables, reject redirects, use the platform TLS trust
   store, send no hidden treatment/outcome field, and set `store=false`.
+- The two frozen receiver seeds remain request-identity/cache-partition tags. The Responses request
+  sends no unsupported `seed` parameter; the capability rule therefore tests two prospectively
+  named replicate request sets, not provider-seeded determinism.
 - Provider response bodies and HTTP reason text are never exposed in exceptions. Only the strict
-  decision JSON and exact token/cost accounting enter the in-memory receiver harness.
+  decision JSON and exact token/cost accounting enter the in-memory receiver harness. Reads stop
+  at 65,537 bytes and reject any body larger than the 65,536-byte lock.
 - Capability output contains request/response hashes, decisions, checks, and aggregate accounting;
   it does not persist the raw provider response or API key.
-- The output directory must not already exist and must be outside Git. The certificate is written
-  atomically with mode `0600` inside a mode-`0700` directory.
+- The key must be a nonsymlink regular file outside Git with exact mode `0600`. The audit document
+  must also be a bounded nonsymlink regular file outside Git. The output directory must be fresh,
+  outside Git and mode `0700`; PASS and runtime/provider/parser/budget FAIL certificates are written
+  atomically at mode `0600` without provider bodies, exception text, or credentials.
 
 ## Route cap
 
@@ -31,7 +38,8 @@ attempts maximum. Each attempt pre-reserves at most 2,048 input tokens and 16 ou
 frozen prices: `2048×2 + 16×8 = 4,224 microusd`. The maximum pre-reservation is therefore 844,800
 microusd, below the hard route ceiling of 1,000,000 microusd (`$1.00`). The adapter rejects a
 complete canonical provider payload longer than 2,048 ASCII bytes, a conservative upper bound on
-its request-token count. No automatic fallback exists.
+its request-token count. Every attempt debits the full 4,224-microusd reservation before transport;
+timeouts and unknown-usage errors never record zero spend. No automatic fallback exists.
 
 Capability PASS requires all frozen Wave 5C delivery, serialized-field, hidden-input,
 parser/failure-arm-invariance, and exact-cache replay checks, plus text-only decision changes in at
@@ -46,8 +54,12 @@ The runner refuses to load a key or call the endpoint unless a separate audit do
 - names an independent auditor;
 - binds the current exact Git commit;
 - exactly matches the SHA-256 map of the adapter, harness, ITT, capability runner, frozen Wave 5C
-  receiver builder, and dependency lock;
+  receiver builder, manifest/evaluator/report repair, and dependency lock;
 - records `automatic_fallback=false` and `api_call_performed_by_audit=false`.
+
+The runner also requires the supplied root to be the exact Git toplevel, every executing module to
+resolve under it, every audited path to be a nonsymlink regular file, the relevant worktree paths
+to be clean, and working SHA-256 bytes to match both the audit map and their current `HEAD` blobs.
 
 The audit document should be stored outside this branch/repository. Its source hashes can be
 reconstructed offline with `wave5e_capability.source_hashes(repository_root)`.
@@ -68,12 +80,17 @@ chmod 600 /absolute/path/outside/git/wave5e-secrets/openai_api_key
 Then run exactly one fresh capability route while attended:
 
 ```bash
-python -m glee_eval.experiments.wave5e_capability capability \
+/Users/sahararora/.pyenv/versions/3.10.13/bin/python --version
+/Users/sahararora/.pyenv/versions/3.10.13/bin/python \
+  -m glee_eval.experiments.wave5e_capability capability \
   --repository-root /absolute/path/to/audited/Glee-Wave5E-P \
   --api-key-file /absolute/path/outside/git/wave5e-secrets/openai_api_key \
   --audit-go /absolute/path/outside/git/wave5e-audit/adapter_audit_go.json \
   --output-dir /absolute/fresh/path/outside/git/wave5e-capability
 ```
+
+The first command must print exactly `Python 3.10.13`. That interpreter is already present and
+the capability route uses only the locked standard library; no package installation is required.
 
 Do not set `OPENAI_API_KEY` in repository files. Do not rerun a FAIL automatically. The only
 expected durable output is `capability_certificate.json`, with `PASS` or `FAIL` and exact stop/

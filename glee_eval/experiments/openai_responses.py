@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import socket
 import ssl
+import stat
 import time
 import urllib.error
 import urllib.request
@@ -32,6 +34,8 @@ INPUT_MICROUSD_PER_TOKEN = 2
 OUTPUT_MICROUSD_PER_TOKEN = 8
 ADAPTER_SCHEMA = "glee.research.openai_responses_adapter.gpt41.v1"
 MAX_BILLABLE_INPUT_TOKEN_UPPER_BOUND = 2048
+MAX_RESPONSE_BODY_BYTES = 65_536
+MAX_API_KEY_BYTES = 4_096
 
 
 class OpenAIAdapterError(RuntimeError):
@@ -73,20 +77,45 @@ def _exact_object(value: bytes) -> dict[str, Any]:
 
 
 def load_protected_api_key(path: str | Path, *, repository_root: str | Path) -> str:
-    """Read a nonempty key from a mode-0600-style regular file outside Git."""
+    """Read a nonempty key from an exact mode-0600 nonsymlink file outside Git."""
 
-    key_path = Path(path).expanduser().resolve(strict=True)
+    key_path = Path(path).expanduser().absolute()
     repository = Path(repository_root).resolve(strict=True)
     try:
-        key_path.relative_to(repository)
+        link_stat = key_path.lstat()
+    except OSError as exc:
+        raise OpenAIAdapterError("API key file is unavailable") from exc
+    if stat.S_ISLNK(link_stat.st_mode):
+        raise OpenAIAdapterError("API key file must not be a symbolic link")
+    resolved_key_path = key_path.resolve(strict=True)
+    if resolved_key_path != key_path:
+        raise OpenAIAdapterError("API key path must not traverse symbolic links")
+    try:
+        resolved_key_path.relative_to(repository)
     except ValueError:
         pass
     else:
         raise OpenAIAdapterError("API key file must be outside the repository")
-    stat = key_path.stat()
-    if not key_path.is_file() or stat.st_mode & 0o077:
-        raise OpenAIAdapterError("API key file must be regular and inaccessible to group/other")
-    key = key_path.read_text(encoding="utf-8").strip()
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(key_path, flags)
+    except OSError as exc:
+        raise OpenAIAdapterError("API key file cannot be opened safely") from exc
+    try:
+        descriptor_stat = os.fstat(descriptor)
+        if not stat.S_ISREG(descriptor_stat.st_mode):
+            raise OpenAIAdapterError("API key path must be a regular file")
+        if stat.S_IMODE(descriptor_stat.st_mode) != 0o600:
+            raise OpenAIAdapterError("API key file mode must be exactly 0600")
+        raw = os.read(descriptor, MAX_API_KEY_BYTES + 1)
+    finally:
+        os.close(descriptor)
+    if len(raw) > MAX_API_KEY_BYTES:
+        raise OpenAIAdapterError("API key file is unexpectedly large")
+    try:
+        key = raw.decode("utf-8").strip()
+    except UnicodeDecodeError as exc:
+        raise OpenAIAdapterError("API key file is not UTF-8") from exc
     if not key or "\n" in key or "\r" in key:
         raise OpenAIAdapterError("API key file must contain exactly one nonempty line")
     return key
@@ -126,6 +155,7 @@ class OpenAIResponsesTransport:
             "top_p": 1,
             "max_output_tokens": 16,
             "response_format": "strict_json_schema",
+            "receiver_seed_scope": "request_identity_only_not_provider_parameter",
         }
         if decoding != expected_decoding:
             raise OpenAIAdapterError("receiver envelope changed frozen decoding parameters")
@@ -152,7 +182,6 @@ class OpenAIResponsesTransport:
             "temperature": 0,
             "top_p": 1,
             "max_output_tokens": 16,
-            "seed": int(outbound.get("seed")),
             "store": False,
         }
         if len(canonical_json_bytes(payload)) > MAX_BILLABLE_INPUT_TOKEN_UPPER_BOUND:
@@ -185,6 +214,8 @@ class OpenAIResponsesTransport:
                     refusals += 1
         if refusals:
             return canonical_json_bytes({"decision": "refuse"})
+        if not texts:
+            return b""
         if len(texts) != 1:
             raise OpenAIAdapterError("Responses API result must contain exactly one output_text")
         return texts[0].encode("utf-8")
@@ -194,13 +225,17 @@ class OpenAIResponsesTransport:
         usage = response.get("usage")
         if not isinstance(usage, Mapping):
             raise OpenAIAdapterError("Responses API result lacks exact token usage")
-        try:
-            input_tokens = int(usage["input_tokens"])
-            output_tokens = int(usage["output_tokens"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise OpenAIAdapterError("Responses API token usage is malformed") from exc
-        if input_tokens < 0 or output_tokens < 0:
-            raise OpenAIAdapterError("Responses API token usage is negative")
+        input_tokens = usage.get("input_tokens")
+        output_tokens = usage.get("output_tokens")
+        if (
+            type(input_tokens) is not int
+            or type(output_tokens) is not int
+            or input_tokens < 0
+            or output_tokens < 0
+        ):
+            raise OpenAIAdapterError(
+                "Responses API token usage must be strict nonnegative integers"
+            )
         return Usage(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -234,7 +269,7 @@ class OpenAIResponsesTransport:
             with response:
                 status = int(getattr(response, "status", response.getcode()))
                 final_url = str(response.geturl())
-                raw = response.read()
+                raw = response.read(MAX_RESPONSE_BODY_BYTES + 1)
         except (TimeoutError, socket.timeout) as exc:
             raise TimeoutError("OpenAI Responses request timed out") from exc
         except urllib.error.HTTPError as exc:
@@ -250,6 +285,8 @@ class OpenAIResponsesTransport:
             raise OpenAIAdapterError(f"OpenAI Responses HTTP status {status}")
         if final_url != OPENAI_RESPONSES_ENDPOINT:
             raise OpenAIAdapterError("OpenAI Responses request was redirected")
+        if len(raw) > MAX_RESPONSE_BODY_BYTES:
+            raise OpenAIAdapterError("OpenAI Responses body exceeds the frozen byte limit")
         try:
             document = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -272,6 +309,7 @@ __all__ = [
     "FROZEN_MODEL",
     "INPUT_MICROUSD_PER_TOKEN",
     "MAX_BILLABLE_INPUT_TOKEN_UPPER_BOUND",
+    "MAX_RESPONSE_BODY_BYTES",
     "OPENAI_RESPONSES_ENDPOINT",
     "OUTPUT_MICROUSD_PER_TOKEN",
     "OpenAIAdapterError",

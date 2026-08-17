@@ -14,6 +14,7 @@
     "pathlib",
     "socket",
     "ssl",
+    "stat",
     "subprocess",
     "tempfile",
     "time",
@@ -25,13 +26,16 @@
     "host": "api.openai.com",
     "path": "/v1/responses",
     "redirects": "disabled_fail_closed",
-    "proxy_environment": "ignored_direct_connection_only"
+    "proxy_environment": "ignored_direct_connection_only",
+    "maximum_response_body_bytes": 65536
   },
   "receiver": {
     "provider": "openai",
     "model_alias": "gpt-4.1",
     "immutable_snapshot": "gpt-4.1-2025-04-14",
     "structured_output": "strict_json_schema",
+    "provider_seed_parameter_sent": false,
+    "receiver_seed_scope": "request_identity_and_cache_partition_only",
     "automatic_fallback": false
   },
   "pricing_microusd_per_token": {
@@ -41,8 +45,34 @@
   "capability_route": {
     "nominal_requests": 100,
     "maximum_attempts": 200,
+    "wall_clock_cap_seconds": 6000,
     "hard_cost_cap_microusd": 1000000,
     "maximum_prereserved_cost_microusd": 844800
+  },
+  "security": {
+    "api_key_file": "outside_repository_nonsymlink_regular_exact_mode_0600",
+    "audit_document": "outside_repository_nonsymlink_bounded_regular_file",
+    "output_directory": "fresh_outside_repository_nonsymlink_exact_mode_0700",
+    "unknown_or_timeout_usage": "conservative_reservation_debited_before_transport",
+    "failure_certificate": "atomic_redacted_FAIL_for_provider_parser_budget_runtime_stop"
+  },
+  "runtime_binding": {
+    "git_toplevel_must_equal_repository_root": true,
+    "executing_modules_must_resolve_under_repository_root": true,
+    "audited_sources_must_match_worktree_sha256_audit_map_and_HEAD_blobs": true,
+    "audited_source_set_must_be_clean": true,
+    "symlinked_sources_forbidden": true,
+    "audited_source_paths": [
+      "glee_eval/experiments/controlled_receiver.py",
+      "glee_eval/experiments/openai_responses.py",
+      "glee_eval/experiments/receiver_itt.py",
+      "glee_eval/experiments/factorial.py",
+      "glee_eval/experiments/factorial_report.py",
+      "glee_eval/experiments/preoutcome_manifest.py",
+      "glee_eval/experiments/wave5c_receiver.py",
+      "glee_eval/experiments/wave5e_capability.py",
+      "research/LOCKS/WAVE5E_OPENAI_ADAPTER_LOCK.json"
+    ]
   },
   "official_documentation": "https://developers.openai.com/api/docs/models/gpt-4.1",
   "production_pins_set": false

@@ -1016,7 +1016,14 @@ class ControlledReceiverHarness:
             except TimeoutError:
                 elapsed = max(0, int((time.monotonic() - started) * 1000))
                 transport_result = TransportResult(
-                    b"", elapsed_ms=elapsed, transport_status="timeout"
+                    b"",
+                    usage=Usage(
+                        input_tokens=reservation.input_tokens,
+                        output_tokens=reservation.max_output_tokens,
+                        cost_microusd=reservation.max_cost_microusd,
+                    ),
+                    elapsed_ms=elapsed,
+                    transport_status="timeout",
                 )
             self.budget.charge(self.contract, reservation, transport_result)
             response = ResponseEnvelope.build(request, attempt, transport_result)

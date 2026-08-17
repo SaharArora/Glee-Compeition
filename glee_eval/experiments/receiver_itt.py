@@ -133,6 +133,10 @@ def bind_terminal_itt_payoff(
 ) -> dict[str, Any]:
     """Bind a finite natural terminal payoff to the pre-outcome ITT action rule."""
 
+    if isinstance(terminal_candidate_payoff, bool) or not isinstance(
+        terminal_candidate_payoff, (int, float)
+    ):
+        raise ValueError("receiver ITT payoff must be a strict numeric value")
     payoff = float(terminal_candidate_payoff)
     if not math.isfinite(payoff):
         raise ValueError("receiver ITT requires a finite environment terminal payoff")
@@ -146,6 +150,50 @@ def bind_terminal_itt_payoff(
     }
 
 
+def receiver_envelope_itt_payoff(envelope: Mapping[str, Any]) -> dict[str, Any]:
+    """Reconstruct action, continuation, and natural payoff from an admission envelope."""
+
+    status = envelope.get("status")
+    attempts = envelope.get("attempts")
+    parsed = envelope.get("parsed_output")
+    if status == "ok":
+        if not isinstance(parsed, Mapping):
+            raise ValueError("successful receiver envelope lacks parsed output")
+        raw_decision = parsed.get("decision")
+        normalized = {"yes": "buy", "no": "pass"}.get(raw_decision, raw_decision)
+        resolution = resolve_receiver_itt(
+            status="ok",
+            decision=normalized if isinstance(normalized, str) else None,
+            failure_kind=None,
+            attempts=attempts,
+        )
+    else:
+        if parsed is not None or status not in FAILURE_KINDS:
+            raise ValueError("failed receiver envelope is malformed")
+        resolution = resolve_receiver_itt(
+            status="failure",
+            decision=None,
+            failure_kind=str(status),
+            attempts=attempts,
+        )
+    if envelope.get("applied_environment_action") != resolution.environment_action:
+        raise ValueError("recorded environment action differs from the frozen ITT mapping")
+    if envelope.get("ordinary_environment_continued") is not True:
+        raise ValueError("receiver ITT requires ordinary environment continuation")
+    return bind_terminal_itt_payoff(
+        resolution, envelope.get("terminal_candidate_payoff")
+    )
+
+
+def validate_receiver_itt_payoff(
+    envelope: Mapping[str, Any], payoff_binding: Mapping[str, Any]
+) -> dict[str, Any]:
+    expected = receiver_envelope_itt_payoff(envelope)
+    if dict(payoff_binding) != expected:
+        raise ValueError("receiver ITT payoff binding differs from reconstructed action/payoff")
+    return expected
+
+
 def validate_itt_rule(value: Mapping[str, Any]) -> None:
     if dict(value) != RECEIVER_FAILURE_ITT_RULE:
         raise ValueError("receiver-failure ITT rule differs from the frozen treatment-blind rule")
@@ -156,6 +204,8 @@ __all__ = [
     "RECEIVER_FAILURE_ITT_RULE_SHA256",
     "ReceiverITTResolution",
     "bind_terminal_itt_payoff",
+    "receiver_envelope_itt_payoff",
     "resolve_receiver_itt",
+    "validate_receiver_itt_payoff",
     "validate_itt_rule",
 ]

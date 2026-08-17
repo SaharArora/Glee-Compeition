@@ -24,6 +24,7 @@ from glee_eval.experiments.factorial_report import (
     validate_factorial_report,
     validate_synthetic_factorial_report,
 )
+from glee_eval.experiments.receiver_itt import receiver_envelope_itt_payoff
 
 
 MASTER_SEED = 20260829
@@ -288,8 +289,16 @@ class FactorialReportTests(unittest.TestCase):
         report = build_factorial_report(rows, _contract(2))
         for contrast in ("eprocess_main_effect", "language_main_effect", "interaction"):
             self.assertEqual(report["estimands"]["overall"][contrast]["effect"], 0.0)
+        tests = report["hypothesis_tests"]
         self.assertEqual(
-            {row["decision"] for row in report["holm"]["hypotheses"]},
+            tests["confirmatory_primary"]["hypothesis"]["name"], "language"
+        )
+        self.assertEqual(
+            tests["confirmatory_primary"]["hypothesis"]["decision"],
+            "nonconfirming",
+        )
+        self.assertEqual(
+            {row["decision"] for row in tests["key_secondary_holm"]["hypotheses"]},
             {"nonconfirming"},
         )
         validation = validate_synthetic_factorial_report(rows, report, _contract(2))
@@ -302,8 +311,15 @@ class FactorialReportTests(unittest.TestCase):
             report["estimands"]["overall"]["eprocess_main_effect"]["effect"], 0.06
         )
         self.assertEqual(report["estimands"]["overall"]["language_main_effect"]["effect"], 0.0)
-        decisions = {row["name"]: row["decision"] for row in report["holm"]["hypotheses"]}
+        decisions = {
+            row["name"]: row["decision"]
+            for row in report["hypothesis_tests"]["key_secondary_holm"]["hypotheses"]
+        }
         self.assertEqual(decisions["eprocess"], "improvement")
+        self.assertEqual(
+            report["hypothesis_tests"]["confirmatory_primary"]["hypothesis"]["decision"],
+            "nonconfirming",
+        )
 
     def test_language_only_fixture_recovers_language_main_effect(self) -> None:
         report = build_factorial_report(_rows(language=0.04), _contract(2))
@@ -317,6 +333,50 @@ class FactorialReportTests(unittest.TestCase):
         self.assertAlmostEqual(report["estimands"]["overall"]["interaction"]["effect"], 0.03)
         self.assertEqual(report["estimands"]["overall"]["eprocess_main_effect"]["effect"], 0.0)
         self.assertEqual(report["estimands"]["overall"]["language_main_effect"]["effect"], 0.0)
+
+    def test_report_reconstructs_receiver_itt_natural_payoff(self) -> None:
+        rows = _rows()
+        row = rows[0]
+        arm = row.arms[1]
+        receiver = {
+            "schema": "glee.research.controlled_receiver_envelope.v1",
+            "status": "refusal",
+            "attempts": 1,
+            "request_sha256": "c" * 64,
+            "response_sha256": "d" * 64,
+            "parsed_output": None,
+            "applied_environment_action": "no",
+            "ordinary_environment_continued": True,
+            "terminal_candidate_payoff": arm.candidate_payoff,
+        }
+        episode = replace(
+            arm.episode,
+            replay_artifacts={"controlled_receiver_envelope": receiver},
+        )
+        changed_arm = replace(
+            arm,
+            episode=episode,
+            episode_hash=canonical_hash(episode),
+            receiver_itt_payoff=receiver_envelope_itt_payoff(receiver),
+        )
+        rows[0] = replace(
+            row,
+            arms=tuple(changed_arm if value.arm == arm.arm else value for value in row.arms),
+        )
+        build_factorial_report(rows, _contract(2))
+        bad_arm = replace(
+            changed_arm,
+            receiver_itt_payoff={
+                **changed_arm.receiver_itt_payoff,
+                "terminal_candidate_payoff": arm.candidate_payoff + 1,
+            },
+        )
+        rows[0] = replace(
+            rows[0],
+            arms=tuple(bad_arm if value.arm == arm.arm else value for value in rows[0].arms),
+        )
+        with self.assertRaisesRegex(FactorialReportError, "does not reconstruct"):
+            build_factorial_report(rows, _contract(2))
 
     def test_eligible_subgroup_effect_is_separate_from_aggregate(self) -> None:
         rows: list[FactorialRow] = []
@@ -364,10 +424,12 @@ class FactorialReportTests(unittest.TestCase):
         with self.assertRaises(FactorialReportError):
             build_factorial_report(duplicate, _contract(2))
 
-    def test_malformed_holm_and_output_hash_are_rejected(self) -> None:
+    def test_malformed_secondary_holm_and_output_hash_are_rejected(self) -> None:
         rows = _rows(eprocess=0.02)
         report = build_factorial_report(rows, _contract(2))
-        report["holm"]["hypotheses"][0]["holm_adjusted_p"] = 0.777
+        report["hypothesis_tests"]["key_secondary_holm"]["hypotheses"][0][
+            "holm_adjusted_p"
+        ] = 0.777
         with self.assertRaisesRegex(FactorialReportError, "does not reconstruct"):
             validate_synthetic_factorial_report(rows, report, _contract(2))
 

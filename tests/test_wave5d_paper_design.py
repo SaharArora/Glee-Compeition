@@ -26,6 +26,7 @@ from glee_eval.experiments.preoutcome_manifest import (
     validate_outcome_admission,
     validate_synthetic_preoutcome_manifest,
 )
+from glee_eval.experiments.receiver_itt import receiver_envelope_itt_payoff
 from glee_eval.experiments.wave5d_paper_design import (
     DESIGNS,
     Design,
@@ -106,17 +107,23 @@ def _admission(manifest_row: dict, *, missing: bool) -> dict:
     arms = []
     for index, arm in enumerate(FACTORIAL_ARMS):
         is_missing = missing and index == 0
+        receiver = {
+            "schema": "glee.research.controlled_receiver_envelope.v1",
+            "status": "missing" if is_missing else "ok",
+            "attempts": 1,
+            "request_sha256": "c" * 64,
+            "response_sha256": None if is_missing else "d" * 64,
+            "parsed_output": None if is_missing else {"decision": "buy"},
+            "applied_environment_action": "no" if is_missing else "yes",
+            "ordinary_environment_continued": True,
+            "terminal_candidate_payoff": 0.25,
+        }
         arms.append(
             {
                 "arm": arm,
                 "included_in_intent_to_treat": True,
-                "receiver_envelope": {
-                    "schema": "glee.research.controlled_receiver_envelope.v1",
-                    "status": "missing" if is_missing else "ok",
-                    "request_sha256": "c" * 64,
-                    "response_sha256": None if is_missing else "d" * 64,
-                    "parsed_output": None if is_missing else {"decision": "buy"},
-                },
+                "receiver_envelope": receiver,
+                "receiver_itt_payoff": receiver_envelope_itt_payoff(receiver),
             }
         )
     return {

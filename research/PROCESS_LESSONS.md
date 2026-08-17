@@ -99,3 +99,12 @@
 - An API adapter audit must cover redirect/proxy behavior, credential loading, error redaction,
   response-model identity, structured-output extraction, and source/dependency hashes—not merely
   a successful mocked response.
+- A reservation must be debited before transport. Timeout, provider, parsing, and missing-usage
+  paths cannot be recorded as free calls; their safe accounting value is the full prospective
+  reservation, preserved in an atomic redacted FAIL certificate.
+- A cluster label is not a cluster construction. Sample one immutable economic payload first,
+  derive the exact role-by-replicate crossing from it, and reject duplicate/missing cells and any
+  within-cluster payload-hash disagreement before inference.
+- Hash review is not sufficient when Python may import another checkout. Bind the exact Git root,
+  executing module paths, clean relevant worktree, working SHA-256 bytes, and current HEAD blobs in
+  the same pre-key gate.

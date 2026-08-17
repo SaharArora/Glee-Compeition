@@ -30,6 +30,7 @@ from glee_eval.experiments.factorial import (
     nature_trace,
 )
 from glee_eval.response_models.runtime import GLOBAL_KEYS, persuasion_keys
+from glee_eval.experiments.receiver_itt import validate_receiver_itt_payoff
 
 
 CONTRASTS = ("eprocess_main_effect", "language_main_effect", "interaction")
@@ -70,9 +71,13 @@ ELIGIBILITY_DERIVATION_SPEC = {
     "negative_controls": "boolean_complements",
     "forbidden_inputs": ["candidate_payoff", "opponent_payoff", "terminal_outcome", "arm_action"],
 }
-PRIMARY_HYPOTHESES = (
+CONFIRMATORY_PRIMARY_HYPOTHESIS = (
+    "language",
+    "language_eligible",
+    "language_main_effect",
+)
+KEY_SECONDARY_HYPOTHESES = (
     ("eprocess", "eprocess_eligible", "eprocess_main_effect"),
-    ("language", "language_eligible", "language_main_effect"),
     ("interaction", "joint_eligible", "interaction"),
 )
 
@@ -317,9 +322,14 @@ class FactorialReportContract:
             "execution_command_sha256": self.execution_command_sha256,
             "eligibility_derivation_sha256": self.eligibility_derivation_sha256,
             "eligibility_fields": list(ELIGIBILITY_FIELDS),
-            "primary_hypotheses": [list(item) for item in PRIMARY_HYPOTHESES],
+            "confirmatory_primary_hypothesis": list(CONFIRMATORY_PRIMARY_HYPOTHESIS),
+            "key_secondary_hypotheses": [list(item) for item in KEY_SECONDARY_HYPOTHESES],
             "uncertainty": "paired_scenario_normal_equal_family_weighted",
-            "multiplicity": "holm_step_down_two_sided_normal_p_alpha_0.05",
+            "multiplicity": {
+                "confirmatory_primary": "single_two_sided_normal_test_alpha_0.05",
+                "key_secondary": "separate_holm_two_step_family_alpha_0.05",
+                "secondary_claims_do_not_replace_primary": True,
+            },
         }
 
     def validate_production_freeze(self) -> None:
@@ -484,6 +494,7 @@ def _row_digest(row: FactorialRow) -> str:
                     "nature_stream_hash": arm.nature_stream_hash,
                     "nature_trace_hash": arm.nature_trace_hash,
                     "support_identity_hash": arm.support_identity_hash,
+                    "receiver_itt_payoff": arm.receiver_itt_payoff,
                 }
                 for arm in sorted(row.arms, key=lambda item: item.arm)
             ],
@@ -599,6 +610,41 @@ def _validate_row(
             raise FactorialReportError(f"arm {arm.arm} candidate payoff mismatch")
         if arm.opponent_payoff != float(arm.episode.opponent_payoff):
             raise FactorialReportError(f"arm {arm.arm} opponent payoff mismatch")
+        receiver_envelope = arm.episode.replay_artifacts.get(
+            "controlled_receiver_envelope"
+        )
+        if (receiver_envelope is None) != (arm.receiver_itt_payoff is None):
+            raise FactorialReportError(
+                f"arm {arm.arm} receiver envelope/payoff binding is incomplete"
+            )
+        if receiver_envelope is not None:
+            if not isinstance(receiver_envelope, Mapping) or not isinstance(
+                arm.receiver_itt_payoff, Mapping
+            ):
+                raise FactorialReportError(
+                    f"arm {arm.arm} receiver ITT evidence is malformed"
+                )
+            try:
+                binding = validate_receiver_itt_payoff(
+                    receiver_envelope, arm.receiver_itt_payoff
+                )
+            except (TypeError, ValueError) as exc:
+                raise FactorialReportError(
+                    f"arm {arm.arm} receiver ITT evidence does not reconstruct"
+                ) from exc
+            if binding["terminal_candidate_payoff"] != arm.candidate_payoff:
+                raise FactorialReportError(
+                    f"arm {arm.arm} receiver ITT payoff is not the natural episode payoff"
+                )
+        if (
+            contract.is_production
+            and eligibility["language_eligible"]
+            and arm.use_language
+            and arm.receiver_itt_payoff is None
+        ):
+            raise FactorialReportError(
+                f"arm {arm.arm} lacks production receiver ITT action/payoff evidence"
+            )
         if canonical_hash(arm.episode.opponent_spec) != canonical_hash(
             _expected_episode_opponent_spec(arm.episode.scenario)
         ):
@@ -642,7 +688,7 @@ def _validate_row(
         if not row.base_stratum_id or not row.base_stratum_hash:
             raise FactorialReportError(f"row {row.key} lacks frozen base-stratum identity")
         if base_stratum_hash != factorial_base_stratum_hash(scenario):
-            raise FactorialReportError(f"row {row.key} base-stratum projection hash mismatch")
+            raise FactorialReportError(f"row {row.key} base-stratum economic-payload hash mismatch")
         if receiver_replicate >= DESIGN_A_RECEIVER_REPLICATES:
             raise FactorialReportError(f"row {row.key} receiver replicate is outside Design A")
     randomness = scenario.metadata.get("factorial_randomness")
@@ -888,14 +934,19 @@ def _cluster_design_summary(
     return summary
 
 
-def _holm(primary: list[dict[str, Any]], alpha: float) -> dict[str, Any]:
-    if len(primary) != 3 or any(not row["estimate"].get("reportable") for row in primary):
+def _holm(hypotheses: list[dict[str, Any]], alpha: float) -> dict[str, Any]:
+    if len(hypotheses) != 2 or {row.get("name") for row in hypotheses} != {
+        "eprocess",
+        "interaction",
+    }:
+        raise FactorialReportError("key-secondary family must be exact E/I Holm-2")
+    if any(not row["estimate"].get("reportable") for row in hypotheses):
         return {
             "reportable": False,
-            "reason": "all_three_primary_estimands_must_be_reportable",
-            "hypotheses": primary,
+            "reason": "every_key_secondary_estimand_must_be_reportable",
+            "hypotheses": hypotheses,
         }
-    ordered = sorted(primary, key=lambda row: (row["unadjusted_p"], row["name"]))
+    ordered = sorted(hypotheses, key=lambda row: (row["unadjusted_p"], row["name"]))
     running_adjusted = 0.0
     m = len(ordered)
     for rank, row in enumerate(ordered, start=1):
@@ -924,6 +975,44 @@ def _holm(primary: list[dict[str, Any]], alpha: float) -> dict[str, Any]:
         "alpha": alpha,
         "method": "holm_step_down_two_sided_normal_p",
         "hypotheses": sorted(ordered, key=lambda row: row["name"]),
+    }
+
+
+def _single_confirmatory_primary(row: dict[str, Any], alpha: float) -> dict[str, Any]:
+    if row.get("name") != "language":
+        raise FactorialReportError("confirmatory primary must be language")
+    if not row["estimate"].get("reportable"):
+        return {
+            "reportable": False,
+            "reason": "language_primary_estimand_must_be_reportable",
+            "hypothesis": row,
+        }
+    estimate = row["estimate"]
+    effect = float(estimate["effect"])
+    se = float(estimate["standard_error"])
+    interval = list(estimate["confidence_interval"])
+    pvalue = float(row["unadjusted_p"])
+    if interval[0] > 0.0 and pvalue < alpha:
+        decision = "improvement"
+    elif interval[1] < 0.0 and pvalue < alpha:
+        decision = "harm"
+    else:
+        decision = "nonconfirming"
+    result = dict(row)
+    result.update(
+        {
+            "alpha": alpha,
+            "p_value": pvalue,
+            "confidence_interval": interval,
+            "decision": decision,
+            "multiplicity_adjustment": "none_single_confirmatory_primary",
+        }
+    )
+    return {
+        "reportable": True,
+        "method": "single_two_sided_normal_test",
+        "alpha": alpha,
+        "hypothesis": result,
     }
 
 
@@ -996,8 +1085,11 @@ def build_factorial_report(
         )
         for contrast in CONTRASTS
     }
-    primary: list[dict[str, Any]] = []
-    for name, population, contrast in PRIMARY_HYPOTHESES:
+    hypotheses: dict[str, dict[str, Any]] = {}
+    for name, population, contrast in (
+        CONFIRMATORY_PRIMARY_HYPOTHESIS,
+        *KEY_SECONDARY_HYPOTHESES,
+    ):
         estimate = estimands[population][contrast]
         row = {"name": name, "population": population, "contrast": contrast, "estimate": estimate}
         if estimate.get("reportable"):
@@ -1006,7 +1098,7 @@ def build_factorial_report(
             )
         else:
             row["unadjusted_p"] = None
-        primary.append(row)
+        hypotheses[name] = row
     eligibility_counts = {
         family: {
             field: sum(
@@ -1044,7 +1136,16 @@ def build_factorial_report(
         },
         "estimands": estimands,
         "summaries": summaries,
-        "holm": _holm(primary, contract.alpha),
+        "hypothesis_tests": {
+            "confirmatory_primary": _single_confirmatory_primary(
+                hypotheses["language"], contract.alpha
+            ),
+            "key_secondary_holm": _holm(
+                [hypotheses[name] for name in ("eprocess", "interaction")],
+                contract.alpha,
+            ),
+            "ordering_frozen": "language_primary;eprocess_and_interaction_key_secondary",
+        },
         "boundaries": {
             "payoff_study_executed_by_this_module": False,
             "eligibility_is_pre_outcome_scenario_metadata": contract.is_production,

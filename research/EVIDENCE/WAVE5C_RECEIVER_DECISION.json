@@ -1,6 +1,6 @@
 {
   "dry_run": {
-    "cache_sha256": "3b8835509a8a9fb78d3cc8a24c9579540ad84e05896c797619964a63e621fdab",
+    "cache_sha256": "18516af41cfc1dbe530d00fd64a949093945b9dcd5f9177c98b88e03873bc80e",
     "capability_nominal_requests": 100,
     "capability_probe_count": 50,
     "evidence_label": "infrastructure_only_non_evidence",
@@ -16,13 +16,13 @@
     "parser_and_failure_sha256": "a227b3d3fe6ca075658fae8628874a256f7ae2f3f5191b7126aef27efbf5db2c",
     "payoff_rows_generated": 0,
     "production_authorization_pins_changed": false,
-    "proposal_sha256": "fd5724eeac0da19f27bd19d9b0023eb2543bd427cbbcc84f543c86742202a7d0",
-    "receiver_contract_sha256": "a752680abc2ed248bc5d6c31e78dbf124160d3e66760a0cd73dae473b7a81fcd",
+    "proposal_sha256": "ca2791df915f4d5d16702c4a78d7227f3bb866c177be6e9bee61aa87b1d7e47e",
+    "receiver_contract_sha256": "8cfbe23bfae75c8132cd759ea3b55ce75109f91f4e58341b2ad1dc2cf4cbed96",
     "schema": "glee.research.wave5c.receiver_dry_run.v1",
     "scientific_claim": "none_synthetic_transport_only",
     "status": "self_audited_infrastructure_only",
     "synthetic_certificate_passed": true,
-    "synthetic_certificate_sha256": "28a2750f91a87fce2dc1ad178c3ccb793e3f3df31f781ef66ba55f3daa9337ca",
+    "synthetic_certificate_sha256": "36e49c5e4a89916bb0a0733b07a2fd1d08127519ac50d8c1dc0eb59ba9100d17",
     "wave5c_capability_rule": {
       "changed_states_by_receiver_seed": {
         "530011": 25,
@@ -148,15 +148,17 @@
         "expected_byte_determinism": false,
         "parameters": {
           "max_output_tokens": 16,
+          "receiver_seed_scope": "request_identity_only_not_provider_parameter",
           "response_format": "strict_json_schema",
           "temperature": 0,
           "top_p": 1
         },
+        "provider_seed_parameter_sent": false,
         "receiver_seeds": [
           530011,
           530017
         ],
-        "seed_support_must_be_verified_before_capability": true
+        "receiver_seeds_partition_requests_and_cache_only": true
       },
       "identity": {
         "fallback": {
@@ -173,7 +175,7 @@
           "provider": "openai",
           "status": "proposed_not_authorized_or_capability_verified"
         },
-        "receiver_contract_sha256": "a752680abc2ed248bc5d6c31e78dbf124160d3e66760a0cd73dae473b7a81fcd",
+        "receiver_contract_sha256": "8cfbe23bfae75c8132cd759ea3b55ce75109f91f4e58341b2ad1dc2cf4cbed96",
         "user_decision_required": "accept_primary_or_reject_and_select_fallback"
       },
       "independent_selection_provenance": {

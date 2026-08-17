@@ -38,7 +38,10 @@ from glee_eval.experiments.factorial_report import (
     canonical_hash,
     derive_factorial_eligibility,
 )
-from glee_eval.experiments.receiver_itt import RECEIVER_FAILURE_ITT_RULE_SHA256
+from glee_eval.experiments.receiver_itt import (
+    RECEIVER_FAILURE_ITT_RULE_SHA256,
+    validate_receiver_itt_payoff,
+)
 
 
 PRODUCTION_SCHEMA = "glee.research.preoutcome_manifest.production.v1"
@@ -193,10 +196,10 @@ class PreOutcomeManifestContract:
                 "receiver_contract_sha256": canonical_hash(receiver_contract),
             },
             estimand_contract={
-                "schema": "glee.research.wave4_estimands.v2",
-                "primary": ["eprocess_eligible:E", "language_eligible:L", "joint_eligible:I"],
-                "secondary": "equal_family_overall",
-                "holm_family": ["E", "L", "I"],
+                "schema": "glee.research.wave5e_estimands.v1",
+                "confirmatory_primary": "language_eligible:L",
+                "key_secondary_holm_family": ["eprocess_eligible:E", "joint_eligible:I"],
+                "mandatory_secondary": "equal_family_overall_and_prespecified_cells",
                 "alpha": FROZEN_ALPHA,
             },
             missingness_policy={
@@ -716,7 +719,7 @@ def _validate_manifest_common(
         if row.get("base_stratum_id") != expected_base_stratum_id:
             raise PreOutcomeManifestError("base-stratum id differs from the frozen row index")
         if row.get("base_stratum_hash") != factorial_base_stratum_hash(scenario):
-            raise PreOutcomeManifestError("base-stratum projection hash mismatch")
+            raise PreOutcomeManifestError("base-stratum economic-payload hash mismatch")
         if row.get("receiver_replicate") != expected_receiver_replicate:
             raise PreOutcomeManifestError("receiver-replicate tag differs from the frozen row index")
         if row.get("scenario_hash") != canonical_hash(scenario):
@@ -915,7 +918,7 @@ def validate_outcome_admission(
     *,
     receiver_contract: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Validate future arm inclusion/failure records without evaluating payoff."""
+    """Validate arm inclusion plus deterministic receiver action/continuation/payoff."""
 
     _assert_exact_keys(
         admission,
@@ -931,7 +934,14 @@ def validate_outcome_admission(
         FACTORIAL_ARMS
     ) or len(arms) != len(FACTORIAL_ARMS):
         raise PreOutcomeManifestError("outcome admission lacks exactly four arms")
-    allowed_status = {"ok", "timeout", "refusal", "malformed", "missing"}
+    allowed_status = {
+        "ok",
+        "timeout",
+        "refusal",
+        "malformed",
+        "missing",
+        "exhausted_retry",
+    }
     if canonical_hash(receiver_contract) != manifest_row.get("receiver_contract_sha256"):
         raise PreOutcomeManifestError("outcome admission uses another receiver contract")
     output_contract = receiver_contract.get("output_contract")
@@ -942,7 +952,12 @@ def validate_outcome_admission(
             raise PreOutcomeManifestError("outcome arm admission is malformed")
         _assert_exact_keys(
             row,
-            {"arm", "included_in_intent_to_treat", "receiver_envelope"},
+            {
+                "arm",
+                "included_in_intent_to_treat",
+                "receiver_envelope",
+                "receiver_itt_payoff",
+            },
             "outcome arm admission",
         )
         if row.get("included_in_intent_to_treat") is not True:
@@ -952,7 +967,17 @@ def validate_outcome_admission(
             raise PreOutcomeManifestError("receiver output envelope is missing")
         _assert_exact_keys(
             receiver,
-            {"schema", "status", "request_sha256", "response_sha256", "parsed_output"},
+            {
+                "schema",
+                "status",
+                "attempts",
+                "request_sha256",
+                "response_sha256",
+                "parsed_output",
+                "applied_environment_action",
+                "ordinary_environment_continued",
+                "terminal_candidate_payoff",
+            },
             "receiver output envelope",
         )
         if receiver.get("schema") != "glee.research.controlled_receiver_envelope.v1":
@@ -970,11 +995,21 @@ def validate_outcome_admission(
             raise PreOutcomeManifestError("failed receiver output hash is malformed")
         elif receiver.get("parsed_output") is not None:
             raise PreOutcomeManifestError("failed receiver output must not contain parsed output")
+        itt_payoff = row.get("receiver_itt_payoff")
+        if not isinstance(itt_payoff, Mapping):
+            raise PreOutcomeManifestError("receiver ITT payoff binding is missing")
+        try:
+            validate_receiver_itt_payoff(receiver, itt_payoff)
+        except (TypeError, ValueError) as exc:
+            raise PreOutcomeManifestError(
+                "receiver ITT action/continuation/payoff is malformed"
+            ) from exc
     return {
         "schema": "glee.research.factorial_outcome_admission_validation.v1",
         "passed": True,
         "evidence_class": SYNTHETIC_EVIDENCE_CLASS,
         "manifest_row_sha256": manifest_row["row_sha256"],
+        "receiver_failure_itt_rule_sha256": RECEIVER_FAILURE_ITT_RULE_SHA256,
     }
 
 

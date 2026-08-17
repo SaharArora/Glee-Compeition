@@ -1,5 +1,21 @@
 # Research failures and closed routes
 
+## Wave 5E first activation freeze — independent audit NO-GO
+
+Commit `3ccf58b740655812674242d2630e4d480d6e3e2c` was rejected before credentials or any
+external call. The adapter sent an unsupported Responses `seed`; the report still executed the
+obsolete three-primary Holm family; receiver ITT had no production action/payoff path; cluster
+hashes were row-specific; response reads and usage parsing were too permissive; unknown usage was
+not conservatively debited; the key mode and runtime/source-root binding were incomplete; and the
+runner lacked an atomic runtime FAIL certificate. The commit is superseded, must never receive an
+audit GO document, and must never be used for capability.
+
+The bounded repair removes the provider seed, freezes request-only replicate tags, constructs one
+economic payload before its exact role/replicate crossing, installs language-primary plus Holm-2
+key secondaries, wires action/continuation/natural-payoff ITT admission through evaluator and
+report, and closes the transport/credential/runtime/accounting findings. Those repairs remain
+offline implementation evidence until a new independent audit binds their replacement commit.
+
 ## Wave 5E paper activation alternatives — rejected prospectively
 
 - **Smaller A-shaped design:** rejected for the `.035` paper SESOI under the frozen central

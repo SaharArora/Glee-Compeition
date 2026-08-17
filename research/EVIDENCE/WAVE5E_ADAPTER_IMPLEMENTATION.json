@@ -3,6 +3,7 @@
   "evidence_class": "offline_implementation_and_tests_only",
   "branch": "research/wave5e-paper-activation",
   "base_commit": "866dd36b7cfe0ce705e2e0caa25c1874c4d1625c",
+  "supersedes_independent_no_go_commit": "3ccf58b740655812674242d2630e4d480d6e3e2c",
   "receiver": {
     "provider": "openai",
     "endpoint": "https://api.openai.com/v1/responses",
@@ -12,32 +13,36 @@
     "output_microusd_per_token": 8,
     "official_documentation": "https://developers.openai.com/api/docs/models/gpt-4.1"
   },
-  "dependency_lock_sha256": "7e36caf209521f1e680e5fa2fae7c686573391a5881251c187a211b459d79ea1",
+  "dependency_lock_sha256": "e6d384c6b68711198c3b358b9176d6e6be1b0051f3ecb4cc59e8be29a5235743",
   "source_sha256": {
-    "glee_eval/experiments/controlled_receiver.py": "0ebdb448bf25828806dca170985e6f13447c75ffaafba3934d68c777ca8fb6ad",
-    "glee_eval/experiments/openai_responses.py": "0a7266ebdc33a028a88f68553a8aa0be40bd10eb8493bd9e0030685d5406e817",
-    "glee_eval/experiments/receiver_itt.py": "3a6253c35e4c9d0d373445d33ded4c1d3ee7ba3c1509c521312620c3bda7ac6f",
-    "glee_eval/experiments/wave5c_receiver.py": "b556926a1dcc90916386d9fd74a4fb70daab4a4221dff69f1e5c5d0ccb609e5e",
-    "glee_eval/experiments/wave5e_capability.py": "c03df4a6c9be0b6c92bb274db57fb0dcb09f128d140cc33aa2b734ebdae47231",
-    "research/LOCKS/WAVE5E_OPENAI_ADAPTER_LOCK.json": "7e36caf209521f1e680e5fa2fae7c686573391a5881251c187a211b459d79ea1"
+    "glee_eval/experiments/controlled_receiver.py": "5b27836bdd4ab3b4fe5b879ff83f602699947ca3f04c0f5d2d118c27ab8c54ca",
+    "glee_eval/experiments/factorial.py": "dbd1211f9bc3ca41c55afa1ef1a072e438b69a63279271c23cc3c1f7de80d2c0",
+    "glee_eval/experiments/factorial_report.py": "1f5fb706d67b57e66a6a53680e658ff5cdc362b120aa6579dc88f3abfb246925",
+    "glee_eval/experiments/openai_responses.py": "1fa13f34f278c39c5e1762b4b4ca6df263fa8896f1dc36ecdf64a89750515569",
+    "glee_eval/experiments/preoutcome_manifest.py": "97d9b2c89caa1a10b870974a5d3e90707bf876fe200f11eaaabbe3762290853a",
+    "glee_eval/experiments/receiver_itt.py": "717f9ea6b87e2ad8729fb4fc24bed68362870205427f8bf9b03b50ce52d0d486",
+    "glee_eval/experiments/wave5c_receiver.py": "2a43cea8e6f6fd984755a52c74d0e8cb216d44cf5ef85c554e37050350fee32a",
+    "glee_eval/experiments/wave5e_capability.py": "002cc4fd7036052f0ff830c493c0882c5506b5b762f1caf1a2a5e955608305e6",
+    "research/LOCKS/WAVE5E_OPENAI_ADAPTER_LOCK.json": "e6d384c6b68711198c3b358b9176d6e6be1b0051f3ecb4cc59e8be29a5235743"
   },
   "paper_repair_sha256": {
-    "glee_eval/experiments/factorial.py": "c0be9ce21efa20715443341ca026b6620e22274754ad8989cf1be6442e95ba5d",
-    "glee_eval/experiments/factorial_report.py": "981dce6ab574cb7c70aca4bd7b5b0fdd11a4a1ae40cdd6cc4bebfb9e2c944e5a",
-    "glee_eval/experiments/preoutcome_manifest.py": "c641323e41568270aa618dc86c3783514fb15ecc5313b9fadd0bc245ec1f1dd9",
+    "glee_eval/experiments/factorial.py": "dbd1211f9bc3ca41c55afa1ef1a072e438b69a63279271c23cc3c1f7de80d2c0",
+    "glee_eval/experiments/factorial_report.py": "1f5fb706d67b57e66a6a53680e658ff5cdc362b120aa6579dc88f3abfb246925",
+    "glee_eval/experiments/preoutcome_manifest.py": "97d9b2c89caa1a10b870974a5d3e90707bf876fe200f11eaaabbe3762290853a",
     "glee_eval/experiments/wave5e_paper_activation.py": "a3934ab1f2b8a249870e174cc9bf86c7c389e40eee5a449319f029b3f5422258",
     "research/EVIDENCE/WAVE5E_PAPER_ACTIVATION.json": "bfedc552c3cd0ad3165bde9663d7d3f3b68221986391876b9004d42940317d40"
   },
   "tests": {
     "focused_command": "python -m pytest -q tests/test_wave5e_paper_activation.py tests/test_preoutcome_manifest.py tests/test_factorial_report.py tests/test_factorial_evaluator.py",
-    "focused_result": "54 passed in 4.21s",
+    "focused_result": "62 passed in 4.13s",
     "full_command": "python -m pytest -q",
-    "full_result": "572 passed, 2 skipped in 10.42s"
+    "full_result": "580 passed, 2 skipped in 8.68s"
   },
   "audit_gate": {
     "required_schema": "glee.research.wave5e.receiver_adapter_audit_go.v1",
     "required_verdict": "GO",
-    "independent_audit_completed": false,
+    "first_audit_verdict": "NO-GO",
+    "replacement_independent_reaudit_completed": false,
     "implementation_commit_must_equal_current_head": true,
     "source_hashes_must_match_exactly": true
   },

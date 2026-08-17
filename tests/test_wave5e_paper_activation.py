@@ -6,8 +6,12 @@ import tempfile
 import unittest
 import urllib.error
 from pathlib import Path
+from unittest import mock
 
+import glee_eval.experiments.openai_responses as openai_responses_module
 from glee_eval.experiments.controlled_receiver import (
+    CallReservation,
+    ControlledReceiverHarness,
     RequestEnvelope,
     TransportResult,
     Usage,
@@ -20,6 +24,7 @@ from glee_eval.experiments.factorial_report import (
 )
 from glee_eval.experiments.openai_responses import (
     FROZEN_MODEL,
+    MAX_RESPONSE_BODY_BYTES,
     OPENAI_RESPONSES_ENDPOINT,
     OpenAIAdapterError,
     OpenAIResponsesTransport,
@@ -35,7 +40,18 @@ from glee_eval.experiments.wave5c_receiver import (
     build_capability_probes,
     build_receiver_contract,
 )
-from glee_eval.experiments.wave5e_capability import run_capability
+from glee_eval.experiments.wave5e_capability import (
+    RESERVATION,
+    CapabilityRunError,
+    PreauthorizedRouteTransport,
+    _create_fresh_output_dir,
+    _read_audit_document,
+    capability_failure_certificate,
+    run_capability,
+    source_hashes,
+    validate_dependency_lock,
+    validate_runtime_and_sources,
+)
 from glee_eval.experiments.wave5e_paper_activation import activation_evidence
 
 
@@ -51,8 +67,8 @@ class _FakeHTTPResponse:
     def geturl(self) -> str:
         return self._url
 
-    def read(self) -> bytes:
-        return self._data
+    def read(self, size: int = -1) -> bytes:
+        return self._data if size < 0 else self._data[:size]
 
     def __enter__(self):
         return self
@@ -128,6 +144,14 @@ class ReceiverITTTests(unittest.TestCase):
                 ),
                 float("nan"),
             )
+        for invalid in (True, "0.5"):
+            with self.assertRaises(ValueError):
+                bind_terminal_itt_payoff(
+                    resolve_receiver_itt(
+                        status="ok", decision="pass", failure_kind=None, attempts=1
+                    ),
+                    invalid,  # type: ignore[arg-type]
+                )
 
 
 class ClusteredInferenceTests(unittest.TestCase):
@@ -190,6 +214,7 @@ class OpenAIResponsesAdapterTests(unittest.TestCase):
         self.assertEqual(captured["url"], OPENAI_RESPONSES_ENDPOINT)
         self.assertEqual(captured["body"]["model"], FROZEN_MODEL)
         self.assertFalse(captured["body"]["store"])
+        self.assertNotIn("seed", captured["body"])
         self.assertTrue(captured["body"]["text"]["format"]["strict"])
         self.assertNotIn(key, json.dumps(captured["body"]))
         self.assertEqual(result.response_bytes, b'{"decision":"buy"}')
@@ -238,6 +263,40 @@ class OpenAIResponsesAdapterTests(unittest.TestCase):
         self.assertEqual(result.response_bytes, b'{"decision":"refuse"}')
         self.assertNotIn(b"unit-test", result.response_bytes)
 
+    def test_empty_provider_output_enters_typed_missing_path(self) -> None:
+        response = _provider_document()
+        response["output"] = []
+        transport = OpenAIResponsesTransport(
+            build_receiver_contract(),
+            "secret",
+            opener=lambda *_a, **_k: _FakeHTTPResponse(response),
+        )
+        result = transport(_request().outbound_bytes, 30)
+        self.assertEqual(result.response_bytes, b"")
+
+    def test_response_body_is_bounded_and_usage_types_are_strict(self) -> None:
+        oversized = _FakeHTTPResponse(_provider_document())
+        oversized._data = b"{" + b"x" * MAX_RESPONSE_BODY_BYTES + b"}"
+        with self.assertRaisesRegex(OpenAIAdapterError, "byte limit"):
+            OpenAIResponsesTransport(
+                build_receiver_contract(),
+                "secret",
+                opener=lambda *_a, **_k: oversized,
+            )(_request().outbound_bytes, 30)
+        for invalid in ("321", 321.0, True, -1):
+            document = _provider_document()
+            document["usage"]["input_tokens"] = invalid
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                OpenAIAdapterError, "strict nonnegative integers"
+            ):
+                OpenAIResponsesTransport(
+                    build_receiver_contract(),
+                    "secret",
+                    opener=lambda *_a, _document=document, **_k: _FakeHTTPResponse(
+                        _document
+                    ),
+                )(_request().outbound_bytes, 30)
+
     def test_oversized_provider_payload_fails_before_transport(self) -> None:
         request = _request()
         outbound = request.outbound_object()
@@ -257,7 +316,7 @@ class OpenAIResponsesAdapterTests(unittest.TestCase):
 
     def test_key_file_must_be_outside_repo_and_private(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             repository = root / "repo"
             repository.mkdir()
             outside = root / "openai.key"
@@ -274,6 +333,14 @@ class OpenAIResponsesAdapterTests(unittest.TestCase):
             inside.chmod(0o600)
             with self.assertRaises(OpenAIAdapterError):
                 load_protected_api_key(inside, repository_root=repository)
+            outside.chmod(0o700)
+            with self.assertRaisesRegex(OpenAIAdapterError, "exactly 0600"):
+                load_protected_api_key(outside, repository_root=repository)
+            outside.chmod(0o600)
+            link = root / "openai-link.key"
+            link.symlink_to(outside)
+            with self.assertRaisesRegex(OpenAIAdapterError, "symbolic link"):
+                load_protected_api_key(link, repository_root=repository)
 
 
 class CapabilityRunnerTests(unittest.TestCase):
@@ -301,6 +368,58 @@ class CapabilityRunnerTests(unittest.TestCase):
         )
         self.assertFalse(result["boundaries"]["automatic_fallback"])
 
+    def test_reservation_is_debited_before_unknown_transport_failure(self) -> None:
+        class FailingTransport:
+            contract = build_receiver_contract()
+
+            def __call__(self, _outbound: bytes, _timeout: float):
+                raise OpenAIAdapterError("secret provider detail")
+
+        route = PreauthorizedRouteTransport(FailingTransport())  # type: ignore[arg-type]
+        with self.assertRaises(OpenAIAdapterError):
+            route(b"{}", 30)
+        self.assertEqual(route.attempts_started, 1)
+        self.assertEqual(
+            route.reserved_cost_microusd, RESERVATION.max_cost_microusd
+        )
+        certificate = capability_failure_certificate(
+            route, {"implementation_commit": "a" * 40, "source_sha256": {}}, RuntimeError("leak")
+        )
+        self.assertEqual(certificate["status"], "FAIL")
+        self.assertNotIn("leak", json.dumps(certificate))
+
+    def test_timeout_charges_full_conservative_reservation(self) -> None:
+        request = _request()
+        harness = ControlledReceiverHarness(build_receiver_contract())
+
+        def timeout(_outbound: bytes, _seconds: float):
+            raise TimeoutError
+
+        result = harness.invoke(request, reservation=RESERVATION, transport=timeout)
+        self.assertEqual(result.record.observation.failure_kind, "timeout")
+        self.assertEqual(len(result.record.responses), 2)
+        self.assertTrue(
+            all(
+                response.usage.cost_microusd == RESERVATION.max_cost_microusd
+                for response in result.record.responses
+            )
+        )
+
+    def test_mixed_root_import_and_inside_output_fail_closed(self) -> None:
+        root = Path.cwd().resolve()
+        with mock.patch.object(
+            openai_responses_module, "__file__", "/tmp/mixed-root/openai_responses.py"
+        ), self.assertRaisesRegex(CapabilityRunError, "outside audited root"):
+            validate_runtime_and_sources(root)
+        inside = root / "forbidden-capability-output"
+        with self.assertRaisesRegex(CapabilityRunError, "outside the repository"):
+            _create_fresh_output_dir(inside, root)
+        with tempfile.TemporaryDirectory(dir=root) as inside_directory:
+            audit = Path(inside_directory) / "audit.json"
+            audit.write_text("{}", encoding="utf-8")
+            with self.assertRaisesRegex(CapabilityRunError, "outside the repository"):
+                _read_audit_document(audit, root)
+
 
 class PaperActivationEvidenceTests(unittest.TestCase):
     def test_committed_evidence_reconstructs_exactly(self) -> None:
@@ -310,6 +429,15 @@ class PaperActivationEvidenceTests(unittest.TestCase):
             )
         )
         self.assertEqual(committed, activation_evidence())
+
+    def test_adapter_evidence_reconstructs_exact_source_map(self) -> None:
+        committed = json.loads(
+            Path("research/EVIDENCE/WAVE5E_ADAPTER_IMPLEMENTATION.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(committed["source_sha256"], source_hashes("."))
+        validate_dependency_lock(".")
 
     def test_recommendation_uses_new_sesoi_and_reconciled_runtime(self) -> None:
         evidence = activation_evidence()

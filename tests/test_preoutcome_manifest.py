@@ -25,6 +25,7 @@ from glee_eval.experiments.preoutcome_manifest import (
     validate_production_preoutcome_manifest,
     validate_synthetic_preoutcome_manifest,
 )
+from glee_eval.experiments.receiver_itt import receiver_envelope_itt_payoff
 
 
 SEED = 20260829
@@ -168,23 +169,28 @@ def _rehash_manifest(manifest: dict) -> None:
 
 
 def _admission(row: dict) -> dict:
+    def arm_record(arm: str) -> dict:
+        receiver = {
+            "schema": "glee.research.controlled_receiver_envelope.v1",
+            "status": "ok",
+            "attempts": 1,
+            "request_sha256": "c" * 64,
+            "response_sha256": "d" * 64,
+            "parsed_output": {"decision": "yes"},
+            "applied_environment_action": "yes",
+            "ordinary_environment_continued": True,
+            "terminal_candidate_payoff": 0.25,
+        }
+        return {
+            "arm": arm,
+            "included_in_intent_to_treat": True,
+            "receiver_envelope": receiver,
+            "receiver_itt_payoff": receiver_envelope_itt_payoff(receiver),
+        }
     return {
         "schema": OUTCOME_ADMISSION_SCHEMA,
         "manifest_row_sha256": row["row_sha256"],
-        "arms": [
-            {
-                "arm": arm,
-                "included_in_intent_to_treat": True,
-                "receiver_envelope": {
-                    "schema": "glee.research.controlled_receiver_envelope.v1",
-                    "status": "ok",
-                    "request_sha256": "c" * 64,
-                    "response_sha256": "d" * 64,
-                    "parsed_output": {"decision": "yes"},
-                },
-            }
-            for arm in FACTORIAL_ARMS
-        ],
+        "arms": [arm_record(arm) for arm in FACTORIAL_ARMS],
     }
 
 
@@ -450,6 +456,43 @@ class PreOutcomeManifestTests(unittest.TestCase):
         excluded["arms"][0]["included_in_intent_to_treat"] = False
         with self.assertRaisesRegex(PreOutcomeManifestError, "exclusion"):
             validate_outcome_admission(row, excluded, receiver_contract=RECEIVER)
+
+    def test_exhausted_retry_action_continuation_and_natural_payoff_are_bound(self) -> None:
+        _, _, _, manifest = _fixture()
+        row = manifest["rows"][0]
+        admission = _admission(row)
+        arm = admission["arms"][0]
+        receiver = arm["receiver_envelope"]
+        receiver.update(
+            {
+                "status": "exhausted_retry",
+                "attempts": 2,
+                "response_sha256": None,
+                "parsed_output": None,
+                "applied_environment_action": "no",
+                "ordinary_environment_continued": True,
+                "terminal_candidate_payoff": -0.125,
+            }
+        )
+        arm["receiver_itt_payoff"] = receiver_envelope_itt_payoff(receiver)
+        self.assertTrue(
+            validate_outcome_admission(
+                row, admission, receiver_contract=RECEIVER
+            )["passed"]
+        )
+        for field, bad_value in (
+            ("applied_environment_action", "yes"),
+            ("ordinary_environment_continued", False),
+            ("terminal_candidate_payoff", float("nan")),
+        ):
+            changed = copy.deepcopy(admission)
+            changed["arms"][0]["receiver_envelope"][field] = bad_value
+            with self.subTest(field=field), self.assertRaisesRegex(
+                PreOutcomeManifestError, "ITT action/continuation/payoff"
+            ):
+                validate_outcome_admission(
+                    row, changed, receiver_contract=RECEIVER
+                )
 
     def test_production_manifest_is_rejected_while_authorization_pin_is_none(self) -> None:
         contract, _, _, manifest = _fixture()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from collections import OrderedDict
+from dataclasses import replace
 
 from glee_eval.adapters.candidate_agent import CandidateAgent
 from glee_eval.data.schemas import AgentAction, GameState, Scenario, compact_id, to_jsonable
@@ -12,6 +13,7 @@ from glee_eval.experiments.factorial import (
     FactorialIntegrityError,
     integrity_certificate,
     run_factorial,
+    validate_design_a_crossings,
 )
 
 
@@ -290,7 +292,25 @@ class FactorialEvaluatorIntegrityTests(unittest.TestCase):
             family_rows = [row for row in rows if row.family == family]
             self.assertEqual(len({row.base_stratum_id for row in family_rows}), 1)
             self.assertEqual({row.receiver_replicate for row in family_rows}, {0, 1})
-            self.assertTrue(all(len(row.base_stratum_hash) == 64 for row in family_rows))
+            self.assertEqual(len({row.base_stratum_hash for row in family_rows}), 1)
+            self.assertEqual(
+                len({row.arms[0].episode.scenario.config_id for row in family_rows}), 1
+            )
+            self.assertTrue(
+                all(
+                    row.arms[0].episode.scenario.public_parameters
+                    == family_rows[0].arms[0].episode.scenario.public_parameters
+                    for row in family_rows
+                )
+            )
+        duplicate = list(rows)
+        duplicate[3] = replace(
+            duplicate[3],
+            candidate_role=duplicate[0].candidate_role,
+            receiver_replicate=duplicate[0].receiver_replicate,
+        )
+        with self.assertRaisesRegex(FactorialIntegrityError, "repeats a role/receiver cell"):
+            validate_design_a_crossings(duplicate)
 
     def test_arm_mapping_order_cannot_change_results(self) -> None:
         forward = _run(_factories())
@@ -352,7 +372,7 @@ class FactorialEvaluatorIntegrityTests(unittest.TestCase):
             run_factorial(
                 _factories(),
                 families=["bargaining"],
-                games=2,
+                games=5,
                 seed=20260829,
                 scenario_factory=duplicate,
             )

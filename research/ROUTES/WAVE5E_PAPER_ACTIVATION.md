@@ -1,6 +1,11 @@
 # Wave 5E paper activation preparation
 
-Status: **implementation frozen pending fresh independent audit; no capability or factorial outcome.**
+Status: **first freeze received independent NO-GO; bounded offline repair pending re-audit; no
+capability or factorial outcome.**
+
+The first implementation freeze `3ccf58b740655812674242d2630e4d480d6e3e2c` is superseded and
+ineligible for capability. No credential was loaded and no external request occurred before or
+after that audit.
 
 ## Decision
 
@@ -37,8 +42,10 @@ The implementation now:
 
 - writes `base_stratum_id`, `base_stratum_hash`, and `receiver_replicate` in evaluator rows and the
   pre-outcome manifest;
-- hashes a role/replicate-invariant projection of family, configuration, public parameters,
-  source, and opponent parameters without its replicate seed;
+- samples one economic payload per base stratum, then constructs its exact two-role by
+  two-replicate crossing; configuration, public parameters, source, and opponent parameters are
+  shared while scenario/environment identities remain row-specific;
+- hashes the shared economic payload without its row-specific replicate seed;
 - rejects a production cluster unless all four role/replicate cells exist once and share that
   projection hash;
 - averages eligible row contrasts inside each base stratum, then computes family means and
@@ -49,6 +56,10 @@ The implementation now:
 Synthetic fixtures may use one-row synthetic clusters, remain explicitly nonproduction, and do
 not set either production pin.
 
+The report contract now encodes language as the one confirmatory primary at two-sided alpha `.05`.
+E-process and interaction form a separate two-hypothesis Holm key-secondary family; neither may
+replace or retroactively enlarge the primary family.
+
 ## Receiver-failure ITT rule
 
 The treatment-blind frozen rule is hash-addressed in
@@ -57,6 +68,11 @@ retry. A refusal or empty/missing result receives no retry. A final timeout/malf
 labelled `exhausted_retry`. Every failure state maps to the legal controlled-receiver decision
 `pass` and persuasion buyer action `no` for that round. The ordinary fixed-horizon environment
 then continues on the preassigned nature stream and computes its ordinary finite role payoff.
+
+Outcome admission now requires exact attempts, applied environment action, continuation flag,
+terminal candidate payoff, and the hash-bound ITT payoff object. The evaluator constructs that
+object from controlled-receiver replay evidence, and the report independently reconstructs it and
+requires equality with the natural episode payoff for production language arms.
 
 This is deterministic environment behavior, not post-outcome payoff imputation. Every assigned
 row remains in ITT. An engine failure that prevents a terminal payoff is a global stop and a
