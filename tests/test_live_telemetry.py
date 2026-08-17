@@ -15,6 +15,7 @@ from glee_eval.live_telemetry import (
     FROZEN_AGENT_NAME,
     FROZEN_AGENT_UUID,
     TelemetryRecorder,
+    TelemetryStrategy,
     _canonical_bytes,
     build_configuration_manifest,
     capture_environment,
@@ -23,8 +24,16 @@ from glee_eval.live_telemetry import (
     launch_canary,
     official_scoring_capability,
     reconcile_batch,
+    telemetry_client_class,
 )
+from glee_eval.live.strategy import build_strategy
 from glee_eval.telemetry_audit import audit_batch
+
+try:
+    from glee_sdk import GleeClient
+    HAVE_SDK = True
+except ImportError:
+    HAVE_SDK = False
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -155,6 +164,10 @@ class CapabilityAndStopTests(unittest.TestCase):
         self.assertEqual(found["game_rating"]["status"], "available")
         self.assertEqual(found["game_rating"]["value"], 2200)
         self.assertEqual(found["rating_update"]["status"], "unavailable")
+        aggregate = official_scoring_capability({
+            "scores": {"bargaining": {"rating": 1138.91, "games_played": 105}}
+        })
+        self.assertEqual(aggregate["game_rating"]["status"], "unavailable")
 
     def test_missing_official_score_is_immediate_attribution_stop(self) -> None:
         row = {"game_id": "g", "family": "bargaining", "official_scoring": official_scoring_capability({})}
@@ -317,6 +330,43 @@ class OfflineIntegrationAndHostileAuditTests(unittest.TestCase):
             )
             recorder.append("hostile", ordinary_note=f"echo:{API_SECRET}")
             self.assertNotIn(API_SECRET, path.read_text())
+
+
+@unittest.skipUnless(HAVE_SDK, "glee-sdk is not installed")
+class RealSdkBoundaryTests(unittest.TestCase):
+    def test_telemetry_wrapper_runs_through_real_sdk_handle_game_without_network(self) -> None:
+        class OfflineSdkClient(GleeClient):
+            def __init__(self, api_key: str):
+                super().__init__(api_key=api_key)
+
+            def stats(self):
+                return {
+                    "agent_id": FROZEN_AGENT_UUID, "agent_name": FROZEN_AGENT_NAME,
+                    "active_games": 0,
+                }
+
+            def move(self, game_id: str, action: dict):
+                return {
+                    "valid": True, "game_over": True,
+                    "result": {"payoff": 0.5, "game_rating": 2100.0},
+                }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            recorder = TelemetryRecorder(
+                Path(tmp) / "telemetry.jsonl", batch_id="sdk-boundary",
+                configuration_sha256="c", secret_values=(API_SECRET,),
+            )
+            Client = telemetry_client_class(OfflineSdkClient)
+            client = Client(api_key=API_SECRET, telemetry_recorder=recorder)
+            game = copy.deepcopy(fixtures.bargaining_offer())
+            client.register_context(game)
+            strategy = TelemetryStrategy(build_strategy(observation_log=None), recorder)
+
+            self.assertTrue(client._handle_game(strategy, game))
+            self.assertIn(game["game_id"], client._terminal_game_ids)
+            rows = [json.loads(line) for line in recorder.path.read_text().splitlines()]
+            terminal = next(row for row in rows if row.get("event_type") == "move_result")
+            self.assertEqual(terminal["official_scoring"]["game_rating"]["value"], 2100.0)
 
 
 if __name__ == "__main__":

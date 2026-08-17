@@ -267,7 +267,15 @@ def official_scoring_capability(payload: Any) -> dict[str, Any]:
     walked = _walk_dict(payload)
     result: dict[str, Any] = {}
     for field, aliases in OFFICIAL_ALIASES.items():
-        found = next(((path, value) for path, key, value in walked if key in aliases), None)
+        found = next((
+            (path, value) for path, key, value in walked if key in aliases
+            and (
+                key.startswith("official_")
+                or key in ("game_rating", "rating_update", "rating_delta", "public_opponent_adjustment")
+                or path == f"result.{key}"
+                or ".result." in path
+            )
+        ), None)
         result[field] = (
             {"status": "available", "value": _redact(found[1]), "source": found[0]}
             if found else {"status": "unavailable", "value": None, "source": None}
