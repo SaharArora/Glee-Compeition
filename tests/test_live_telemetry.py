@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -106,7 +107,34 @@ class _WrongIdentityClient(_OfflineCanaryClient):
         return {"agent": {"agent_id": "wrong", "name": "impostor"}, "active_games": 0}
 
 
+class _PreexistingActiveClient(_OfflineCanaryClient):
+    queue_calls = 0
+
+    def stats(self):
+        return {
+            "agent_id": FROZEN_AGENT_UUID, "agent_name": FROZEN_AGENT_NAME,
+            "active_games": 2,
+        }
+
+    def queue(self, family: str):
+        type(self).queue_calls += 1
+        return super().queue(family)
+
+
 class GitAndEnvironmentIdentityTests(unittest.TestCase):
+    def test_documented_implementation_checkpoint_exists_and_resolves(self) -> None:
+        evidence = json.loads((REPO / "research/EVIDENCE/WAVE5C_JORDAN_TELEMETRY.json").read_text())
+        checkpoint = evidence["implementation_checkpoint"]
+        route = (REPO / "research/ROUTES/WAVE5C_JORDAN_TELEMETRY.md").read_text()
+        documented = re.findall(r"d974c[0-9a-f]{35}", route)
+        self.assertTrue(documented)
+        self.assertEqual(set(documented), {checkpoint})
+        resolved = subprocess.run(
+            ["git", "-C", str(REPO), "rev-parse", f"{checkpoint}^{{commit}}"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        self.assertEqual(resolved, checkpoint)
+
     def test_dirty_digest_is_deterministic_and_changes_with_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
@@ -168,6 +196,8 @@ class CapabilityAndStopTests(unittest.TestCase):
             "scores": {"bargaining": {"rating": 1138.91, "games_played": 105}}
         })
         self.assertEqual(aggregate["game_rating"]["status"], "unavailable")
+        ambiguous = official_scoring_capability({"result": {"rating": 2200.0}})
+        self.assertEqual(ambiguous["game_rating"]["status"], "unavailable")
 
     def test_missing_official_score_is_immediate_attribution_stop(self) -> None:
         row = {"game_id": "g", "family": "bargaining", "official_scoring": official_scoring_capability({})}
@@ -257,6 +287,21 @@ class OfflineIntegrationAndHostileAuditTests(unittest.TestCase):
             self.assertIn("preflight_failure", report["fatal_runtime_events"])
             self.assertEqual(report["unique_terminal_games"], 0)
 
+    def test_preexisting_active_game_fails_before_any_queue_and_is_reconciled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "batch"
+            _PreexistingActiveClient.queue_calls = 0
+            with self.assertRaisesRegex(RuntimeError, "pre-existing active game"):
+                launch_canary(
+                    output_dir=out, repo=REPO, client_class=_PreexistingActiveClient,
+                    env={"GLEE_API_KEY": API_SECRET, "GLEE_TELEMETRY_HMAC_KEY": HMAC_SECRET},
+                    per_family_games=1, concurrency=3, poll_interval=0, rehearsal=True,
+                )
+            self.assertEqual(_PreexistingActiveClient.queue_calls, 0)
+            report = json.loads((out / "reconciliation.json").read_text())
+            self.assertEqual(report["status"], "invalid")
+            self.assertIn("preflight_failure", report["fatal_runtime_events"])
+
     def test_hostile_auditor_passes_clean_synthetic_then_rejects_duplicate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             out = self._run(tmp)
@@ -303,6 +348,46 @@ class OfflineIntegrationAndHostileAuditTests(unittest.TestCase):
             audit = audit_batch(out, expected_per_family=1)
             self.assertFalse(audit["attributable"])
             self.assertIn("configuration_digest_mismatch", audit["errors"])
+
+    def test_independent_auditor_rejects_coherent_subject_tuple_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = self._run(tmp)
+            manifest_path = out / "launch_manifest.json"
+            events_path = out / "telemetry.jsonl"
+            manifest = json.loads(manifest_path.read_text())
+            config = manifest["configuration"]
+            git_row = config["git"]
+            git_row["dirty"] = False
+            git_row["tracked_diff_sha256"] = hashlib.sha256(b"").hexdigest()
+            git_row["untracked"] = []
+            git_row["dirty_digest"] = hashlib.sha256(_canonical_bytes({
+                "tracked_diff_sha256": hashlib.sha256(b"").hexdigest(), "untracked": []
+            })).hexdigest()
+            config["candidate"].update({
+                "candidate_commit": "1" * 40,
+                "entrypoint": "mutated.module:Agent",
+                "policy_path": "mutated.py",
+                "policy_sha256": "2" * 64,
+            })
+            config["agent_identity_expected"] = {"uuid": "mutated-uuid", "name": "mutated-name"}
+            digest = hashlib.sha256(_canonical_bytes(config)).hexdigest()
+            manifest["configuration_sha256"] = digest
+            manifest_path.write_bytes(_canonical_bytes(manifest))
+            rows = [json.loads(line) for line in events_path.read_text().splitlines()]
+            for row in rows:
+                row["configuration_sha256"] = digest
+                if row.get("event_type") == "identity_verified":
+                    row["identity"]["uuid"] = "mutated-uuid"
+                    row["identity"]["name"] = "mutated-name"
+            _rechain(rows)
+            events_path.write_bytes(b"".join(_canonical_bytes(row) for row in rows))
+
+            audit = audit_batch(out, expected_per_family=1)
+            self.assertFalse(audit["attributable"])
+            self.assertTrue({
+                "wrong_candidate_commit", "wrong_agent_entrypoint", "wrong_policy_path",
+                "wrong_policy_digest", "wrong_expected_identity", "observed_identity_mismatch",
+            }.issubset(set(audit["errors"])))
 
     def test_reconciliation_detects_partial_batch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

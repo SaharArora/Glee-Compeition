@@ -255,7 +255,9 @@ def _walk_dict(value: Any, prefix: str = "") -> list[tuple[str, str, Any]]:
 
 OFFICIAL_ALIASES = {
     "percentile": ("official_percentile", "percentile"),
-    "game_rating": ("official_game_rating", "game_rating", "rating"),
+    # A generic result.rating is ambiguous: captured historical payloads do not
+    # establish that it is the official per-game rating rather than an aggregate.
+    "game_rating": ("official_game_rating", "game_rating"),
     "rating_update": ("official_rating_update", "rating_update", "rating_delta"),
     "public_opponent_adjustment": (
         "official_opponent_adjustment", "public_opponent_adjustment", "opponent_adjustment"
@@ -773,6 +775,12 @@ def _validate_identity(stats: Any) -> dict[str, Any]:
             f"authenticated identity mismatch: observed {identity['uuid']}/{identity['name']}, "
             f"expected {FROZEN_AGENT_UUID}/{FROZEN_AGENT_NAME}"
         )
+    active_games = stats.get("active_games") if isinstance(stats, dict) else None
+    if isinstance(active_games, bool) or not isinstance(active_games, (int, float)):
+        raise RuntimeError("platform stats do not expose a numeric active_games preflight field")
+    if int(active_games) != 0:
+        raise RuntimeError(f"refusing launch with {int(active_games)} pre-existing active game(s)")
+    identity["active_games"] = int(active_games)
     return identity
 
 

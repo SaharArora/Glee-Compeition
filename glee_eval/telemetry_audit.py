@@ -14,14 +14,14 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Sequence
 
-from glee_eval.live_telemetry import (
-    FROZEN_AGENT_NAME,
-    FROZEN_AGENT_SPEC,
-    FROZEN_AGENT_UUID,
-    FROZEN_CANDIDATE_COMMIT,
-    FROZEN_POLICY_PATH,
-    FROZEN_POLICY_SHA256,
-)
+# Independent literal contract. Do not import these values from the subject
+# implementation: a coherent subject+manifest mutation must still fail here.
+AUDIT_EXPECTED_CANDIDATE_COMMIT = "bce578597dbfacf2ebca38399edb41a5dde2f936"
+AUDIT_EXPECTED_AGENT_SPEC = "my_agents.jordan_strategic:MyAgent"
+AUDIT_EXPECTED_AGENT_UUID = "99357c15-48d5-4177-9d6a-48d02b95a164"
+AUDIT_EXPECTED_AGENT_NAME = "gangsteryoshi"
+AUDIT_EXPECTED_POLICY_PATH = "my_agents/jordan_strategic.py"
+AUDIT_EXPECTED_POLICY_SHA256 = "27526fc4801a856cbf0db4690a336f1f375a98fbe52256c3672935a3ea24fc82"
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -84,13 +84,13 @@ def audit_batch(
     recomputed_config_sha = _sha256(_canonical_bytes(config))
     if recomputed_config_sha != manifest.get("configuration_sha256"):
         errors.append("configuration_digest_mismatch")
-    if config.get("candidate", {}).get("candidate_commit") != FROZEN_CANDIDATE_COMMIT:
+    if config.get("candidate", {}).get("candidate_commit") != AUDIT_EXPECTED_CANDIDATE_COMMIT:
         errors.append("wrong_candidate_commit")
-    if config.get("candidate", {}).get("entrypoint") != FROZEN_AGENT_SPEC:
+    if config.get("candidate", {}).get("entrypoint") != AUDIT_EXPECTED_AGENT_SPEC:
         errors.append("wrong_agent_entrypoint")
-    if config.get("candidate", {}).get("policy_path") != FROZEN_POLICY_PATH:
+    if config.get("candidate", {}).get("policy_path") != AUDIT_EXPECTED_POLICY_PATH:
         errors.append("wrong_policy_path")
-    if config.get("candidate", {}).get("policy_sha256") != FROZEN_POLICY_SHA256:
+    if config.get("candidate", {}).get("policy_sha256") != AUDIT_EXPECTED_POLICY_SHA256:
         errors.append("wrong_policy_digest")
     if config.get("git", {}).get("dirty") is not False:
         errors.append("launch_tree_dirty")
@@ -105,13 +105,13 @@ def audit_batch(
     ):
         errors.append("clean_git_claim_internally_inconsistent")
     expected_identity = config.get("agent_identity_expected", {})
-    if expected_identity != {"uuid": FROZEN_AGENT_UUID, "name": FROZEN_AGENT_NAME}:
+    if expected_identity != {"uuid": AUDIT_EXPECTED_AGENT_UUID, "name": AUDIT_EXPECTED_AGENT_NAME}:
         errors.append("wrong_expected_identity")
     identity_events = [row for row in events if row.get("event_type") == "identity_verified"]
     if len(identity_events) != 1:
         errors.append("identity_verification_not_unique")
-    elif identity_events[0].get("identity", {}).get("uuid") != FROZEN_AGENT_UUID \
-            or identity_events[0].get("identity", {}).get("name") != FROZEN_AGENT_NAME:
+    elif identity_events[0].get("identity", {}).get("uuid") != AUDIT_EXPECTED_AGENT_UUID \
+            or identity_events[0].get("identity", {}).get("name") != AUDIT_EXPECTED_AGENT_NAME:
         errors.append("observed_identity_mismatch")
     sequences = [row.get("sequence") for row in events]
     if sequences != list(range(1, len(events) + 1)):

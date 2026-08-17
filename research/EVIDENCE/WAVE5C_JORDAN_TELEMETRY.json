@@ -3,7 +3,7 @@
   "created_at_utc": "2026-08-17T03:39:55Z",
   "branch": "research/wave5c-telemetry",
   "base_commit": "9691117d11415519d1e8e0c42810957b714663c6",
-  "implementation_checkpoint": "d974c26c6f8317711944dbc94756b243f2323c2d",
+  "implementation_checkpoint": "d974c26040e64e68739b671ebdfc509151894e16",
   "frozen_candidate": {
     "commit": "bce578597dbfacf2ebca38399edb41a5dde2f936",
     "entrypoint": "my_agents.jordan_strategic:MyAgent",

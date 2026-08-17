@@ -14,7 +14,7 @@ schema without entering matchmaking.
 - policy path/hash: `my_agents/jordan_strategic.py`,
   `27526fc4801a856cbf0db4690a336f1f375a98fbe52256c3672935a3ea24fc82`;
 - platform identity: `99357c15-48d5-4177-9d6a-48d02b95a164` / `gangsteryoshi`;
-- telemetry implementation checkpoint: `d974c26c6f8317711944dbc94756b243f2323c2d`;
+- telemetry implementation checkpoint: `d974c26040e64e68739b671ebdfc509151894e16`;
 - optional artifacts: all four `GLEE_OPPONENT_POPULATION`, `GLEE_CONFIG_CATALOGUE`,
   `GLEE_RESPONSE_MODEL`, and `GLEE_SUPPORT_INDEX` must be absent.
 
@@ -81,7 +81,7 @@ until the first authorized terminal response.
 
 ## Exact future canary
 
-Prepare a clean detached checkout at `d974c26c6f8317711944dbc94756b243f2323c2d`; create a fresh
+Prepare a clean detached checkout at `d974c26040e64e68739b671ebdfc509151894e16`; create a fresh
 runtime with `python3 -m pip install -e '.[live]'`; load the API key and a distinct HMAC key; and
 verify the output directory does not yet exist. The only launch command is:
 
