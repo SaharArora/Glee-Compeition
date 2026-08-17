@@ -52,9 +52,9 @@
   },
   "verification": {
     "glee_sdk_version": "0.0.5",
-    "route_l_tests": 18,
+    "route_l_tests": 19,
     "route_l_failures": 0,
-    "live_path_compatibility_tests": 95,
+    "live_path_compatibility_tests": 96,
     "live_path_failures": 0,
     "live_path_skips_with_sdk_installed": 0,
     "clean_offline_rehearsal": {
@@ -85,7 +85,8 @@
     "glee_eval/live_telemetry.py": "12f115f9d3c6cfadc5d6c21584f24e348f654f0a757ddd01c509a3a4ce8f66a0",
     "glee_eval/telemetry_audit.py": "3c5e3f52f7458dce6b8e91de45f637366654525c1f8cb3d3e364c4bf781e0386",
     "tests/test_live_telemetry.py_at_implementation_checkpoint": "cdf25ae11002b321ad59f9c99c4c0c0b66d82643f9649d68b178b1f5ef6a9bf6",
-    "tests/test_live_telemetry.py_followup_verification": "cb5659de251dfa1d342b5f5047ec9d88da6571b01a3a543231e38f8f6980bbf4"
+    "glee_eval/live_telemetry.py_followup_control_flow_review": "9244bfd951e3bf232f0631320d69dcfcd921788e07fb05815d07e95008eeee90",
+    "tests/test_live_telemetry.py_followup_verification": "8192b638304471c53b25c45e805a3a8bd76cc078e4bdd1b8804d6001950ed700"
   },
   "readiness": {
     "exact_state": 2,

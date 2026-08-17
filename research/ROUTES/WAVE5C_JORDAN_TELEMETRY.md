@@ -49,9 +49,9 @@ identity, terminal uniqueness/completeness, required fields, and official-score 
 
 ## Verification and capability result
 
-- 18 Route-L tests passed under Python 3.14 with `glee-sdk==0.0.5`, including the real SDK
+- 19 Route-L tests passed under Python 3.14 with `glee-sdk==0.0.5`, including the real SDK
   `_handle_game` boundary with all HTTP methods replaced offline.
-- 95 live-path compatibility tests passed with no skips.
+- 96 live-path compatibility tests passed with no skips.
 - A clean three-family offline launch produced 22 linked events, three unique terminals and an
   independent hostile-audit `PASS`; secret-literal, dirty-tree, identity-mismatch,
   configuration-tamper and duplicate-terminal attacks all fail.

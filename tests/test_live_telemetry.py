@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+import ast
 import hashlib
+import inspect
 import json
 import os
 import re
@@ -17,6 +19,7 @@ from glee_eval.live_telemetry import (
     FROZEN_AGENT_UUID,
     TelemetryRecorder,
     TelemetryStrategy,
+    _redact,
     _canonical_bytes,
     build_configuration_manifest,
     capture_environment,
@@ -122,6 +125,14 @@ class _PreexistingActiveClient(_OfflineCanaryClient):
 
 
 class GitAndEnvironmentIdentityTests(unittest.TestCase):
+    def test_redact_has_one_terminal_passthrough_return(self) -> None:
+        tree = ast.parse(inspect.getsource(_redact))
+        passthroughs = [
+            node for node in ast.walk(tree) if isinstance(node, ast.Return)
+            and isinstance(node.value, ast.Name) and node.value.id == "value"
+        ]
+        self.assertEqual(len(passthroughs), 1)
+
     def test_documented_implementation_checkpoint_exists_and_resolves(self) -> None:
         evidence = json.loads((REPO / "research/EVIDENCE/WAVE5C_JORDAN_TELEMETRY.json").read_text())
         checkpoint = evidence["implementation_checkpoint"]

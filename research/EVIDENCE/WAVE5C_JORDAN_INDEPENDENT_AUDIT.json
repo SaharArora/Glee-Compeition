@@ -36,10 +36,11 @@
     "glee_eval/telemetry_audit.py": "3c5e3f52f7458dce6b8e91de45f637366654525c1f8cb3d3e364c4bf781e0386",
     "tests/test_live_telemetry.py_at_fixed_commit": "cdf25ae11002b321ad59f9c99c4c0c0b66d82643f9649d68b178b1f5ef6a9bf6"
   },
-  "followup_verification_test_sha256": "cb5659de251dfa1d342b5f5047ec9d88da6571b01a3a543231e38f8f6980bbf4",
+  "followup_control_flow_source_sha256": "9244bfd951e3bf232f0631320d69dcfcd921788e07fb05815d07e95008eeee90",
+  "followup_verification_test_sha256": "8192b638304471c53b25c45e805a3a8bd76cc078e4bdd1b8804d6001950ed700",
   "required_verification": {
-    "route_l_tests": 18,
-    "live_path_compatibility_tests": 95,
+    "route_l_tests": 19,
+    "live_path_compatibility_tests": 96,
     "failures": 0,
     "skips_with_glee_sdk_0_0_5": 0,
     "diff_check": "pass"

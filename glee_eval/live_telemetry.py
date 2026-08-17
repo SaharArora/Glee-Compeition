@@ -237,6 +237,8 @@ def _redact(value: Any, secret_values: Sequence[str] = ()) -> Any:
             if secret:
                 clean_text = clean_text.replace(secret, "<redacted-secret-value>")
         return clean_text
+    # One terminal passthrough only; duplicated returns here obscure hostile
+    # control-flow review even though the second statement would be unreachable.
     return value
 
 
