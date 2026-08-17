@@ -1,0 +1,108 @@
+{
+  "schema": "glee.research.wave5c_jordan_telemetry.v1",
+  "created_at_utc": "2026-08-17T03:39:55Z",
+  "branch": "research/wave5c-telemetry",
+  "base_commit": "9691117d11415519d1e8e0c42810957b714663c6",
+  "implementation_checkpoint": "d974c26c6f8317711944dbc94756b243f2323c2d",
+  "frozen_candidate": {
+    "commit": "bce578597dbfacf2ebca38399edb41a5dde2f936",
+    "entrypoint": "my_agents.jordan_strategic:MyAgent",
+    "policy_sha256": "27526fc4801a856cbf0db4690a336f1f375a98fbe52256c3672935a3ea24fc82",
+    "agent_uuid": "99357c15-48d5-4177-9d6a-48d02b95a164",
+    "agent_name": "gangsteryoshi"
+  },
+  "boundaries": {
+    "jordan_policy_modified": false,
+    "research_agents_modified": false,
+    "promotion_pin_modified": false,
+    "live_or_rated_games_queued": 0,
+    "live_or_rated_games_played": 0,
+    "external_calls": [
+      {
+        "endpoint": "/stats",
+        "method": "GET",
+        "count": 1,
+        "purpose": "read-only identity and capability-schema verification",
+        "active_games_observed": 0
+      }
+    ]
+  },
+  "read_only_platform_capability": {
+    "identity_match": true,
+    "agent_id_exposed": true,
+    "agent_name_exposed": true,
+    "aggregate_family_games_and_ratings_exposed": true,
+    "official_per_game_scoring_exposed_by_stats": false,
+    "terminal_move_scoring_schema_tested_live": false
+  },
+  "implementation": {
+    "exact_git_head_capture": true,
+    "deterministic_dirty_tree_digest": true,
+    "policy_commit_and_byte_match": true,
+    "agent_entrypoint_and_identity_capture": true,
+    "artifact_and_nonsecret_environment_hashes": true,
+    "secret_keyed_hmac_and_final_boundary_redaction": true,
+    "per_game_scenario_role_action_payoff_terminal_timestamps": true,
+    "official_score_fields_or_explicit_unavailable": true,
+    "batch_and_configuration_linkage": true,
+    "fsynced_sha256_event_chain": true,
+    "failure_partial_duplicate_retry_backfill_handling": true,
+    "deterministic_reconciliation_command": true,
+    "independent_hostile_attribution_auditor": true
+  },
+  "verification": {
+    "glee_sdk_version": "0.0.5",
+    "route_l_tests": 15,
+    "route_l_failures": 0,
+    "live_path_compatibility_tests": 91,
+    "live_path_failures": 0,
+    "live_path_skips_with_sdk_installed": 0,
+    "clean_offline_rehearsal": {
+      "families": 3,
+      "games_per_family": 1,
+      "terminal_games": 3,
+      "events": 22,
+      "hostile_attribution_audit": "pass",
+      "audit_errors": [],
+      "configuration_sha256": "f847ae42dfd6aa43367bf61d99be29d469f80225e831eaf83f0acd12f0c69300",
+      "launch_manifest_sha256": "9608f672cbe0921a7350ba31b875acb194c3a240728f33c2ea1a147636846e31",
+      "event_ledger_sha256": "c567964dd73916b4eabe18a2eba20a7245a7ffdf0bc3300bda368792cd492861",
+      "reconciliation_sha256": "5d18cfe61851b6a200228c62b588cdd2c402ee02249c3cf5995be3112d783211"
+    },
+    "hostile_cases": [
+      "secret literal echo",
+      "missing HMAC key",
+      "dirty launch tree",
+      "identity mismatch",
+      "configuration tampering",
+      "duplicate terminal",
+      "partial batch",
+      "missing official game rating",
+      "low-rating prospective stop"
+    ]
+  },
+  "source_sha256": {
+    "glee_eval/live_telemetry.py": "a83f3ff0ec3dde7a2e31670c6ad3257076ba25c7f8638f529d262d8dc2e33574",
+    "glee_eval/telemetry_audit.py": "89f85ad2b74e8974b5831bfe9b792f2b8ed6577c830d907ff17c13f0c2ac44d2",
+    "tests/test_live_telemetry.py": "84d0dd2be9f354fc50d400c4e8b29d48c237a1c6c800f0d9e1e57e1a218796c4"
+  },
+  "readiness": {
+    "exact_state": 2,
+    "label": "ready for one bounded live canary; not authorized or executed",
+    "states_3_to_5_established": false,
+    "remaining_prerequisites": [
+      "separate exact authorization sentence",
+      "clean detached telemetry checkpoint",
+      "GLEE_API_KEY and independent at-least-32-byte GLEE_TELEMETRY_HMAC_KEY",
+      "fresh output directory and glee-sdk 0.0.5 runtime"
+    ],
+    "runtime_uncertainty": "actual terminal payload official per-game score fields remain untested; explicit unavailable markers trigger a bounded global stop after the first one-per-family wave"
+  },
+  "future_canary": {
+    "maximum_games": 300,
+    "terminal_games_per_family": 100,
+    "concurrency": 3,
+    "expansion_authorized": false,
+    "authorization_sentence": "I authorize exactly one bounded Jordan canary of at most 300 live/rated games—100 terminal games per family—using the frozen Wave 5C Route-L tuple and stop rules, and no other live games."
+  }
+}
